@@ -4,10 +4,10 @@ export default function HomePage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-start justify-center gap-6 p-6">
       <div>
-        <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">Sprint 1</p>
+        <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">Sprint 2</p>
         <h1 className="mt-2 text-4xl font-bold text-slate-900">Nex Gestão Vendas</h1>
         <p className="mt-3 max-w-2xl text-slate-600">
-          PDV local-first com Supabase Auth, Postgres, RLS e RPC transacional de vendas.
+          PDV local-first com Dexie, outbox idempotente, sync multi-aba e RPC transacional de vendas em dinheiro.
         </p>
       </div>
       <div className="flex gap-3">

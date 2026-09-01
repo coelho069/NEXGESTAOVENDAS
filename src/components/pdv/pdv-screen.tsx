@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ProductGrid } from "@/components/pdv/product-grid";
 import { CartPanel } from "@/components/pdv/cart-panel";
+import { ConflictBanner } from "@/components/pdv/conflict-banner";
 import { SyncStatusBadge } from "@/components/pdv/sync-status-badge";
 import { useProducts } from "@/hooks/use-products";
 import { useCheckout } from "@/hooks/use-checkout";
@@ -20,7 +21,7 @@ export function PdvScreen() {
   const { products, loading, error } = useProducts();
   const { storeId, setStoreId, lines, addLine, updateQuantity, removeLine, discount, total } =
     useCartStore();
-  const { online, pendingCount, syncing } = useSyncStore();
+  const { online, pendingCount, syncing, conflicts, quotaExceeded, sessionEnded } = useSyncStore();
   const { checkoutCash } = useCheckout();
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -32,9 +33,9 @@ export function PdvScreen() {
     try {
       const result = await checkoutCash();
       if ("offline" in result && result.offline) {
-        setMessage("Venda salva offline. Será sincronizada quando a conexão voltar.");
+        setMessage("Venda salva localmente. Será sincronizada quando a conexão voltar.");
       } else {
-        setMessage(`Venda confirmada: ${result.sale_id ?? "ok"}`);
+        setMessage(`Venda confirmada: ${result.saleId ?? "ok"}`);
       }
     } catch (checkoutError) {
       setMessage(checkoutError instanceof Error ? checkoutError.message : "Erro no checkout");
@@ -46,9 +47,14 @@ export function PdvScreen() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">PDV Local-first</h1>
-          <p className="text-sm text-slate-500">Sprint 1 — pagamento em dinheiro</p>
+          <p className="text-sm text-slate-500">Sprint 2 — Dexie outbox, sync e conflito visível</p>
         </div>
-        <SyncStatusBadge online={online} pendingCount={pendingCount} syncing={syncing} />
+        <SyncStatusBadge
+          online={online}
+          pendingCount={pendingCount}
+          syncing={syncing}
+          conflictCount={conflicts.length}
+        />
       </header>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -75,6 +81,24 @@ export function PdvScreen() {
           onChange={(event) => setQuery(event.target.value)}
         />
       </div>
+
+      {sessionEnded ? (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          Sessão encerrada. Faça login novamente.
+        </div>
+      ) : null}
+
+      {quotaExceeded ? (
+        <div
+          role="alert"
+          data-testid="quota-exceeded"
+          className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900"
+        >
+          Armazenamento local cheio. Libere espaço antes de fechar novas vendas.
+        </div>
+      ) : null}
+
+      <ConflictBanner conflicts={conflicts} />
 
       {message ? (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">

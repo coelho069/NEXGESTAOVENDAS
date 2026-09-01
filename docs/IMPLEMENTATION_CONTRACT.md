@@ -129,3 +129,57 @@ Auth (`pnpm seed:auth`):
 ## 10. Fora de escopo explícito
 
 Sprint 2+: relatórios, estorno UI, cartão/pix real, NFC-e/SAT, multi-tenant avançado, backoffice completo.
+
+---
+
+# Sprint 2 — Dexie local-first e sync
+
+Anexo. O contrato Sprint 1 (RPC `process_sale`, RLS, adapters cash/not_configured, tipos gerados) permanece válido e não foi alterado.
+
+## IndexedDB `pdv_local_v1`
+
+Dexie database name: `pdv_local_v1`.
+
+Stores: `sales`, `saleItems`, `payments`, `inventoryBalances`, `outbox`, `conflicts`, `meta`.
+
+## Fechar venda
+
+Uma única transação IndexedDB grava: venda + itens + pagamentos + estoque projetado + outbox.
+
+## Outbox
+
+- Chave primária: `clientMutationId` (UUID imutável).
+- Retry faz `put` na mesma chave. Nunca recria o id.
+- Payload `client_mutation_id` é o mesmo valor.
+
+## Sync
+
+| Função | Papel |
+|--------|--------|
+| `pushPendingCommands` | POST `/api/sales/process` (Sprint 1) |
+| `pullChanges` | GET `/api/sync/changes` |
+| `reconcileSale` | Confirma venda aceita (`confirmed` / `synced`) |
+| `recordConflict` | HTTP 409/422 → conflito visível |
+
+## Backoff
+
+`1, 2, 4, 8, 16` segundos, teto 60s, jitter `[0.5, 1.0]`. 10 falhas transitórias → `failed`.
+
+## HTTP
+
+- 408 / 429 / 5xx: transitório (retry)
+- 401: encerra sessão (não grava token)
+- 409 / 422: `recordConflict`
+
+## Concorrência
+
+- `startHeartbeat` — liveness/online. Não adquire lock.
+- `withMultiTabLock` — apenas uma aba sincroniza.
+
+## Zustand
+
+Sem `token`, PAN ou CVV. Persist do carrinho pode ser desligado (`persist: false`). `partialize` remove segredos.
+
+## Fora de escopo (não iniciado)
+
+Sprint 3/4: relatórios, estorno UI, cartão/pix real, NFC-e/SAT.

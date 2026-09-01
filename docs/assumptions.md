@@ -61,3 +61,15 @@ IDs fixos no seed para facilitar QA local:
 
 - Supabase local requer Docker (não disponível neste ambiente de bootstrap).
 - Deploy frontend compatível com Vercel; secrets via env server-only.
+
+---
+
+# Sprint 2
+
+- Banco local Dexie `pdv_local_v1` substitui a fila `idb` do checkout; RPC Sprint 1 inalterada.
+- Checkout é local-first: a venda fecha no IndexedDB mesmo online; o push usa `/api/sales/process`.
+- Estoque local é projetado; `pullChanges` aplica saldo do servidor menos reservas `pending`/`processing`.
+- Conflito 409/422 restaura estoque projetado e permanece visível na UI.
+- Heartbeat e multi-tab lock são módulos distintos.
+- Sem `NEXT_PUBLIC_*` com service role ou outros segredos.
+- Cartão/Pix/NFC-e continuam `not_configured` (Sprint 3/4).

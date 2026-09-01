@@ -1,3 +1,50 @@
+# Agent Log — Sprint 2
+
+**Data:** 2026-09-01  
+**Agente:** Cursor Grok 4.6  
+**Escopo:** Sprint 2 local-first (Dexie, outbox, sync). Sprint 1 não alterado. Sprint 3/4 não iniciado.
+
+## Objetivo
+
+Persistência IndexedDB transacional (`pdv_local_v1`), outbox com `clientMutationId` imutável, sync (`pushPendingCommands`, `pullChanges`, `reconcileSale`, `recordConflict`), heartbeat separado de multi-tab lock, Zustand sem token/PAN/CVV.
+
+## Decisões
+
+1. **Dexie** database name `pdv_local_v1` (sales, saleItems, payments, inventoryBalances, outbox, conflicts, meta).
+2. **closeSale** = 1 transação IndexedDB; replay do mesmo `clientMutationId` não duplica.
+3. **Retry** só faz `put` na chave existente; 10 falhas transitórias → `failed`.
+4. **Backoff** 1,2,4,8,16s, teto 60s, jitter 0.5–1.0×.
+5. **HTTP:** 408/429/5xx transitório; 401 encerra sessão; 409/422 `recordConflict` visível.
+6. **Heartbeat** (`src/lib/offline/heartbeat.ts`) não importa nem chama `withMultiTabLock`.
+7. **Zustand:** session store sem token; cart persist opcional e `stripSecrets`.
+8. **API nova:** `GET /api/sync/changes` (Zod). `POST /api/sales/process` e RPC Sprint 1 intactos.
+9. **Sem** `NEXT_PUBLIC_` com service role. AGENTS.md da raiz não foi recriado nem editado.
+
+## Testes
+
+- persist off
+- reload sem duplicar
+- retry seguro
+- idempotência 3x
+- conflito visível (409/422)
+- quota IndexedDB
+
+## Verificações executadas
+
+| Comando            | Resultado |
+|--------------------|-----------|
+| `pnpm test`        | 22 OK     |
+| `pnpm typecheck`   | OK        |
+| `pnpm lint`        | OK        |
+
+Sprint 1 unitários continuam passando. AGENTS.md da raiz não foi modificado.
+
+## Fora de escopo
+
+Sprint 3/4, pagamentos eletrônicos reais, NFC-e/SAT, relatórios, estorno UI. Migrations/RPC/RLS/adapters Sprint 1 não modificados.
+
+---
+
 # Agent Log — Sprint 1 bootstrap
 
 **Data:** 2026-09-01  

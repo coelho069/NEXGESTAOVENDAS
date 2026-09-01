@@ -39,3 +39,10 @@ export const loginInputSchema = z.object({
 });
 
 export type LoginInput = z.infer<typeof loginInputSchema>;
+
+export const pullChangesQuerySchema = z.object({
+  store_id: z.string().uuid(),
+  since: z.string().min(1).optional(),
+});
+
+export type PullChangesQuery = z.infer<typeof pullChangesQuerySchema>;

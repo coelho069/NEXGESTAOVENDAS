@@ -1,13 +1,13 @@
 # Nex Gestão Vendas — PDV Local-first
 
-Sprint 1 do PDV local-first para varejo brasileiro (BRL, `America/Sao_Paulo`).
+Sprint 2 do PDV local-first para varejo brasileiro (BRL, `America/Sao_Paulo`): Dexie `pdv_local_v1`, outbox idempotente e sync com conflito visível. O contrato Sprint 1 (RPC cash, RLS, adapters) permanece.
 
 ## Stack
 
 - Next.js 14 App Router + TypeScript strict + Tailwind (`@/*`)
 - Supabase Auth + Postgres + RLS
 - pnpm
-- Zustand + IndexedDB para fila offline
+- Zustand + Dexie (`pdv_local_v1`) para PDV local-first
 - Zod nas rotas de API
 - Vitest + Playwright
 
@@ -19,7 +19,16 @@ Sprint 1 do PDV local-first para varejo brasileiro (BRL, `America/Sao_Paulo`).
 - Fila offline (`pending_sync`) com replay idempotente via RPC `public.process_sale`
 - Adapters cartão/pix/NFC-e/SAT expostos como `not_configured`
 
-Fora de escopo: Sprint 2/3/4.
+## Escopo Sprint 2
+
+- Dexie `pdv_local_v1`
+- Fechar venda em 1 transação IndexedDB (venda + itens + pagamentos + estoque projetado + outbox)
+- Outbox com `clientMutationId` imutável
+- `pushPendingCommands`, `pullChanges`, `reconcileSale`, `recordConflict`
+- Heartbeat separado de multi-tab lock
+- Zustand sem token / PAN / CVV
+
+Fora de escopo: Sprint 3/4 (relatórios, cartão/pix real, NFC-e/SAT).
 
 ## Setup local
 

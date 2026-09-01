@@ -1,0 +1,160 @@
+import { backoffDelayMs, shouldMarkOutboxFailed } from "@/lib/offline/backoff";
+import type { PdvLocalDatabase } from "@/lib/offline/pdv-local-db";
+import type { OutboxCommand } from "@/lib/offline/types";
+
+export function assertImmutableClientMutationId(previous: string, next: string): void {
+  if (previous !== next) {
+    throw new Error("clientMutationId is immutable; retry must not recreate the outbox key");
+  }
+}
+
+export async function getOutboxCommand(
+  db: PdvLocalDatabase,
+  clientMutationId: string
+): Promise<OutboxCommand | undefined> {
+  return db.outbox.get(clientMutationId);
+}
+
+export async function listDueOutboxCommands(
+  db: PdvLocalDatabase,
+  now: Date = new Date()
+): Promise<OutboxCommand[]> {
+  const nowIso = now.toISOString();
+  const pending = await db.outbox.where("status").anyOf(["pending", "processing"]).toArray();
+  return pending
+    .filter((command) => command.nextAttemptAt <= nowIso)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export async function resetStuckProcessing(
+  db: PdvLocalDatabase,
+  now: Date = new Date(),
+  stuckAfterMs = 30_000
+): Promise<void> {
+  const stuckBefore = new Date(now.getTime() - stuckAfterMs).toISOString();
+  const processing = await db.outbox.where("status").equals("processing").toArray();
+  for (const command of processing) {
+    if (command.updatedAt <= stuckBefore) {
+      await replaceOutbox(db, command, {
+        ...command,
+        status: "pending",
+        updatedAt: now.toISOString(),
+      });
+    }
+  }
+}
+
+export async function markOutboxProcessing(
+  db: PdvLocalDatabase,
+  clientMutationId: string,
+  now: Date = new Date()
+): Promise<OutboxCommand> {
+  const existing = await requireOutbox(db, clientMutationId);
+  return replaceOutbox(db, existing, {
+    ...existing,
+    status: "processing",
+    updatedAt: now.toISOString(),
+  });
+}
+
+export async function scheduleOutboxRetry(
+  db: PdvLocalDatabase,
+  clientMutationId: string,
+  lastError: string,
+  options?: { now?: Date; random?: () => number }
+): Promise<OutboxCommand> {
+  const existing = await requireOutbox(db, clientMutationId);
+  const attemptCount = existing.attemptCount + 1;
+  const now = options?.now ?? new Date();
+  const failed = shouldMarkOutboxFailed(attemptCount);
+  const nextAttemptAt = failed
+    ? existing.nextAttemptAt
+    : new Date(now.getTime() + backoffDelayMs(attemptCount - 1, options?.random)).toISOString();
+
+  return replaceOutbox(db, existing, {
+    ...existing,
+    status: failed ? "failed" : "pending",
+    attemptCount,
+    lastError,
+    nextAttemptAt,
+    updatedAt: now.toISOString(),
+  });
+}
+
+export async function markOutboxSynced(
+  db: PdvLocalDatabase,
+  clientMutationId: string,
+  now: Date = new Date()
+): Promise<OutboxCommand> {
+  const existing = await requireOutbox(db, clientMutationId);
+  return replaceOutbox(db, existing, {
+    ...existing,
+    status: "synced",
+    lastError: undefined,
+    updatedAt: now.toISOString(),
+  });
+}
+
+export async function markOutboxConflict(
+  db: PdvLocalDatabase,
+  clientMutationId: string,
+  lastError: string,
+  now: Date = new Date()
+): Promise<OutboxCommand> {
+  const existing = await requireOutbox(db, clientMutationId);
+  return replaceOutbox(db, existing, {
+    ...existing,
+    status: "conflict",
+    lastError,
+    updatedAt: now.toISOString(),
+  });
+}
+
+export async function releaseOutboxProcessing(
+  db: PdvLocalDatabase,
+  clientMutationId: string,
+  now: Date = new Date()
+): Promise<OutboxCommand> {
+  const existing = await requireOutbox(db, clientMutationId);
+  return replaceOutbox(db, existing, {
+    ...existing,
+    status: "pending",
+    updatedAt: now.toISOString(),
+  });
+}
+
+export async function markOutboxFailed(
+  db: PdvLocalDatabase,
+  clientMutationId: string,
+  lastError: string,
+  now: Date = new Date()
+): Promise<OutboxCommand> {
+  const existing = await requireOutbox(db, clientMutationId);
+  return replaceOutbox(db, existing, {
+    ...existing,
+    status: "failed",
+    lastError,
+    updatedAt: now.toISOString(),
+  });
+}
+
+async function requireOutbox(db: PdvLocalDatabase, clientMutationId: string): Promise<OutboxCommand> {
+  const existing = await db.outbox.get(clientMutationId);
+  if (!existing) {
+    throw new Error(`Outbox command not found: ${clientMutationId}`);
+  }
+  return existing;
+}
+
+async function replaceOutbox(
+  db: PdvLocalDatabase,
+  previous: OutboxCommand,
+  next: OutboxCommand
+): Promise<OutboxCommand> {
+  assertImmutableClientMutationId(previous.clientMutationId, next.clientMutationId);
+  if (next.payload.client_mutation_id !== previous.clientMutationId) {
+    throw new Error("clientMutationId is immutable; retry must not recreate the outbox key");
+  }
+  await db.outbox.put(next);
+  return next;
+}
