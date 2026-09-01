@@ -46,3 +46,65 @@ export const pullChangesQuerySchema = z.object({
 });
 
 export type PullChangesQuery = z.infer<typeof pullChangesQuerySchema>;
+
+const quantitySchema = z.number().refine((value) => Number.isFinite(value) && value !== 0, {
+  message: "delta must be a non-zero number",
+});
+
+export const inventoryAdjustSchema = z
+  .object({
+    store_id: z.string().uuid(),
+    product_id: z.string().uuid().optional(),
+    sku: z.string().min(1).optional(),
+    delta: quantitySchema,
+    reason: z.string().trim().min(1).max(500),
+    movement_type: z.enum(["restock", "adjustment"]),
+  })
+  .refine((data) => data.movement_type !== "restock" || data.delta > 0, {
+    message: "restock requires positive delta",
+    path: ["delta"],
+  });
+
+export type InventoryAdjustInput = z.infer<typeof inventoryAdjustSchema>;
+
+export const inventoryImportSchema = z.object({
+  store_id: z.string().uuid(),
+  csv: z.string().min(1),
+});
+
+export type InventoryImportInput = z.infer<typeof inventoryImportSchema>;
+
+export const inventoryListQuerySchema = z.object({
+  store_id: z.string().uuid(),
+  cursor_sku: z.string().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+});
+
+export type InventoryListQuery = z.infer<typeof inventoryListQuerySchema>;
+
+export const dashboardMetricsQuerySchema = z.object({
+  store_id: z.string().uuid(),
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  cursor_sku: z.string().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+});
+
+export type DashboardMetricsQuery = z.infer<typeof dashboardMetricsQuerySchema>;
+
+export const productWriteSchema = z.object({
+  store_id: z.string().uuid().optional(),
+  sku: z.string().trim().min(1).max(64),
+  name: z.string().trim().min(1).max(200),
+  unit_price: z.string().regex(moneyPattern, "unit_price must be numeric(12,2) string"),
+  cost_price: z.string().regex(moneyPattern, "cost_price must be numeric(12,2) string"),
+  barcode: z.string().trim().max(64).nullable().optional(),
+  is_active: z.boolean().optional().default(true),
+  category_id: z.string().uuid().nullable().optional(),
+});
+
+export type ProductWriteInput = z.infer<typeof productWriteSchema>;
+
+export const productPatchSchema = productWriteSchema.omit({ store_id: true }).partial();
+
+export type ProductPatchInput = z.infer<typeof productPatchSchema>;

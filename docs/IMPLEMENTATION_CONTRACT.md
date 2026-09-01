@@ -180,9 +180,9 @@ Uma única transação IndexedDB grava: venda + itens + pagamentos + estoque pro
 
 Sem `token`, PAN ou CVV. Persist do carrinho pode ser desligado (`persist: false`). `partialize` remove segredos.
 
-## Fora de escopo (não iniciado)
+## Fora de escopo (permanece)
 
-Sprint 4: relatórios, estorno UI, cartão/pix real, NFC-e/SAT.
+Estorno UI, cartão/pix real, NFC-e/SAT. Relatórios e inventário: anexo Sprint 4.
 
 ---
 
@@ -230,6 +230,42 @@ Limite percentual sobre o subtotal:
 
 F2 / Ctrl+K busca · F4 cliente · F6 desconto · F8 pagamento · F9 recibo · Esc fecha · +/- quantidade da linha.
 
-## Fora de escopo (não iniciado)
+## Fora de escopo (permanece)
 
-Sprint 4: relatórios, estorno UI, cartão/pix real, NFC-e/SAT.
+Estorno UI, cartão/pix real, NFC-e/SAT. Inventário, dashboard e RBAC: ver anexo Sprint 4.
+
+---
+
+# Sprint 4 — Inventário, dashboard e RBAC
+
+Anexo. Contratos Sprint 1–3 permanecem. Nova migration `20250901000005_sprint4_inventory_dashboard_rbac.sql` apenas. Não altera `process_sale` nem Dexie/sync.
+
+## Inventário
+
+- Quantidade **não** tem UPDATE direto em `inventory_balances` (sem policy de escrita; CHECK `quantity >= 0`).
+- Ajuste via RPC `public.adjust_inventory` (`SECURITY DEFINER`, `auth.uid()`, papel admin/manager, motivo obrigatório, `movement_type` restock|adjustment, lock `FOR UPDATE`, bloqueio de negativo).
+- Auditoria: `inventory_movements.reason`, `inventory_movements.actor_role` + `audit_logs` action `adjust_inventory`.
+- Listagem paginada (cursor SKU) em `get_inventory_page`. Caixa não recebe `cost_price`.
+- CSV import `sku,delta,reason,movement_type` com erros por linha; export omite custo para caixa.
+- CRUD de produto: `POST /api/products`, `PATCH /api/products/[id]` (Zod `0.00`); manager/admin via RLS.
+
+## Dashboard
+
+- View `analytics.product_period_metrics` (`security_invoker`, schema `analytics` revogado de `anon`/`authenticated`).
+- RPC `get_dashboard_metrics`: receita, COGS, lucro, margem %, unidades, sell-through, filtro loja/período (`America/Sao_Paulo`), paginação cursor SKU.
+- Caixa: `forbidden_reports` (API 403). `PermissionGate` é fallback de UX.
+- SSR em `/dashboard` com estado degradado se Supabase estiver ausente.
+
+## RBAC
+
+| Papel | Inventário | Relatórios | Preço/custo |
+|-------|------------|------------|-------------|
+| cashier | leitura (ativos) | bloqueado | sem custo |
+| manager | ajustar + produtos | sim | sim |
+| admin | ajustar + produtos | sim | sim |
+
+Índices: `sale_items (sale_id, product_id)`, movimentos por loja/tempo, vendas `(store_id, status, created_at)`.
+
+## Fora de escopo (permanece)
+
+NFC-e/SAT real, integração bancária real, estorno UI, pagamentos eletrônicos reais.

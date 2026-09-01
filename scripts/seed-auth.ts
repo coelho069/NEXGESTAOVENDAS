@@ -18,6 +18,13 @@ const USERS = [
     role: "admin" as const,
   },
   {
+    id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    email: "manager@example.invalid",
+    password: "Manager123!",
+    fullName: "Gerente Demo",
+    role: "manager" as const,
+  },
+  {
     id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     email: "cashier@example.invalid",
     password: "Cashier123!",
@@ -75,6 +82,7 @@ async function main() {
 
   console.log("Seed auth completed.");
   console.log("Admin: admin@example.invalid / Admin123!");
+  console.log("Manager: manager@example.invalid / Manager123!");
   console.log("Cashier: cashier@example.invalid / Cashier123!");
 }
 

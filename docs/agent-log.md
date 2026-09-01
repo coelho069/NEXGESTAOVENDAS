@@ -1,4 +1,47 @@
+# Agent Log — Sprint 4
+
+**Data:** 2026-09-01  
+**Agente:** Cursor Grok 4.6  
+**Escopo:** Sprint 4 inventário auditado, dashboard SSR e RBAC. Sprints 1–3 não sobrescritos.
+
+## Objetivo
+
+CRUD de inventário sem edição direta de quantidade, métricas de rentabilidade no servidor e papéis admin/manager/cashier enforced em RLS/RPC (`PermissionGate` só UX).
+
+## Decisões
+
+1. **Migration nova** `20250901000005_sprint4_inventory_dashboard_rbac.sql`: `reason`/`actor_role` em `inventory_movements`; RPCs `adjust_inventory`, `get_dashboard_metrics`, `get_inventory_page`; helpers `user_can_manage_inventory` / `user_can_view_reports`; policies manager; view `analytics.product_period_metrics` (`security_invoker`, schema revogado de `anon`/`authenticated`).
+2. **Quantidade** só via RPC (lock `FOR UPDATE`, bloqueio de negativo, audit_log). Sem policy de UPDATE em `inventory_balances`.
+3. **Dashboard** COGS/margem/sell-through em `decimal.js` no domínio e agregação SQL; filtros loja/período `America/Sao_Paulo`; cursor SKU; estado degradado sem Supabase.
+4. **CSV** `sku,delta,reason,movement_type` com erros por linha; lookup de SKU filtrado por `org_id`.
+5. **RBAC:** caixa sem relatórios, ajustes e `cost_price`. Manager no seed (`manager@example.invalid`).
+6. **Tipos** via snapshot + `pnpm db:types`. Sem `NEXT_PUBLIC_` de service role. Sem NFC-e, banco real ou estorno.
+
+## Testes
+
+- Unit: CSV (header/delta/restock/motivo), export sem custo, estoque negativo, COGS/margem/sell-through, isolamento de org, Zod, PermissionGate
+- E2E: tabela de inventário + erros CSV
+- E2E: dashboard degradado + caixa `permission-denied` + métricas no papel gerente
+
+## Verificações executadas
+
+| Comando            | Resultado |
+|--------------------|-----------|
+| `pnpm test`        | 41 OK     |
+| `pnpm typecheck`   | OK        |
+| `pnpm lint`        | OK        |
+| `pnpm test:e2e`    | 9 OK      |
+
+Migrations `000001`–`000004`, RPC `process_sale` e Dexie/sync-engine não foram modificados.
+
+## Fora de escopo
+
+NFC-e/SAT real, pagamentos eletrônicos reais, integração bancária, estorno UI.
+
+---
+
 # Agent Log — Sprint 3
+
 
 **Data:** 2026-09-01  
 **Agente:** Cursor Grok 4.6  

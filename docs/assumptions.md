@@ -72,7 +72,7 @@ IDs fixos no seed para facilitar QA local:
 - Conflito 409/422 restaura estoque projetado e permanece visível na UI.
 - Heartbeat e multi-tab lock são módulos distintos.
 - Sem `NEXT_PUBLIC_*` com service role ou outros segredos.
-- Cartão/Pix/NFC-e continuam `not_configured` (Sprint 4).
+- Cartão/Pix/NFC-e continuam `not_configured`.
 
 ---
 
@@ -83,4 +83,13 @@ IDs fixos no seed para facilitar QA local:
 - Desconto limitado por papel (caixa 5%, gerente 20%, admin até o subtotal).
 - Pagamento falho / `not_configured` mantém rascunho local; recibo HTML inclui status de sincronização.
 - Scanner HID não zera o carrinho. Busca textual é debounced.
-- Sprint 4 (relatórios, cartão/pix real, NFC-e) não iniciado.
+
+---
+
+# Sprint 4
+
+- Quantidade de estoque só muda por movimento auditado (`adjust_inventory` / venda); CSV com relatório de erros.
+- Dashboard SSR (COGS, margem, sell-through) com filtros de loja/período em `America/Sao_Paulo` e estado degradado.
+- RBAC no servidor (RLS + RPC). Caixa não vê relatórios nem custo. `PermissionGate` é só UX.
+- Manager entra no seed (`manager@example.invalid`).
+- NFC-e, banco real e estorno continuam fora.

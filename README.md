@@ -1,6 +1,6 @@
 # Nex Gestão Vendas — PDV Local-first
 
-Sprint 3 do PDV local-first para varejo brasileiro (BRL, `America/Sao_Paulo`): interface de vendas, regras de carrinho testáveis, scanner HID e recibo com status de sincronização. Os contratos Sprint 1 (RPC cash, RLS) e Sprint 2 (Dexie outbox) permanecem.
+Sprint 4 do PDV local-first para varejo brasileiro (BRL, `America/Sao_Paulo`): inventário auditado, dashboard SSR de rentabilidade e RBAC. Os contratos Sprint 1 (RPC cash, RLS), Sprint 2 (Dexie outbox) e Sprint 3 (UI de vendas) permanecem.
 
 ## Stack
 
@@ -36,7 +36,14 @@ Sprint 3 do PDV local-first para varejo brasileiro (BRL, `America/Sao_Paulo`): i
 - Cliente, desconto (limites por papel) e recibo HTML com status de sync
 - Pagamento falho permanece rascunho local
 
-Fora de escopo: Sprint 4 (relatórios, cartão/pix real, NFC-e/SAT).
+## Escopo Sprint 4
+
+- Inventário: listagem paginada, ajuste via RPC (`reason` + papel), CSV import/export com erros
+- Dashboard SSR: COGS, margem, sell-through, filtro loja/período, estado degradado
+- RBAC: cashier sem relatórios/ajustes/custo; manager/admin no servidor (RLS/RPC)
+- `PermissionGate` apenas como fallback de UX
+
+Fora de escopo: NFC-e/SAT real, cartão/pix real, estorno UI, integração bancária.
 
 ## Setup local
 
@@ -61,6 +68,7 @@ App: http://localhost:3000
 | Papel   | E-mail                   | Senha        |
 |---------|--------------------------|--------------|
 | Admin   | admin@example.invalid    | Admin123!    |
+| Gerente | manager@example.invalid  | Manager123!  |
 | Caixa   | cashier@example.invalid  | Cashier123!  |
 
 ## Scripts

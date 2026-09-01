@@ -181,6 +181,8 @@ export type Database = {
           org_id: string;
           product_id: string;
           quantity_change: number;
+          reason: string | null;
+          actor_role: Database["public"]["Enums"]["member_role"] | null;
           sale_id: string | null;
           store_id: string;
         };
@@ -193,6 +195,8 @@ export type Database = {
           org_id: string;
           product_id: string;
           quantity_change: number;
+          reason?: string | null;
+          actor_role?: Database["public"]["Enums"]["member_role"] | null;
           sale_id?: string | null;
           store_id: string;
         };
@@ -205,6 +209,8 @@ export type Database = {
           org_id?: string;
           product_id?: string;
           quantity_change?: number;
+          reason?: string | null;
+          actor_role?: Database["public"]["Enums"]["member_role"] | null;
           sale_id?: string | null;
           store_id?: string;
         };
@@ -529,9 +535,23 @@ export type Database = {
         Args: { p_payload: Json };
         Returns: Json;
       };
+      adjust_inventory: {
+        Args: { p_payload: Json };
+        Returns: Json;
+      };
+      get_dashboard_metrics: {
+        Args: { p_payload: Json };
+        Returns: Json;
+      };
+      get_inventory_page: {
+        Args: { p_payload: Json };
+        Returns: Json;
+      };
       current_user_org_id: { Args: Record<string, never>; Returns: string };
       user_has_store_access: { Args: { p_store_id: string }; Returns: boolean };
       user_store_role: { Args: { p_store_id: string }; Returns: Database["public"]["Enums"]["member_role"] };
+      user_can_manage_inventory: { Args: { p_store_id: string }; Returns: boolean };
+      user_can_view_reports: { Args: { p_store_id: string }; Returns: boolean };
     };
     Enums: {
       adapter_status: "configured" | "not_configured" | "error";

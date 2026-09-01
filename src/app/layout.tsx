@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Nex Gestão Vendas — PDV",
-  description: "PDV local-first Sprint 3",
+  description: "PDV local-first Sprint 4",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
