@@ -1,3 +1,50 @@
+# Agent Log — Sprint 3
+
+**Data:** 2026-09-01  
+**Agente:** Cursor Grok 4.6  
+**Escopo:** Sprint 3 interface de vendas. Sprints 1 e 2 não alterados. Sprint 4 não iniciado.
+
+## Objetivo
+
+PDV usável: layout desktop/tablet, busca com debounce, scanner HID, estoque projetado, cliente, descontos por papel, pagamento cash, rascunho em falha e recibo HTML com status de sync.
+
+## Decisões
+
+1. **Domínio puro** em `src/lib/domain/sale-ops.ts` (addItem, removeItem, setQuantity, applyDiscount, calculateTotals, validateSale) com strings `0.00`.
+2. **Layout** CSS: 3 colunas em `lg+`; 2 colunas em `md` + sheet de pagamento (`lg:hidden`).
+3. **HID** detecta rajada < 45ms + Enter; não limpa linhas existentes.
+4. **Desconto:** caixa 5%, gerente 20%, admin 100% limitado ao subtotal.
+5. **Pagamento `not_configured`** → rascunho local (carrinho permanece, sem `closeSale`).
+6. **Recibo** HTML com `syncStatus` / `saleStatus` (America/Sao_Paulo).
+7. Catálogo e clientes demo como fallback sem Supabase (E2E local).
+8. Sem mudanças em migrations, RPC, RLS, Dexie schema, outbox ou sync-engine.
+
+## Testes
+
+- Unit: regras de carrinho, limites de desconto, HID, recibo, atalhos, rascunho
+- E2E: SKU → qtd → desconto → pagamento → recibo
+- E2E: offline + status de sync no recibo
+- E2E: scanner HID sem limpar carrinho
+- E2E: pagamento cartão permanece rascunho
+- E2E: tablet sheet
+
+## Verificações executadas
+
+| Comando            | Resultado |
+|--------------------|-----------|
+| `pnpm test`        | 32 OK     |
+| `pnpm typecheck`   | OK        |
+| `pnpm lint`        | OK        |
+| `pnpm test:e2e`    | 7 OK      |
+
+Sprint 1 e 2 unitários continuam passando. Migrations/RPC/RLS/Dexie schema/sync-engine não foram modificados.
+
+## Fora de escopo
+
+Sprint 4, pagamentos eletrônicos reais, NFC-e/SAT, relatórios, estorno UI.
+
+---
+
 # Agent Log — Sprint 2
 
 **Data:** 2026-09-01  

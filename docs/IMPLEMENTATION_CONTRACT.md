@@ -182,4 +182,54 @@ Sem `token`, PAN ou CVV. Persist do carrinho pode ser desligado (`persist: false
 
 ## Fora de escopo (não iniciado)
 
-Sprint 3/4: relatórios, estorno UI, cartão/pix real, NFC-e/SAT.
+Sprint 4: relatórios, estorno UI, cartão/pix real, NFC-e/SAT.
+
+---
+
+# Sprint 3 — Interface de vendas
+
+Anexo. Contratos Sprint 1 (RPC `process_sale`, RLS, adapters) e Sprint 2 (Dexie `pdv_local_v1`, outbox, sync) permanecem. Este sprint não altera migrations, RPC nem o motor de sync.
+
+## Layout
+
+| Viewport | Regiões |
+|----------|---------|
+| Desktop (`lg+`) | Busca esquerda, carrinho centro, resumo/ações direita |
+| Tablet (`md`) | Duas regiões (busca + carrinho); pagamento em sheet |
+
+## Regras de domínio (puras)
+
+`addItem`, `removeItem`, `setQuantity`, `applyDiscount`, `calculateTotals`, `validateSale` em `src/lib/domain/sale-ops.ts`.
+
+- Valores monetários em string `0.00` (`decimal.js`). Sem float para dinheiro.
+- Estoque negativo bloqueado; produto inativo rejeitado.
+- Estoque projetado = saldo local Dexie menos quantidade no carrinho aberto.
+
+## Descontos
+
+Limite percentual sobre o subtotal:
+
+| Papel | Máximo |
+|-------|--------|
+| cashier | 5% |
+| manager | 20% |
+| admin | 100% (ainda limitado ao subtotal) |
+
+## Pagamento e rascunho
+
+- Somente `cash` captura (adapter `configured`).
+- `card` / `pix` / demais: `not_configured` → venda permanece rascunho local (carrinho intacto, sem `closeSale`).
+- Recibo HTML após captura local, com `saleStatus` e `syncStatus`.
+
+## Busca e scanner
+
+- Busca textual com debounce 300ms.
+- Scanner HID (rajada de teclas + Enter) adiciona por SKU/código de barras **sem limpar o carrinho**.
+
+## Atalhos
+
+F2 / Ctrl+K busca · F4 cliente · F6 desconto · F8 pagamento · F9 recibo · Esc fecha · +/- quantidade da linha.
+
+## Fora de escopo (não iniciado)
+
+Sprint 4: relatórios, estorno UI, cartão/pix real, NFC-e/SAT.

@@ -72,4 +72,15 @@ IDs fixos no seed para facilitar QA local:
 - Conflito 409/422 restaura estoque projetado e permanece visível na UI.
 - Heartbeat e multi-tab lock são módulos distintos.
 - Sem `NEXT_PUBLIC_*` com service role ou outros segredos.
-- Cartão/Pix/NFC-e continuam `not_configured` (Sprint 3/4).
+- Cartão/Pix/NFC-e continuam `not_configured` (Sprint 4).
+
+---
+
+# Sprint 3
+
+- Interface PDV em 3 colunas no desktop e 2 regiões + sheet de pagamento no tablet.
+- Regras de carrinho testáveis (`sale-ops`) com dinheiro em `decimal.js`.
+- Desconto limitado por papel (caixa 5%, gerente 20%, admin até o subtotal).
+- Pagamento falho / `not_configured` mantém rascunho local; recibo HTML inclui status de sincronização.
+- Scanner HID não zera o carrinho. Busca textual é debounced.
+- Sprint 4 (relatórios, cartão/pix real, NFC-e) não iniciado.

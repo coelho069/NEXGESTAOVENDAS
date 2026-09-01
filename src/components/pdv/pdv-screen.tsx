@@ -1,16 +1,24 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ProductGrid } from "@/components/pdv/product-grid";
+import { useState } from "react";
+import { ProductSearch, focusPdvSearch } from "@/components/pdv/product-search";
 import { CartPanel } from "@/components/pdv/cart-panel";
+import { SaleSummary } from "@/components/pdv/sale-summary";
+import { PaymentSheet } from "@/components/pdv/payment-sheet";
+import { CustomerDialog } from "@/components/pdv/customer-dialog";
+import { DiscountDialog } from "@/components/pdv/discount-dialog";
+import { ReceiptDialog } from "@/components/pdv/receipt-dialog";
 import { ConflictBanner } from "@/components/pdv/conflict-banner";
 import { SyncStatusBadge } from "@/components/pdv/sync-status-badge";
 import { useProducts } from "@/hooks/use-products";
-import { useCheckout } from "@/hooks/use-checkout";
+import { useCustomers } from "@/hooks/use-customers";
+import { useProjectedStock } from "@/hooks/use-projected-stock";
+import { useHidScanner } from "@/hooks/use-hid-scanner";
+import { usePdvShortcuts } from "@/hooks/use-pdv-shortcuts";
+import { usePdvSale } from "@/hooks/use-pdv-sale";
 import { useCartStore } from "@/stores/cart-store";
 import { useSyncStore } from "@/stores/sync-store";
-import { searchProducts } from "@/lib/domain/product";
-import { parseUnitPrice } from "@/lib/domain/sale";
+import { usePdvUiStore } from "@/stores/pdv-ui-store";
 
 const DEMO_STORES = [
   { id: "22222222-2222-4222-8222-222222222201", name: "Loja Centro" },
@@ -18,36 +26,65 @@ const DEMO_STORES = [
 ];
 
 export function PdvScreen() {
-  const { products, loading, error } = useProducts();
-  const { storeId, setStoreId, lines, addLine, updateQuantity, removeLine, discount, total } =
-    useCartStore();
+  const { products, loading, error, fromCatalog } = useProducts();
+  const { customers } = useCustomers();
+  const { storeId, setStoreId } = useCartStore();
   const { online, pendingCount, syncing, conflicts, quotaExceeded, sessionEnded } = useSyncStore();
-  const { checkoutCash } = useCheckout();
+  const {
+    role,
+    setRole,
+    openPanel,
+    setOpenPanel,
+    lastReceipt,
+    draftReason,
+    inventoryEpoch,
+  } = usePdvUiStore();
+  const { balances } = useProjectedStock(storeId, inventoryEpoch);
   const [query, setQuery] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
 
-  const filtered = useMemo(() => searchProducts(products, query), [products, query]);
+  const storeName = DEMO_STORES.find((store) => store.id === storeId)?.name ?? "Loja";
+  const sale = usePdvSale(products, balances, storeName);
 
-  const handleCheckout = async () => {
-    setMessage(null);
-    try {
-      const result = await checkoutCash();
-      if ("offline" in result && result.offline) {
-        setMessage("Venda salva localmente. Será sincronizada quando a conexão voltar.");
-      } else {
-        setMessage(`Venda confirmada: ${result.saleId ?? "ok"}`);
-      }
-    } catch (checkoutError) {
-      setMessage(checkoutError instanceof Error ? checkoutError.message : "Erro no checkout");
-    }
-  };
+  useHidScanner(sale.scanCode);
+
+  usePdvShortcuts({
+    search: () => {
+      setOpenPanel("none");
+      focusPdvSearch();
+    },
+    customer: () => setOpenPanel("customer"),
+    discount: () => {
+      sale.setDiscountDraft(sale.discount);
+      setOpenPanel("discount");
+    },
+    payment: () => {
+      setOpenPanel("payment");
+      document.querySelector<HTMLButtonElement>("[data-testid=checkout-cash]")?.focus();
+    },
+    receipt: () => {
+      if (lastReceipt) setOpenPanel("receipt");
+    },
+    cancel: () => setOpenPanel("none"),
+    qtyInc: () => {
+      const id = sale.selectedProductId ?? sale.lines.at(-1)?.productId;
+      const line = sale.lines.find((item) => item.productId === id);
+      if (line) sale.changeQty(line.productId, line.quantity + 1);
+    },
+    qtyDec: () => {
+      const id = sale.selectedProductId ?? sale.lines.at(-1)?.productId;
+      const line = sale.lines.find((item) => item.productId === id);
+      if (line) sale.changeQty(line.productId, line.quantity - 1);
+    },
+  });
+
+  const checkoutDisabled = !storeId || syncing || sale.lines.length === 0;
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-4 p-4 lg:p-6">
+    <div className="mx-auto flex min-h-screen max-w-[1600px] flex-col gap-4 p-4 lg:p-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">PDV Local-first</h1>
-          <p className="text-sm text-slate-500">Sprint 2 — Dexie outbox, sync e conflito visível</p>
+          <p className="text-sm text-slate-500">Sprint 3 — interface de vendas, scanner HID e recibo</p>
         </div>
         <SyncStatusBadge
           online={online}
@@ -63,6 +100,7 @@ export function PdvScreen() {
         </label>
         <select
           id="store"
+          data-testid="store-select"
           className="rounded-lg border border-slate-300 px-3 py-2"
           value={storeId ?? ""}
           onChange={(event) => setStoreId(event.target.value)}
@@ -74,12 +112,23 @@ export function PdvScreen() {
             </option>
           ))}
         </select>
-        <input
-          className="min-w-[240px] flex-1 rounded-lg border border-slate-300 px-3 py-2"
-          placeholder="Buscar produto, SKU ou código de barras"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
+        <label className="text-sm font-medium text-slate-700" htmlFor="role">
+          Papel
+        </label>
+        <select
+          id="role"
+          data-testid="role-select"
+          className="rounded-lg border border-slate-300 px-3 py-2"
+          value={role}
+          onChange={(event) => setRole(event.target.value as typeof role)}
+        >
+          <option value="cashier">Caixa</option>
+          <option value="manager">Gerente</option>
+          <option value="admin">Admin</option>
+        </select>
+        {fromCatalog ? (
+          <span className="text-xs text-slate-500">Catálogo local</span>
+        ) : null}
       </div>
 
       {sessionEnded ? (
@@ -100,9 +149,19 @@ export function PdvScreen() {
 
       <ConflictBanner conflicts={conflicts} />
 
-      {message ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-          {message}
+      {draftReason ? (
+        <div
+          role="status"
+          data-testid="sale-draft-banner"
+          className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+        >
+          Rascunho local: {draftReason}
+        </div>
+      ) : null}
+
+      {sale.message ? (
+        <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800">
+          {sale.message}
         </div>
       ) : null}
 
@@ -112,43 +171,85 @@ export function PdvScreen() {
         </div>
       ) : null}
 
-      <div className="grid flex-1 gap-4 lg:grid-cols-[2fr_1fr]">
-        <section>
-          {loading ? (
-            <p className="text-slate-500">Carregando produtos...</p>
-          ) : (
-            <ProductGrid
-              products={filtered}
-              onAdd={(product) =>
-                addLine({
-                  productId: product.id,
-                  sku: product.sku,
-                  name: product.name,
-                  unitPrice: parseUnitPrice(product.unit_price),
-                  quantity: 1,
-                  discount: "0.00",
-                })
-              }
-            />
-          )}
-        </section>
+      <div
+        data-testid="pdv-layout"
+        className="grid flex-1 gap-4 md:grid-cols-2 lg:grid-cols-[minmax(16rem,1.05fr)_minmax(18rem,1.2fr)_minmax(16rem,0.9fr)]"
+      >
+        <ProductSearch
+          products={products}
+          loading={loading}
+          query={query}
+          onQueryChange={setQuery}
+          onPick={sale.addProduct}
+          stock={balances}
+          cartQty={sale.cartQty}
+        />
         <CartPanel
-          lines={lines}
-          discount={discount}
-          total={total()}
-          checkoutDisabled={!storeId || syncing}
+          lines={sale.lines}
+          selectedProductId={sale.selectedProductId}
+          stock={balances}
+          onSelect={sale.setSelectedProductId}
           onIncrement={(productId) => {
-            const line = lines.find((item) => item.productId === productId);
-            if (line) updateQuantity(productId, line.quantity + 1);
+            const line = sale.lines.find((item) => item.productId === productId);
+            if (line) sale.changeQty(productId, line.quantity + 1);
           }}
           onDecrement={(productId) => {
-            const line = lines.find((item) => item.productId === productId);
-            if (line) updateQuantity(productId, line.quantity - 1);
+            const line = sale.lines.find((item) => item.productId === productId);
+            if (line) sale.changeQty(productId, line.quantity - 1);
           }}
-          onRemove={removeLine}
-          onCheckout={() => void handleCheckout()}
+          onQuantity={sale.changeQty}
+          onRemove={sale.removeLine}
         />
+        <div className="md:col-span-2 lg:col-span-1">
+          <SaleSummary
+            totals={sale.totals}
+            customerName={sale.customerName}
+            discountLabel={sale.discount}
+            checkoutDisabled={checkoutDisabled}
+            onCustomer={() => setOpenPanel("customer")}
+            onDiscount={() => {
+              sale.setDiscountDraft(sale.discount);
+              setOpenPanel("discount");
+            }}
+            onCash={() => void sale.pay("cash")}
+            onCard={() => void sale.pay("card")}
+            onOpenPayment={() => setOpenPanel("payment")}
+          />
+        </div>
       </div>
+
+      <PaymentSheet
+        open={openPanel === "payment"}
+        total={sale.totals.total}
+        disabled={checkoutDisabled}
+        onCash={() => void sale.pay("cash")}
+        onCard={() => void sale.pay("card")}
+        onClose={() => setOpenPanel("none")}
+      />
+      <CustomerDialog
+        open={openPanel === "customer"}
+        customers={customers}
+        selectedId={sale.customerId}
+        onSelect={sale.associateCustomer}
+        onClose={() => setOpenPanel("none")}
+      />
+      <DiscountDialog
+        open={openPanel === "discount"}
+        value={sale.discountDraft}
+        max={sale.maxDiscount}
+        role={role}
+        error={sale.discountError}
+        onChange={sale.setDiscountDraft}
+        onApply={() => {
+          sale.applyDiscountValue(sale.discountDraft);
+        }}
+        onClose={() => setOpenPanel("none")}
+      />
+      <ReceiptDialog
+        open={openPanel === "receipt"}
+        receipt={lastReceipt}
+        onClose={() => setOpenPanel("none")}
+      />
     </div>
   );
 }

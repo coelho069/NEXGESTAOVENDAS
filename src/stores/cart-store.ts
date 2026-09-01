@@ -12,11 +12,15 @@ export type CartState = {
   storeId: string | null;
   lines: CartLine[];
   discount: string;
+  customerId: string | null;
+  customerName: string | null;
   setStoreId: (storeId: string) => void;
   addLine: (line: CartLine) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   removeLine: (productId: string) => void;
   setDiscount: (discount: string) => void;
+  setLines: (lines: CartLine[]) => void;
+  setCustomer: (customerId: string | null, customerName: string | null) => void;
   clear: () => void;
   total: () => string;
 };
@@ -27,6 +31,8 @@ const createCartSlice: StateCreator<CartState> = (set, get) => ({
   storeId: null,
   lines: [],
   discount: "0.00",
+  customerId: null,
+  customerName: null,
   setStoreId: (storeId) => set({ storeId }),
   addLine: (line) =>
     set((state) => {
@@ -53,7 +59,9 @@ const createCartSlice: StateCreator<CartState> = (set, get) => ({
       lines: state.lines.filter((item) => item.productId !== productId),
     })),
   setDiscount: (discount) => set({ discount }),
-  clear: () => set({ lines: [], discount: "0.00" }),
+  setLines: (lines) => set({ lines }),
+  setCustomer: (customerId, customerName) => set({ customerId, customerName }),
+  clear: () => set({ lines: [], discount: "0.00", customerId: null, customerName: null }),
   total: () => cartTotal(get().lines, get().discount),
 });
 
@@ -70,6 +78,8 @@ export function createCartStore(options?: { persist?: boolean }): CartStore {
           storeId: state.storeId,
           lines: state.lines,
           discount: state.discount,
+          customerId: state.customerId,
+          customerName: state.customerName,
         }),
     })
   );

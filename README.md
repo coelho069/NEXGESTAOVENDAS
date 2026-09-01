@@ -1,6 +1,6 @@
 # Nex Gestão Vendas — PDV Local-first
 
-Sprint 2 do PDV local-first para varejo brasileiro (BRL, `America/Sao_Paulo`): Dexie `pdv_local_v1`, outbox idempotente e sync com conflito visível. O contrato Sprint 1 (RPC cash, RLS, adapters) permanece.
+Sprint 3 do PDV local-first para varejo brasileiro (BRL, `America/Sao_Paulo`): interface de vendas, regras de carrinho testáveis, scanner HID e recibo com status de sincronização. Os contratos Sprint 1 (RPC cash, RLS) e Sprint 2 (Dexie outbox) permanecem.
 
 ## Stack
 
@@ -28,7 +28,15 @@ Sprint 2 do PDV local-first para varejo brasileiro (BRL, `America/Sao_Paulo`): D
 - Heartbeat separado de multi-tab lock
 - Zustand sem token / PAN / CVV
 
-Fora de escopo: Sprint 3/4 (relatórios, cartão/pix real, NFC-e/SAT).
+## Escopo Sprint 3
+
+- Layout desktop (busca / carrinho / resumo) e tablet (2 regiões + pagamento em sheet)
+- Busca com debounce e scanner HID sem limpar o carrinho
+- Estoque projetado; bloqueio de negativo e produto inativo
+- Cliente, desconto (limites por papel) e recibo HTML com status de sync
+- Pagamento falho permanece rascunho local
+
+Fora de escopo: Sprint 4 (relatórios, cartão/pix real, NFC-e/SAT).
 
 ## Setup local
 

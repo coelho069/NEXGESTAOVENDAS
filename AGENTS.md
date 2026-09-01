@@ -4,7 +4,7 @@ Guia para agentes de código trabalhando neste repositório.
 
 ## Objetivo do produto
 
-PDV local-first para varejo BR. Sprint atual: **1** (foundation + PDV cash + offline queue + RPC transacional).
+PDV local-first para varejo BR. Sprint atual: **3** (interface de vendas + regras de carrinho + recibo).
 
 ## Regras inegociáveis
 
@@ -43,19 +43,21 @@ docs
 scripts
 ```
 
-## Fluxo de venda (Sprint 1)
+## Fluxo de venda (Sprint 3)
 
-1. UI monta carrinho local (Zustand + persist).
-2. Checkout cash → online: `POST /api/sales/process` → RPC `public.process_sale`.
+1. UI monta carrinho local (Zustand + persist) com busca, scanner HID, cliente e desconto.
+2. Checkout cash online: fecha no IndexedDB e `POST /api/sales/process` → RPC `public.process_sale`.
 3. Offline: grava mutação IndexedDB (`sync_status=pending`).
 4. Ao voltar online: flush fila; replay idempotente por `(store_id, client_mutation_id)`.
+5. Pagamento não configurado permanece rascunho local; recibo mostra status de sync.
 
 ## O que NÃO fazer neste repo (ainda)
 
-- Sprint 2/3/4 (sync avançado, relatórios, fiscal real, pagamentos eletrônicos)
+- Sprint 4 (relatórios, fiscal real, pagamentos eletrônicos)
 - Expor `SUPABASE_SERVICE_ROLE_KEY`
 - UPDATE/DELETE em `sales` via client
 - Copiar tipos Supabase à mão
+- Alterar migrations/RPC/RLS do Sprint 1 ou o motor Dexie/sync do Sprint 2
 
 ## Comandos úteis
 
