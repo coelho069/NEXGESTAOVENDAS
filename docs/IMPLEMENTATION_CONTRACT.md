@@ -163,7 +163,7 @@ Uma única transação IndexedDB grava: venda + itens + pagamentos + estoque pro
 
 ## Backoff
 
-`1, 2, 4, 8, 16` segundos, teto 60s, jitter `[0.5, 1.0]`. 10 falhas transitórias → `failed`.
+`1, 2, 4, 8, 16` segundos, teto 60s, jitter `[0.5, 1.0]`. 10 falhas de transporte/resultado ambíguo → `conflict` com resultado incerto, mantendo a reserva até reconciliação autoritativa. Erros determinísticos → `failed`.
 
 ## HTTP
 
@@ -174,7 +174,8 @@ Uma única transação IndexedDB grava: venda + itens + pagamentos + estoque pro
 ## Concorrência
 
 - `startHeartbeat` — liveness/online. Não adquire lock.
-- `withMultiTabLock` — apenas uma aba sincroniza.
+- `withMultiTabLock` — apenas uma aba executa a região crítica do mesmo escopo; checkout e sync usam escopo por loja.
+- Fallback sem Web Locks usa lease com TTL, owner e heartbeat para recuperar locks após crash.
 
 ## Zustand
 

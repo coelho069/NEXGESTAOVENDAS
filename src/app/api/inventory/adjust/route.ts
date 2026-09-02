@@ -2,15 +2,13 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { inventoryAdjustSchema } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
+import { resolveStoreRole } from "@/lib/auth/authorization";
 import { canManageInventory } from "@/lib/domain/rbac";
 
 export async function POST(request: Request) {
   const auth = await getAuthedContext();
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (!canManageInventory(auth.role)) {
-    return NextResponse.json({ error: "forbidden_inventory" }, { status: 403 });
   }
 
   let json: unknown;
@@ -29,6 +27,15 @@ export async function POST(request: Request) {
   }
 
   const supabase = await createClient();
+  const role = await resolveStoreRole(supabase, {
+    userId: auth.userId,
+    orgId: auth.orgId,
+    storeId: parsed.data.store_id,
+  });
+  if (!role || !canManageInventory(role)) {
+    return NextResponse.json({ error: "forbidden_inventory" }, { status: 403 });
+  }
+
   let productId = parsed.data.product_id;
   if (!productId && parsed.data.sku) {
     let query = supabase.from("products").select("id").eq("sku", parsed.data.sku);
@@ -54,7 +61,7 @@ export async function POST(request: Request) {
 
   if (error) {
     const status = error.message.includes("forbidden") ? 403 : 422;
-    return NextResponse.json({ error: error.message }, { status });
+    return NextResponse.json({ error: status === 403 ? "forbidden_inventory" : "inventory_adjustment_failed" }, { status });
   }
 
   return NextResponse.json(data);

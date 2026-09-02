@@ -535,6 +535,14 @@ export type Database = {
         Args: { p_payload: Json };
         Returns: Json;
       };
+      process_sale_core: {
+        Args: { p_payload: Json };
+        Returns: Json;
+      };
+      assert_sale_discount_cap: {
+        Args: { p_store_id: string; p_discount: number; p_subtotal: number };
+        Returns: undefined;
+      };
       adjust_inventory: {
         Args: { p_payload: Json };
         Returns: Json;

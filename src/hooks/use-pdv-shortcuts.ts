@@ -5,15 +5,20 @@ import { matchPdvShortcut, shouldHandleShortcut, type PdvShortcut } from "@/lib/
 
 export type PdvShortcutHandlers = Partial<Record<PdvShortcut, () => void>>;
 
-export function usePdvShortcuts(handlers: PdvShortcutHandlers): void {
+export function usePdvShortcuts(handlers: PdvShortcutHandlers, modalOpen = false): void {
   const handlersRef = useRef(handlers);
-  handlersRef.current = handlers;
+  const modalOpenRef = useRef(modalOpen);
+
+  useEffect(() => {
+    handlersRef.current = handlers;
+    modalOpenRef.current = modalOpen;
+  }, [handlers, modalOpen]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const shortcut = matchPdvShortcut(event);
       if (!shortcut) return;
-      if (!shouldHandleShortcut(shortcut, event.target)) return;
+      if (!shouldHandleShortcut(shortcut, event.target, modalOpenRef.current)) return;
       const handler = handlersRef.current[shortcut];
       if (!handler) return;
       event.preventDefault();

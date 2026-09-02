@@ -1,3 +1,5 @@
+import type { Enums } from "@/lib/db/types";
+
 export type PaymentAttemptResult = {
   status: string;
   message: string;
@@ -15,4 +17,11 @@ export function resolvePaymentAttempt(result: PaymentAttemptResult): PaymentAtte
     kind: "keep_draft",
     message: result.message || "Pagamento não configurado. Venda permanece como rascunho local.",
   };
+}
+
+export function unifyCheckoutPayment(
+  method: Enums<"payment_method">,
+  amount: string
+): { method: Enums<"payment_method">; amount: string } {
+  return { method, amount };
 }

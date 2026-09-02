@@ -1,10 +1,17 @@
+import Decimal from "decimal.js";
 import { z } from "zod";
 
-const moneyPattern = /^\d+\.\d{2}$/;
+const moneyPattern = /^(?:0|[1-9]\d{0,9})\.\d{2}$/;
+const saleQuantitySchema = z
+  .number()
+  .finite()
+  .positive()
+  .refine((value) => new Decimal(value).lte("999999999.999"), "quantity exceeds numeric(12,3)")
+  .refine((value) => new Decimal(value).decimalPlaces() <= 3, "quantity supports at most three decimal places");
 
 export const saleItemInputSchema = z.object({
   product_id: z.string().uuid(),
-  quantity: z.number().positive(),
+  quantity: saleQuantitySchema,
   unit_price: z.string().regex(moneyPattern, "unit_price must be numeric(12,2) string"),
   discount: z
     .string()
@@ -18,18 +25,33 @@ export const paymentInputSchema = z.object({
   amount: z.string().regex(moneyPattern, "amount must be numeric(12,2) string"),
 });
 
-export const processSaleInputSchema = z.object({
-  store_id: z.string().uuid(),
-  client_mutation_id: z.string().uuid(),
-  customer_id: z.string().uuid().optional(),
-  discount: z
-    .string()
-    .regex(moneyPattern, "discount must be numeric(12,2) string")
-    .optional()
-    .default("0.00"),
-  items: z.array(saleItemInputSchema).min(1),
-  payments: z.array(paymentInputSchema).min(1),
-});
+export const processSaleInputSchema = z
+  .object({
+    sale_id: z.string().uuid().optional(),
+    store_id: z.string().uuid(),
+    client_mutation_id: z.string().uuid(),
+    customer_id: z.string().uuid().optional(),
+    discount: z
+      .string()
+      .regex(moneyPattern, "discount must be numeric(12,2) string")
+      .optional()
+      .default("0.00"),
+    items: z.array(saleItemInputSchema).min(1),
+    payments: z.array(paymentInputSchema).length(1, "exactly one payment is required for a sale"),
+  })
+  .superRefine((payload, context) => {
+    const seenProducts = new Set<string>();
+    payload.items.forEach((item, index) => {
+      if (seenProducts.has(item.product_id)) {
+        context.addIssue({
+          code: "custom",
+          path: ["items", index, "product_id"],
+          message: "duplicate product_id is not allowed",
+        });
+      }
+      seenProducts.add(item.product_id);
+    });
+  });
 
 export type ProcessSaleInput = z.infer<typeof processSaleInputSchema>;
 

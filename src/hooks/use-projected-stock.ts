@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getPdvLocalDb } from "@/lib/offline/pdv-local-db";
-import { ensureLocalInventory } from "@/lib/offline/seed-local-inventory";
+import { pdvFixturesEnabled, writeFixtureInventory } from "@/lib/pdv/fixtures";
 
 export function useProjectedStock(storeId: string | null, epoch = 0) {
   const [balances, setBalances] = useState<Record<string, number>>({});
@@ -14,7 +14,11 @@ export function useProjectedStock(storeId: string | null, epoch = 0) {
     }
     try {
       const db = getPdvLocalDb();
-      await ensureLocalInventory(db, storeId);
+      if (pdvFixturesEnabled()) {
+        const stock = await writeFixtureInventory(db, storeId);
+        setBalances(stock);
+        return;
+      }
       const rows = await db.inventoryBalances.where("storeId").equals(storeId).toArray();
       const next: Record<string, number> = {};
       for (const row of rows) {
@@ -27,6 +31,8 @@ export function useProjectedStock(storeId: string | null, epoch = 0) {
   }, [storeId]);
 
   useEffect(() => {
+    // Inventory loading synchronizes this client with IndexedDB.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void reload();
   }, [reload, epoch]);
 

@@ -28,7 +28,7 @@ export function buildProcessSalePayload(
   clientMutationId: string,
   lines: CartLine[],
   paymentMethod: ProcessSaleInput["payments"][number]["method"],
-  options?: { customerId?: string; discount?: string }
+  options?: { customerId?: string; discount?: string; saleId?: string }
 ): ProcessSaleInput {
   const discount = options?.discount ?? "0.00";
   const total = cartTotal(lines, discount);
@@ -38,6 +38,7 @@ export function buildProcessSalePayload(
   }
 
   return {
+    sale_id: options?.saleId,
     store_id: storeId,
     client_mutation_id: clientMutationId,
     customer_id: options?.customerId,

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { pullChangesQuerySchema } from "@/lib/validation/schemas";
+import { getAuthedContext } from "@/lib/auth/session";
+import { resolveStoreRole } from "@/lib/auth/authorization";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -26,6 +28,15 @@ export async function GET(request: Request) {
   }
 
   const { store_id, since } = parsed.data;
+  const auth = await getAuthedContext();
+  const role = await resolveStoreRole(supabase, {
+    userId: user.id,
+    orgId: auth?.orgId ?? null,
+    storeId: store_id,
+  });
+  if (!role) {
+    return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
+  }
 
   let inventoryQuery = supabase
     .from("inventory_balances")
@@ -47,10 +58,10 @@ export async function GET(request: Request) {
   const [inventory, sales] = await Promise.all([inventoryQuery, salesQuery]);
 
   if (inventory.error) {
-    return NextResponse.json({ error: inventory.error.message }, { status: 422 });
+    return NextResponse.json({ error: "inventory_sync_failed" }, { status: 422 });
   }
   if (sales.error) {
-    return NextResponse.json({ error: sales.error.message }, { status: 422 });
+    return NextResponse.json({ error: "sales_sync_failed" }, { status: 422 });
   }
 
   return NextResponse.json({

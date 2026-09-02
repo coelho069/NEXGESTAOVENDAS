@@ -48,7 +48,7 @@ export function usePdvSale(products: ProductRow[], stock: Record<string, number>
     setDraftReason,
     bumpInventory,
   } = usePdvUiStore();
-  const { paySale } = useCheckout();
+  const { paySale, checkoutAttemptId, checkoutInFlight } = useCheckout();
   const [message, setMessage] = useState<string | null>(null);
   const [discountDraft, setDiscountDraft] = useState(discount);
   const [discountError, setDiscountError] = useState<string | null>(null);
@@ -58,7 +58,6 @@ export function usePdvSale(products: ProductRow[], stock: Record<string, number>
     [lines, discount, customerId]
   );
   const cartQty = useMemo(() => cartQtyByProduct(lines), [lines]);
-  const stockOrNull = Object.keys(stock).length > 0 ? stock : null;
 
   const report = useCallback((text: string | null) => {
     setMessage(text);
@@ -66,7 +65,8 @@ export function usePdvSale(products: ProductRow[], stock: Record<string, number>
 
   const addProduct = useCallback(
     (product: ProductRow) => {
-      const result = addItem(saleSnapshot(), toCatalogProduct(product), 1, stockOrNull);
+      if (checkoutInFlight) return;
+      const result = addItem(saleSnapshot(), toCatalogProduct(product), 1, stock);
       if (!result.ok) {
         report(result.error);
         return;
@@ -76,7 +76,7 @@ export function usePdvSale(products: ProductRow[], stock: Record<string, number>
       setDraftReason(null);
       report(null);
     },
-    [report, setDraftReason, setSelectedProductId, stockOrNull]
+    [checkoutInFlight, report, setDraftReason, setSelectedProductId, stock]
   );
 
   const scanCode = useCallback(
@@ -94,8 +94,9 @@ export function usePdvSale(products: ProductRow[], stock: Record<string, number>
 
   const changeQty = useCallback(
     (productId: string, quantity: number) => {
+      if (checkoutInFlight) return;
       const product = catalog.find((item) => item.productId === productId);
-      const result = setQuantity(saleSnapshot(), productId, quantity, stockOrNull, product);
+      const result = setQuantity(saleSnapshot(), productId, quantity, stock, product);
       if (!result.ok) {
         report(result.error);
         return;
@@ -103,11 +104,20 @@ export function usePdvSale(products: ProductRow[], stock: Record<string, number>
       applyState(result.state);
       report(null);
     },
-    [catalog, report, stockOrNull]
+    [catalog, checkoutInFlight, report, stock]
+  );
+
+  const removeCartLine = useCallback(
+    (productId: string) => {
+      if (checkoutInFlight) return;
+      removeLine(productId);
+    },
+    [checkoutInFlight, removeLine]
   );
 
   const applyDiscountValue = useCallback(
     (raw: string) => {
+      if (checkoutInFlight) return false;
       const parsed = parseMoneyInput(raw);
       if (!parsed) {
         setDiscountError("Valor inválido");
@@ -124,15 +134,16 @@ export function usePdvSale(products: ProductRow[], stock: Record<string, number>
       report(null);
       return true;
     },
-    [report, role, setOpenPanel]
+    [checkoutInFlight, report, role, setOpenPanel]
   );
 
   const associateCustomer = useCallback(
     (customer: CatalogCustomer | null) => {
+      if (checkoutInFlight) return;
       setCustomer(customer?.id ?? null, customer?.name ?? null);
       setOpenPanel("none");
     },
-    [setCustomer, setOpenPanel]
+    [checkoutInFlight, setCustomer, setOpenPanel]
   );
 
   const pay = useCallback(
@@ -177,10 +188,12 @@ export function usePdvSale(products: ProductRow[], stock: Record<string, number>
     addProduct,
     scanCode,
     changeQty,
-    removeLine,
+    removeLine: removeCartLine,
     applyDiscountValue,
     associateCustomer,
     pay,
+    checkoutAttemptId,
+    checkoutInFlight,
     setDiscountDraft,
     setSelectedProductId,
     selectedProductId,

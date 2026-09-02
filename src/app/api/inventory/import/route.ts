@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { inventoryImportSchema } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
+import { resolveStoreRole } from "@/lib/auth/authorization";
 import { canManageInventory } from "@/lib/domain/rbac";
 import { parseInventoryCsv } from "@/lib/domain/inventory";
 
@@ -9,9 +10,6 @@ export async function POST(request: Request) {
   const auth = await getAuthedContext();
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (!canManageInventory(auth.role)) {
-    return NextResponse.json({ error: "forbidden_inventory" }, { status: 403 });
   }
 
   let json: unknown;
@@ -32,6 +30,15 @@ export async function POST(request: Request) {
 
   const csv = parseInventoryCsv(parsed.data.csv);
   const supabase = await createClient();
+  const role = await resolveStoreRole(supabase, {
+    userId: auth.userId,
+    orgId: auth.orgId,
+    storeId: parsed.data.store_id,
+  });
+  if (!role || !canManageInventory(role)) {
+    return NextResponse.json({ error: "forbidden_inventory" }, { status: 403 });
+  }
+
   const applied: Array<{ row: number; sku: string; movementId?: string }> = [];
   const errors = [...csv.errors];
 
@@ -58,7 +65,7 @@ export async function POST(request: Request) {
     });
 
     if (error) {
-      errors.push({ row: row.row, sku: row.sku, message: error.message });
+      errors.push({ row: row.row, sku: row.sku, message: "Ajuste de inventário rejeitado" });
       continue;
     }
 

@@ -2,15 +2,13 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { dashboardMetricsQuerySchema } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
+import { resolveStoreRole } from "@/lib/auth/authorization";
 import { canViewReports } from "@/lib/domain/rbac";
 
 export async function GET(request: Request) {
   const auth = await getAuthedContext();
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (!canViewReports(auth.role)) {
-    return NextResponse.json({ error: "forbidden_reports" }, { status: 403 });
   }
 
   const url = new URL(request.url);
@@ -26,6 +24,15 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createClient();
+  const role = await resolveStoreRole(supabase, {
+    userId: auth.userId,
+    orgId: auth.orgId,
+    storeId: parsed.data.store_id,
+  });
+  if (!role || !canViewReports(role)) {
+    return NextResponse.json({ error: "forbidden_reports" }, { status: 403 });
+  }
+
   const { data, error } = await supabase.rpc("get_dashboard_metrics", {
     p_payload: {
       store_id: parsed.data.store_id,
@@ -38,7 +45,7 @@ export async function GET(request: Request) {
 
   if (error) {
     const status = error.message.includes("forbidden") ? 403 : 422;
-    return NextResponse.json({ error: error.message }, { status });
+    return NextResponse.json({ error: status === 403 ? "forbidden_reports" : "dashboard_unavailable" }, { status });
   }
 
   return NextResponse.json(data);

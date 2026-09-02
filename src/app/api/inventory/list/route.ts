@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { inventoryListQuerySchema } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
+import { resolveStoreRole } from "@/lib/auth/authorization";
 
 export async function GET(request: Request) {
   const auth = await getAuthedContext();
@@ -20,6 +21,15 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createClient();
+  const role = await resolveStoreRole(supabase, {
+    userId: auth.userId,
+    orgId: auth.orgId,
+    storeId: parsed.data.store_id,
+  });
+  if (!role) {
+    return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
+  }
+
   const { data, error } = await supabase.rpc("get_inventory_page", {
     p_payload: {
       store_id: parsed.data.store_id,
@@ -30,7 +40,7 @@ export async function GET(request: Request) {
 
   if (error) {
     const status = error.message.includes("forbidden") ? 403 : 422;
-    return NextResponse.json({ error: error.message }, { status });
+    return NextResponse.json({ error: status === 403 ? "forbidden_store" : "inventory_unavailable" }, { status });
   }
 
   return NextResponse.json(data);
