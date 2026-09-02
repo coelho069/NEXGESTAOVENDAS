@@ -240,7 +240,9 @@ Estorno UI, cartão/pix real, NFC-e/SAT. Inventário, dashboard e RBAC: ver anex
 
 # Sprint 4 — Inventário, dashboard e RBAC
 
-Anexo. Contratos Sprint 1–3 permanecem. Nova migration `20250901000005_sprint4_inventory_dashboard_rbac.sql` apenas. Não altera `process_sale` nem Dexie/sync.
+Anexo. Contratos Sprint 1–3 permanecem. As migrations de inventário/RBAC são
+incrementais; `20260902201000_rbac_store_membership_authority.sql` consolida a
+autoridade em `store_members.role`. Não altera `process_sale` nem Dexie/sync.
 
 ## Inventário
 

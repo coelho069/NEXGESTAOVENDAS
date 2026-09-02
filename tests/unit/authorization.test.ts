@@ -110,10 +110,12 @@ describe("RBAC migration guard", () => {
       resolve(process.cwd(), "supabase/migrations/20260902201000_rbac_store_membership_authority.sql"),
       "utf8"
     );
+    const session = readFileSync(resolve(process.cwd(), "src/lib/auth/session.ts"), "utf8");
 
     expect(migration).toContain("public.store_members");
     expect(migration).toContain("public.user_store_role(p_store_id)");
     expect(migration).not.toMatch(/SELECT\s+default_role\s+FROM\s+public\.profiles/i);
     expect(migration).not.toMatch(/p\.default_role/i);
+    expect(session).not.toContain("default_role");
   });
 });

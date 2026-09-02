@@ -117,6 +117,7 @@ Os testes de stress abaixo são determinísticos e executados contra IndexedDB e
 | Falha parcial de persistência/quota | rollback após `saleItems`, `payments`, `outbox` e segunda baixa de estoque | **PASS** |
 | Lock multi-tab | escopo por loja, TTL, heartbeat, lease expirado e remoção pelo owner | **PASS** |
 | Resposta de conflito com lease antiga | CAS impede que uma resposta atrasada sobrescreva o processamento atual | **PASS** |
+| RBAC divergente, sem membership e multi-store | role vem de `store_members.role` por loja; sem membership é negado | **PASS (unitário)** |
 | Limites de dinheiro e quantidade | overflow de BRL, quatro casas de quantidade e múltiplos pagamentos rejeitados | **PASS** |
 | Fluxo offline → outbox → sync | pagamento local pendente, retry e reconciliação | **PASS** |
 | RPC/RLS Postgres real | concorrência, rollback, membership e isolamento tenant | **NÃO EXECUTADO** |
@@ -125,7 +126,7 @@ Os testes de stress abaixo são determinísticos e executados contra IndexedDB e
 Comandos:
 
 ```text
-pnpm test       PASS — 5 arquivos, 80 testes
+pnpm test       PASS — 6 arquivos, 85 testes
 pnpm typecheck  PASS
 pnpm lint       exit 0 — 1 warning preexistente em inventory-screen.tsx
 pnpm build      PASS
