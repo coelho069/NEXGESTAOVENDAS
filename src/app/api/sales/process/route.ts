@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { processSaleInputSchema } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
-import { resolveStoreRole } from "@/lib/auth/authorization";
 import { discountLimitHttpStatus, salePayloadExceedsDiscountCap } from "@/lib/domain/sale-ops";
 
 export async function POST(request: Request) {
@@ -38,21 +37,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const auth = await getAuthedContext();
-  if (!auth?.orgId) {
+  const auth = await getAuthedContext(parsed.data.store_id);
+  if (!auth?.orgId || !auth.role) {
     return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
   }
 
-  const role = await resolveStoreRole(supabase, {
-    userId: user.id,
-    orgId: auth.orgId,
-    storeId: parsed.data.store_id,
-  });
-  if (!role) {
-    return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
-  }
-
-  if (salePayloadExceedsDiscountCap(parsed.data, role)) {
+  if (salePayloadExceedsDiscountCap(parsed.data, auth.role)) {
     return NextResponse.json({ error: "discount_limit_exceeded" }, { status: discountLimitHttpStatus(true) });
   }
 

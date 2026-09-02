@@ -28,8 +28,19 @@ export async function loadInventory(params: {
   storeId: string;
   cursorSku?: string;
 }): Promise<InventoryLoadResult> {
-  const auth = await getAuthedContext();
+  const auth = await getAuthedContext(params.storeId);
   const role = auth?.role ?? "cashier";
+
+  if (!auth?.role) {
+    return {
+      degraded: false,
+      role,
+      canAdjust: false,
+      rows: [],
+      nextCursor: null,
+      message: "Acesso à loja negado.",
+    };
+  }
 
   try {
     const supabase = await createClient();

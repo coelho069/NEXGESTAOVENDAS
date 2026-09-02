@@ -2,16 +2,10 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { inventoryListQuerySchema } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
-import { resolveStoreRole } from "@/lib/auth/authorization";
 import { canSeeCostPrice } from "@/lib/domain/rbac";
 import { toExportCsv } from "@/lib/domain/inventory";
 
 export async function GET(request: Request) {
-  const auth = await getAuthedContext();
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const url = new URL(request.url);
   const parsed = inventoryListQuerySchema.safeParse({
     store_id: url.searchParams.get("store_id") ?? undefined,
@@ -22,16 +16,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const role = await resolveStoreRole(supabase, {
-    userId: auth.userId,
-    orgId: auth.orgId,
-    storeId: parsed.data.store_id,
-  });
-  if (!role) {
+  const auth = await getAuthedContext(parsed.data.store_id);
+  if (!auth?.role) {
     return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
   }
 
+  const role = auth.role;
+  const supabase = await createClient();
   const { data, error } = await supabase.rpc("get_inventory_page", {
     p_payload: {
       store_id: parsed.data.store_id,

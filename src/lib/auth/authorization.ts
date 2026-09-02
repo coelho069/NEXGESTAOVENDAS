@@ -8,23 +8,21 @@ const MANAGERIAL_ROLES: MemberRole[] = ["admin", "manager"];
 
 export async function resolveStoreRole(
   supabase: AppSupabaseClient,
-  input: { userId: string; orgId: string | null; storeId: string }
+  input: { userId: string; storeId: string }
 ): Promise<MemberRole | null> {
-  if (!input.orgId) return null;
-
   const { data: store, error: storeError } = await supabase
     .from("stores")
     .select("org_id, is_active")
     .eq("id", input.storeId)
     .maybeSingle();
-  if (storeError || !store || !store.is_active || store.org_id !== input.orgId) {
+  if (storeError || !store || !store.is_active) {
     return null;
   }
 
   const { data: member, error: memberError } = await supabase
     .from("store_members")
     .select("role")
-    .eq("org_id", input.orgId)
+    .eq("org_id", store.org_id)
     .eq("store_id", input.storeId)
     .eq("user_id", input.userId)
     .maybeSingle();

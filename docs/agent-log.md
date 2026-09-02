@@ -1,5 +1,19 @@
 # Agent Log — Correções de integridade do fluxo de venda
 
+---
+
+# Agent Log — Autoridade RBAC por loja
+
+**Data:** 2026-09-02
+**Escopo:** unificação da autorização em `store_members.role`, resolvida por usuário e loja.
+
+1. `getAuthedContext(storeId)` deixou de ler `profiles.default_role`; ausência de membership retorna papel nulo.
+2. Rotas de vendas, inventário, dashboard e sync, além dos loaders SSR, passaram a resolver a role para a loja solicitada antes de autorizar.
+3. A migration incremental `20260902201000_rbac_store_membership_authority.sql` remove policies históricas baseadas em perfil, recria helpers com `search_path` seguro e faz `adjust_inventory` gravar `actor_role` somente da membership.
+4. Testes unitários cobrem divergência de roles, ausência de membership, multi-store, mudança sem cache e guarda estática da migration.
+
+Validação PostgreSQL/RLS permanece **UNVERIFIED — ambiente PostgreSQL/Supabase indisponível**: Docker, Podman, Supabase CLI e `psql` não estão instalados.
+
 **Data:** 2026-09-01
 **Agente:** Cursor Grok 4.6
 **Escopo:** Correções pontuais (sync status, estoque, catálogo, teto de desconto no servidor, recibo, HID). Sem alterar Dexie schema, RLS ou dashboard.

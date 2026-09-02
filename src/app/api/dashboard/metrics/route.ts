@@ -2,15 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { dashboardMetricsQuerySchema } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
-import { resolveStoreRole } from "@/lib/auth/authorization";
 import { canViewReports } from "@/lib/domain/rbac";
 
 export async function GET(request: Request) {
-  const auth = await getAuthedContext();
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const url = new URL(request.url);
   const parsed = dashboardMetricsQuerySchema.safeParse({
     store_id: url.searchParams.get("store_id") ?? undefined,
@@ -23,16 +17,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const role = await resolveStoreRole(supabase, {
-    userId: auth.userId,
-    orgId: auth.orgId,
-    storeId: parsed.data.store_id,
-  });
+  const auth = await getAuthedContext(parsed.data.store_id);
+  const role = auth?.role;
   if (!role || !canViewReports(role)) {
     return NextResponse.json({ error: "forbidden_reports" }, { status: 403 });
   }
 
+  const supabase = await createClient();
   const { data, error } = await supabase.rpc("get_dashboard_metrics", {
     p_payload: {
       store_id: parsed.data.store_id,

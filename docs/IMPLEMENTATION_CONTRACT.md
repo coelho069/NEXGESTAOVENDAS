@@ -18,7 +18,8 @@ Regras:
 ## 2. Autenticação e autorização
 
 - Supabase Auth (email/senha).
-- `profiles.org_id` + `store_members.role` definem escopo.
+- `profiles.org_id` define apenas o contexto da organização; `store_members.role`, resolvida por `auth.uid()` + `store_id`, é a única autoridade de autorização.
+- `profiles.default_role` é metadado informativo e nunca participa de uma decisão de acesso.
 - RLS em todas as tabelas `public`.
 - `REVOKE ALL ... FROM anon` aplicado.
 - Cashier:
@@ -258,6 +259,10 @@ Anexo. Contratos Sprint 1–3 permanecem. Nova migration `20250901000005_sprint4
 - SSR em `/dashboard` com estado degradado se Supabase estiver ausente.
 
 ## RBAC
+
+`store_members.role` é a fonte única de autoridade. Toda rota, loader, policy e RPC
+resolve o papel para a loja ativa usando `auth.uid()` + `store_id`; `PermissionGate`
+e seletores do cliente são somente UX. `profiles.default_role` não é fallback.
 
 | Papel | Inventário | Relatórios | Preço/custo |
 |-------|------------|------------|-------------|

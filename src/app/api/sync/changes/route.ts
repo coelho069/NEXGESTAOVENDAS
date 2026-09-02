@@ -5,15 +5,6 @@ import { getAuthedContext } from "@/lib/auth/session";
 import { resolveStoreRole } from "@/lib/auth/authorization";
 
 export async function GET(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const url = new URL(request.url);
   const parsed = pullChangesQuerySchema.safeParse({
     store_id: url.searchParams.get("store_id"),
@@ -28,16 +19,12 @@ export async function GET(request: Request) {
   }
 
   const { store_id, since } = parsed.data;
-  const auth = await getAuthedContext();
-  const role = await resolveStoreRole(supabase, {
-    userId: user.id,
-    orgId: auth?.orgId ?? null,
-    storeId: store_id,
-  });
-  if (!role) {
+  const auth = await getAuthedContext(store_id);
+  if (!auth?.role) {
     return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
   }
 
+  const supabase = await createClient();
   let inventoryQuery = supabase
     .from("inventory_balances")
     .select("store_id, product_id, quantity, updated_at")

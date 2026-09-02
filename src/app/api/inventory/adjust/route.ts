@@ -2,15 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { inventoryAdjustSchema } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
-import { resolveStoreRole } from "@/lib/auth/authorization";
 import { canManageInventory } from "@/lib/domain/rbac";
 
 export async function POST(request: Request) {
-  const auth = await getAuthedContext();
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   let json: unknown;
   try {
     json = await request.json();
@@ -26,12 +20,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "product_id_or_sku_required" }, { status: 400 });
   }
 
+  const auth = await getAuthedContext(parsed.data.store_id);
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const supabase = await createClient();
-  const role = await resolveStoreRole(supabase, {
-    userId: auth.userId,
-    orgId: auth.orgId,
-    storeId: parsed.data.store_id,
-  });
+  const role = auth.role;
   if (!role || !canManageInventory(role)) {
     return NextResponse.json({ error: "forbidden_inventory" }, { status: 403 });
   }

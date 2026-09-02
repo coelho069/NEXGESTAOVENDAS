@@ -4,6 +4,7 @@
 **Escopo:** fluxo de venda cash local-first, do carrinho ao Postgres, incluindo alterações não commitadas do working tree.  
 **Diagnosis Status:** **BLOCKED — runtime PostgreSQL/Supabase indisponível para validação**
 **Nota de confiança:** **BAIXA — validação de banco bloqueada; não aprovado para produção**.
+**RBAC:** `store_members.role` é a autoridade única por loja; `profiles.default_role` é somente informativo.
 
 ## 1. Conclusão executiva
 
@@ -19,6 +20,11 @@ Esta auditoria identificou e corrigiu inconsistências de fronteira:
 6. O sync podia liberar uma reserva após confirmação local, descontar duas vezes no pull ou perder consistência após resposta remota ambígua.
 
 O replay agora compara o payload recebido com venda, itens, pagamentos e totais persistidos. Payloads alterados com o mesmo `clientMutationId` são rejeitados como conflito.
+
+A autorização foi alinhada ao mesmo princípio: a sessão e as rotas SSR resolvem
+`auth.uid()` + `store_id` contra `store_members.role`, sem fallback para
+`profiles.default_role`. A migration incremental remove as policies históricas que
+mantinham esse fallback e aplica a mesma regra ao `adjust_inventory`.
 
 A validação permanece bloqueada porque não foi possível executar migrations, RPC, RLS ou concorrência real do Postgres: o ambiente não possui Docker/Podman nem `psql`. A suíte E2E também não possui sessão autenticada; somente os cenários públicos passam.
 
@@ -196,6 +202,24 @@ O E2E não falhou em uma asserção de venda: os testes protegidos não encontra
 - Checkout usa lock `nex-pdv-checkout:<storeId>`; sincronização usa lock separado `nex-pdv-sync:<storeId>`.
 - O fallback local usa owner, TTL, heartbeat e remoção condicional para não remover o lease de outra aba.
 - O CAS do outbox continua sendo a segunda barreira para o mesmo `clientMutationId`.
+
+### 5.8 Autoridade RBAC por loja
+
+**Causa raiz:** a migration inicial e a sessão expunham `profiles.default_role`
+como autoridade, permitindo divergência entre o papel global do perfil e o papel
+da mesma pessoa em cada loja.
+
+**Correção:**
+
+- `getAuthedContext(storeId)` não lê `default_role` e resolve o papel via membership.
+- Rotas, loaders e RPCs usam a membership específica da loja antes de gates de UX.
+- A migration `20260902201000_rbac_store_membership_authority.sql` remove as
+  policies históricas baseadas em perfil e recria helpers/policies com
+  `store_members.role`.
+- `adjust_inventory` grava `actor_role` exclusivamente da membership resolvida.
+
+Os testes unitários cobrem divergência de papel, ausência de membership, duas
+lojas e alteração dinâmica. RLS/RPC real continua pendente neste ambiente.
 
 ## 6. Riscos que permanecem
 
