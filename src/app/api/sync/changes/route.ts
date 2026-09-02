@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { pullChangesQuerySchema } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
-import { resolveStoreRole } from "@/lib/auth/authorization";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);

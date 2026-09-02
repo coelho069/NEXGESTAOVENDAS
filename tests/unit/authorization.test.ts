@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/db/types";
@@ -81,9 +82,9 @@ describe("store membership authorization", () => {
   });
 
   it("resolves roles independently for each store and observes changes without a stale cache", async () => {
-    const stores = {
-      [STORE_A]: { orgId: ORG_ID, isActive: true, role: "manager" as const },
-      [STORE_B]: { orgId: ORG_ID, isActive: true, role: "cashier" as const },
+    const stores: Record<string, StoreState> = {
+      [STORE_A]: { orgId: ORG_ID, isActive: true, role: "manager" },
+      [STORE_B]: { orgId: ORG_ID, isActive: true, role: "cashier" },
     };
     const { client } = createSupabaseMock(stores);
 
@@ -106,7 +107,7 @@ describe("store membership authorization", () => {
 describe("RBAC migration guard", () => {
   it("does not retain a default_role authorization fallback", () => {
     const migration = readFileSync(
-      new URL("../../supabase/migrations/20260902201000_rbac_store_membership_authority.sql", import.meta.url),
+      resolve(process.cwd(), "supabase/migrations/20260902201000_rbac_store_membership_authority.sql"),
       "utf8"
     );
 
