@@ -5,6 +5,7 @@ import { formatBRL, multiplyMoney, sumMoney } from "@/lib/money";
 import { getPaymentAdapter } from "@/lib/adapters/payment";
 import { fiscalAdapter } from "@/lib/adapters/fiscal";
 import { searchProducts } from "@/lib/domain/product";
+import { processSaleInputSchema } from "@/lib/validation/schemas";
 
 const sampleLines: CartLine[] = [
   {
@@ -38,11 +39,42 @@ describe("sale domain", () => {
       "99999999-9999-4999-8999-999999999999",
       sampleLines,
       "cash",
+      { discount: "0.00", saleId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }
+    );
+
+    expect(payload.sale_id).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    expect(payload.payments).toEqual([{ method: "cash", amount: "7.00" }]);
+    expect(payload.items[0].unit_price).toBe("3.50");
+  });
+
+  it("enforces one cash payment and exact numeric boundaries at the API schema", () => {
+    const payload = buildProcessSalePayload(
+      "22222222-2222-4222-8222-222222222201",
+      "99999999-9999-4999-8999-999999999999",
+      sampleLines,
+      "cash",
       { discount: "0.00" }
     );
 
-    expect(payload.payments).toEqual([{ method: "cash", amount: "7.00" }]);
-    expect(payload.items[0].unit_price).toBe("3.50");
+    expect(processSaleInputSchema.safeParse(payload).success).toBe(true);
+    expect(
+      processSaleInputSchema.safeParse({
+        ...payload,
+        payments: [payload.payments[0], payload.payments[0]],
+      }).success
+    ).toBe(false);
+    expect(
+      processSaleInputSchema.safeParse({
+        ...payload,
+        items: [{ ...payload.items[0], quantity: 1.0001 }],
+      }).success
+    ).toBe(false);
+    expect(
+      processSaleInputSchema.safeParse({
+        ...payload,
+        items: [{ ...payload.items[0], unit_price: "10000000000.00" }],
+      }).success
+    ).toBe(false);
   });
 });
 

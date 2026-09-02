@@ -23,6 +23,8 @@ export type LocalSale = {
   createdAt: string;
   confirmedAt?: string;
   serverSaleId?: string;
+  stockReconciled?: boolean;
+  outcomeUnknown?: boolean;
 };
 
 export type LocalSaleItem = {
@@ -63,6 +65,7 @@ export type OutboxCommand = {
   attemptCount: number;
   nextAttemptAt: string;
   lastError?: string;
+  outcomeUnknown?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -74,7 +77,7 @@ export type LocalConflict = {
   httpStatus: number;
   message: string;
   createdAt: string;
-  visible: true;
+  visible: boolean;
 };
 
 export type LocalMeta = {
@@ -85,6 +88,7 @@ export type LocalMeta = {
 export type CloseSaleInput = {
   storeId: string;
   clientMutationId: string;
+  role?: Enums<"member_role">;
   saleId?: string;
   lines: Array<{
     productId: string;

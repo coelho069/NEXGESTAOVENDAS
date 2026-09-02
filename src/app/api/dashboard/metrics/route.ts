@@ -5,14 +5,6 @@ import { getAuthedContext } from "@/lib/auth/session";
 import { canViewReports } from "@/lib/domain/rbac";
 
 export async function GET(request: Request) {
-  const auth = await getAuthedContext();
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (!canViewReports(auth.role)) {
-    return NextResponse.json({ error: "forbidden_reports" }, { status: 403 });
-  }
-
   const url = new URL(request.url);
   const parsed = dashboardMetricsQuerySchema.safeParse({
     store_id: url.searchParams.get("store_id") ?? undefined,
@@ -23,6 +15,12 @@ export async function GET(request: Request) {
   });
   if (!parsed.success) {
     return NextResponse.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const auth = await getAuthedContext(parsed.data.store_id);
+  const role = auth?.role;
+  if (!role || !canViewReports(role)) {
+    return NextResponse.json({ error: "forbidden_reports" }, { status: 403 });
   }
 
   const supabase = await createClient();
@@ -38,7 +36,7 @@ export async function GET(request: Request) {
 
   if (error) {
     const status = error.message.includes("forbidden") ? 403 : 422;
-    return NextResponse.json({ error: error.message }, { status });
+    return NextResponse.json({ error: status === 403 ? "forbidden_reports" : "dashboard_unavailable" }, { status });
   }
 
   return NextResponse.json(data);

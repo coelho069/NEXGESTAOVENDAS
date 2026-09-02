@@ -29,7 +29,7 @@ export function PdvScreen() {
   const { products, loading, error, fromCatalog } = useProducts();
   const { customers } = useCustomers();
   const { storeId, setStoreId } = useCartStore();
-  const { online, pendingCount, syncing, conflicts, quotaExceeded, sessionEnded } = useSyncStore();
+  const { online, pendingCount, failedCount, syncing, conflicts, quotaExceeded, sessionEnded } = useSyncStore();
   const {
     role,
     setRole,
@@ -45,7 +45,7 @@ export function PdvScreen() {
   const storeName = DEMO_STORES.find((store) => store.id === storeId)?.name ?? "Loja";
   const sale = usePdvSale(products, balances, storeName);
 
-  useHidScanner(sale.scanCode);
+  useHidScanner(sale.scanCode, true, openPanel !== "none");
 
   usePdvShortcuts({
     search: () => {
@@ -75,9 +75,17 @@ export function PdvScreen() {
       const line = sale.lines.find((item) => item.productId === id);
       if (line) sale.changeQty(line.productId, line.quantity - 1);
     },
-  });
+  }, openPanel !== "none");
 
-  const checkoutDisabled = !storeId || syncing || sale.lines.length === 0;
+  const checkoutDisabled =
+    !storeId ||
+    sessionEnded ||
+    syncing ||
+    sale.checkoutInFlight ||
+    sale.lines.length === 0 ||
+    Boolean(error) ||
+    products.length === 0 ||
+    Object.keys(balances).length === 0;
 
   return (
     <div className="mx-auto flex min-h-screen max-w-[1600px] flex-col gap-4 p-4 lg:p-6">
@@ -89,6 +97,7 @@ export function PdvScreen() {
         <SyncStatusBadge
           online={online}
           pendingCount={pendingCount}
+          failedCount={failedCount}
           syncing={syncing}
           conflictCount={conflicts.length}
         />
@@ -103,6 +112,7 @@ export function PdvScreen() {
           data-testid="store-select"
           className="rounded-lg border border-slate-300 px-3 py-2"
           value={storeId ?? ""}
+          disabled={Boolean(sale.checkoutAttemptId) || sale.checkoutInFlight || sale.lines.length > 0}
           onChange={(event) => setStoreId(event.target.value)}
         >
           <option value="">Selecione...</option>
@@ -166,7 +176,11 @@ export function PdvScreen() {
       ) : null}
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        <div
+          role="alert"
+          data-testid="catalog-error"
+          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+        >
           {error}
         </div>
       ) : null}

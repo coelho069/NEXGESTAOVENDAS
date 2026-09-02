@@ -9,6 +9,7 @@ type SyncState = {
   syncing: boolean;
   lastSyncAt: string | null;
   pendingCount: number;
+  failedCount: number;
   conflicts: LocalConflict[];
   quotaExceeded: boolean;
   sessionEnded: boolean;
@@ -16,6 +17,7 @@ type SyncState = {
   setOnline: (online: boolean) => void;
   setSyncing: (syncing: boolean) => void;
   setPendingCount: (count: number) => void;
+  setFailedCount: (count: number) => void;
   setConflicts: (conflicts: LocalConflict[]) => void;
   setQuotaExceeded: (quotaExceeded: boolean) => void;
   setSessionEnded: (sessionEnded: boolean) => void;
@@ -28,6 +30,7 @@ export const useSyncStore = create<SyncState>((set) => ({
   syncing: false,
   lastSyncAt: null,
   pendingCount: 0,
+  failedCount: 0,
   conflicts: [],
   quotaExceeded: false,
   sessionEnded: false,
@@ -35,6 +38,7 @@ export const useSyncStore = create<SyncState>((set) => ({
   setOnline: (online) => set({ online }),
   setSyncing: (syncing) => set({ syncing }),
   setPendingCount: (pendingCount) => set({ pendingCount }),
+  setFailedCount: (failedCount) => set({ failedCount }),
   setConflicts: (conflicts) => set({ conflicts }),
   setQuotaExceeded: (quotaExceeded) => set({ quotaExceeded }),
   setSessionEnded: (sessionEnded) => set({ sessionEnded }),

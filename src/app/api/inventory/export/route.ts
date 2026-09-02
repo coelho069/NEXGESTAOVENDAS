@@ -6,11 +6,6 @@ import { canSeeCostPrice } from "@/lib/domain/rbac";
 import { toExportCsv } from "@/lib/domain/inventory";
 
 export async function GET(request: Request) {
-  const auth = await getAuthedContext();
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const url = new URL(request.url);
   const parsed = inventoryListQuerySchema.safeParse({
     store_id: url.searchParams.get("store_id") ?? undefined,
@@ -21,6 +16,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 400 });
   }
 
+  const auth = await getAuthedContext(parsed.data.store_id);
+  if (!auth?.role) {
+    return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
+  }
+
+  const role = auth.role;
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("get_inventory_page", {
     p_payload: {
@@ -32,7 +33,7 @@ export async function GET(request: Request) {
 
   if (error) {
     const status = error.message.includes("forbidden") ? 403 : 422;
-    return NextResponse.json({ error: error.message }, { status });
+    return NextResponse.json({ error: status === 403 ? "forbidden_store" : "inventory_unavailable" }, { status });
   }
 
   const payload = data as {
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
       name: row.name,
       quantity: row.quantity,
       unitPrice: row.unit_price,
-      costPrice: canSeeCostPrice(auth.role) ? row.cost_price : null,
+      costPrice: canSeeCostPrice(role) ? row.cost_price : null,
     }))
   );
 
