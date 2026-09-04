@@ -16,7 +16,8 @@ function applyCatalogResult(failed: boolean, data: ProductRow[] | null) {
   return resolved;
 }
 
-export function useProducts() {
+export function useProducts(options: { storeId?: string | null } = {}) {
+  const { storeId = null } = options;
   const [products, setProducts] = useState<ProductRow[]>(() =>
     pdvFixturesEnabled() ? filterActiveProducts(fixtureProducts()) : []
   );
@@ -25,9 +26,17 @@ export function useProducts() {
   const [fromCatalog, setFromCatalog] = useState(false);
 
   const load = useCallback(async () => {
+    setLoading(true);
+    if (!storeId && !pdvFixturesEnabled()) {
+      setProducts([]);
+      setFromCatalog(false);
+      setError("Selecione uma loja autorizada");
+      setLoading(false);
+      return;
+    }
+
     try {
       const supabase = createClient();
-      setLoading(true);
       const { data, error: queryError } = await supabase
         .from("products")
         .select("id, sku, name, unit_price, barcode, category_id, is_active")
@@ -45,11 +54,10 @@ export function useProducts() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [storeId]);
 
   useEffect(() => {
     // Initial catalog loading synchronizes this client with Supabase.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
 

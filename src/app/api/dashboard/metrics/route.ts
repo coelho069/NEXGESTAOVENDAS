@@ -28,21 +28,33 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "forbidden_reports" }, { status: 403 });
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("get_dashboard_metrics", {
-    p_payload: {
-      store_id: parsed.data.store_id,
-      from: parsed.data.from,
-      to: parsed.data.to,
-      cursor_sku: parsed.data.cursor_sku,
-      limit: parsed.data.limit,
-    },
-  });
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("get_dashboard_metrics", {
+      p_payload: {
+        store_id: parsed.data.store_id,
+        from: parsed.data.from,
+        to: parsed.data.to,
+        cursor_sku: parsed.data.cursor_sku,
+        limit: parsed.data.limit,
+      },
+    });
 
-  if (error) {
-    const status = error.message.includes("forbidden") ? 403 : 422;
-    return NextResponse.json({ error: status === 403 ? "forbidden_reports" : "dashboard_unavailable" }, { status });
+    if (error) {
+      const status = error.message.includes("forbidden") ? 403 : 422;
+      return NextResponse.json(
+        { error: status === 403 ? "forbidden_reports" : "dashboard_unavailable" },
+        { status, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+
+    return NextResponse.json(data, {
+      headers: { "Cache-Control": "no-store" },
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "dashboard_unavailable" },
+      { status: 503, headers: { "Cache-Control": "no-store" } }
+    );
   }
-
-  return NextResponse.json(data);
 }

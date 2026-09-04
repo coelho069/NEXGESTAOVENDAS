@@ -1,6 +1,7 @@
 import { formatBRL } from "@/lib/money";
 import type { CartLine } from "@/lib/domain/sale";
 import { lineTotal } from "@/lib/domain/sale";
+import type { Enums } from "@/lib/db/types";
 
 export type ReceiptPayment = {
   method: string;
@@ -10,6 +11,7 @@ export type ReceiptPayment = {
 
 export type ReceiptModel = {
   saleId: string;
+  clientMutationId?: string;
   storeName: string;
   createdAt: string;
   customerName: string | null;
@@ -20,7 +22,25 @@ export type ReceiptModel = {
   payments: ReceiptPayment[];
   syncStatus: string;
   saleStatus: string;
+  fiscalStatus?: Enums<"fiscal_document_status">;
 };
+
+export function fiscalStatusLabel(status: Enums<"fiscal_document_status">): string {
+  switch (status) {
+    case "issued":
+      return "emitido";
+    case "failed":
+      return "falhou";
+    case "cancelled":
+      return "cancelado";
+    case "not_configured":
+      return "não configurado";
+    case "unknown":
+      return "desconhecido";
+    case "pending":
+      return "pendente";
+  }
+}
 
 function escapeHtml(value: string): string {
   return value
@@ -58,6 +78,7 @@ export function renderReceiptHtml(model: ReceiptModel): string {
         `<div>${escapeHtml(payment.method)} · ${escapeHtml(formatBRL(payment.amount))} · ${escapeHtml(payment.status)}</div>`
     )
     .join("");
+  const fiscalStatus = model.fiscalStatus ?? "pending";
 
   return `<!doctype html>
 <html lang="pt-BR">
@@ -87,6 +108,9 @@ export function renderReceiptHtml(model: ReceiptModel): string {
   <div>Desconto ${escapeHtml(formatBRL(model.discount))}</div>
   <div class="total">Total ${escapeHtml(formatBRL(model.total))}</div>
   ${payments}
+  <div class="muted" data-receipt-fiscal="${escapeHtml(fiscalStatus)}">
+    Fiscal: ${escapeHtml(fiscalStatusLabel(fiscalStatus))}
+  </div>
   <div class="sync" data-receipt-sync="${escapeHtml(model.syncStatus)}">
     Status da venda: ${escapeHtml(model.saleStatus)} · Sincronização: ${escapeHtml(model.syncStatus)}
   </div>

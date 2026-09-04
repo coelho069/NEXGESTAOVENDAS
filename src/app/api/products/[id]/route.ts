@@ -35,7 +35,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!auth.role || !canEditProducts(auth.role)) {
+  if (
+    !auth.orgId ||
+    !auth.storeId ||
+    auth.storeId !== storeId ||
+    !auth.role ||
+    !canEditProducts(auth.role)
+  ) {
     return NextResponse.json({ error: "forbidden_products" }, { status: 403 });
   }
 
@@ -51,7 +57,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   };
   const supabase = asCatalogClient(await createClient());
   const { data, error } = await supabase.rpc("update_product", {
-    p_store_id: storeId,
+    p_store_id: auth.storeId,
     p_product_id: id,
     p_payload: patchPayload,
   });
@@ -62,6 +68,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
     if (error.message.includes("product_not_found")) {
       return NextResponse.json({ error: "product_not_found" }, { status: 404 });
+    }
+    if (
+      error.code === "23505" &&
+      `${error.message} ${error.details ?? ""}`.includes("products_org_barcode_key")
+    ) {
+      return NextResponse.json({ error: "barcode_conflict" }, { status: 409 });
     }
     return NextResponse.json({ error: "product_write_failed" }, { status: 422 });
   }

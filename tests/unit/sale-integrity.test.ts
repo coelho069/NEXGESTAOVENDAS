@@ -104,8 +104,8 @@ describe("2. demo stock seeding removed; empty stock blocks sale", () => {
     await db.inventoryBalances.put({
       storeId,
       productId: product.id,
-      quantity: initial[product.id]! - 1,
-      serverQuantity: initial[product.id]!,
+      quantity: (initial[product.id]! - 1).toFixed(3),
+      serverQuantity: initial[product.id]!.toFixed(3),
       updatedAt: new Date().toISOString(),
     });
 

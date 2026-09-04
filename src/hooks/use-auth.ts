@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { useSessionStore } from "@/stores/session-store";
+import { useSyncStore } from "@/stores/sync-store";
 import { clearClientSessionStorage } from "@/lib/offline/end-session";
 
 export function useAuth() {
@@ -11,11 +12,12 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const applySessionUser = (nextUser: User | null) => {
+    const applySessionUser = async (nextUser: User | null) => {
       const previousUserId = useSessionStore.getState().userId;
       const nextUserId = nextUser?.id ?? null;
       if (previousUserId !== nextUserId || nextUserId === null) {
-        void clearClientSessionStorage(previousUserId);
+        await clearClientSessionStorage(previousUserId);
+        useSyncStore.getState().resetForUser();
       }
       setUser(nextUser);
       setLoading(false);
@@ -26,18 +28,18 @@ export function useAuth() {
     try {
       supabase = createClient();
     } catch {
-      applySessionUser(null);
+      void applySessionUser(null);
       return;
     }
 
     supabase.auth.getUser().then(({ data }) => {
-      applySessionUser(data.user ?? null);
+      void applySessionUser(data.user ?? null);
     }).catch(() => {
-      applySessionUser(null);
+      void applySessionUser(null);
     });
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      applySessionUser(session?.user ?? null);
+      void applySessionUser(session?.user ?? null);
     });
 
     return () => subscription.subscription.unsubscribe();

@@ -3,15 +3,28 @@ import { createClient } from "@/lib/supabase/server";
 import { processSaleInputSchema, storeIdSchema } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
 import { discountLimitHttpStatus, salePayloadExceedsDiscountCap } from "@/lib/domain/sale-ops";
+import { requestFiscalIssueAfterCommit } from "@/lib/server/fiscal-operation";
+import {
+  createRequestObservability,
+  observeApiResult,
+} from "@/lib/observability/request-context";
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
+  const obs = createRequestObservability(request, "sales.process");
+  let supabase: Awaited<ReturnType<typeof createClient>>;
+  try {
+    supabase = await createClient();
+  } catch {
+    observeApiResult(obs, "server_error", { error: "auth_not_configured" });
+    return obs.withHeaders(NextResponse.json({ error: "auth_not_configured" }, { status: 503 }));
+  }
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    observeApiResult(obs, "rejected", { error: "Unauthorized" });
+    return obs.withHeaders(NextResponse.json({ error: "Unauthorized" }, { status: 401 }));
   }
 
   let json: unknown;
@@ -45,6 +58,15 @@ export async function POST(request: Request) {
       { status: 422 }
     );
   }
+  if (!parsed.data.cash_session_id || !parsed.data.terminal_id) {
+    return NextResponse.json(
+      {
+        error: "cash_session_required",
+        message: "Venda em dinheiro exige sessão de caixa aberta e terminal identificado.",
+      },
+      { status: 409 }
+    );
+  }
 
   const auth = await getAuthedContext(parsed.data.store_id);
   if (!auth?.orgId || !auth.role) {
@@ -55,7 +77,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "discount_limit_exceeded" }, { status: discountLimitHttpStatus(true) });
   }
 
-  const { data, error } = await supabase.rpc("process_sale", {
+  const hasSuspensionContext = Boolean(
+    parsed.data.suspended_sale_id || parsed.data.suspension_claim_id
+  );
+  if (
+    hasSuspensionContext &&
+    (!parsed.data.suspended_sale_id || !parsed.data.suspension_claim_id)
+  ) {
+    return NextResponse.json({ error: "suspended_sale_claim_conflict" }, { status: 409 });
+  }
+  if (hasSuspensionContext && !parsed.data.terminal_id) {
+    return NextResponse.json({ error: "suspended_sale_claim_conflict" }, { status: 409 });
+  }
+
+  const rpc = hasSuspensionContext
+    ? parsed.data.cash_session_id
+      ? "complete_suspended_sale_with_cash"
+      : "complete_suspended_sale"
+    : parsed.data.cash_session_id
+      ? "process_sale_with_cash"
+      : "process_sale";
+  const { data, error } = await supabase.rpc(rpc, {
     p_payload: parsed.data,
   });
 
@@ -63,17 +105,72 @@ export async function POST(request: Request) {
     if (error.message.includes("idempotency_payload_mismatch")) {
       return NextResponse.json({ error: "idempotency_payload_mismatch" }, { status: 409 });
     }
+    if (
+      error.message.includes("suspended_sale_claimed") ||
+      error.message.includes("suspended_sale_completed") ||
+      error.message.includes("suspended_sale_claim_conflict") ||
+      error.message.includes("suspended_snapshot_conflict") ||
+      error.message.includes("suspended_sale_completion")
+    ) {
+      return NextResponse.json({ error: "suspended_sale_conflict" }, { status: 409 });
+    }
+    if (error.message.includes("suspended_sale_not_found")) {
+      return NextResponse.json({ error: "suspended_sale_not_found" }, { status: 404 });
+    }
     if (error.message.includes("discount_limit_exceeded")) {
       return NextResponse.json({ error: "discount_limit_exceeded" }, { status: 403 });
     }
     if (error.message.includes("forbidden") || error.message.includes("access_denied")) {
       return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
     }
+    if (error.message.includes("cash_session_closed")) {
+      return NextResponse.json({ error: "cash_session_closed" }, { status: 409 });
+    }
+    if (
+      error.message.includes("cash_session_already_open") ||
+      error.message.includes("cash_sale_session_mismatch") ||
+      error.message.includes("cash_idempotency_payload_mismatch")
+    ) {
+      return NextResponse.json({ error: "cash_session_conflict" }, { status: 409 });
+    }
     if (error.code === "22023" || error.code === "23514") {
       return NextResponse.json({ error: "sale_processing_failed" }, { status: 422 });
     }
-    return NextResponse.json({ error: "sale_processing_unavailable" }, { status: 503 });
+    observeApiResult(obs, "server_error", {
+      error: "sale_processing_unavailable",
+      clientMutationId: parsed.data.client_mutation_id,
+      storeId: parsed.data.store_id,
+    });
+    return obs.withHeaders(
+      NextResponse.json({ error: "sale_processing_unavailable" }, { status: 503 })
+    );
   }
 
-  return NextResponse.json(data);
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const saleId = (data as { sale_id?: unknown }).sale_id;
+    if (typeof saleId === "string") {
+      const fiscal = await requestFiscalIssueAfterCommit(supabase, {
+        storeId: parsed.data.store_id,
+        saleId,
+      });
+      observeApiResult(obs, "ok", {
+        saleId,
+        clientMutationId: parsed.data.client_mutation_id,
+        storeId: parsed.data.store_id,
+        replay: (data as { replay?: unknown }).replay === true,
+      });
+      return obs.withHeaders(
+        NextResponse.json({
+          ...(data as Record<string, unknown>),
+          fiscal: fiscal.data ?? { status: "pending" },
+        })
+      );
+    }
+  }
+
+  observeApiResult(obs, "ok", {
+    clientMutationId: parsed.data.client_mutation_id,
+    storeId: parsed.data.store_id,
+  });
+  return obs.withHeaders(NextResponse.json(data));
 }

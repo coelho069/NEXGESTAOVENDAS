@@ -11,6 +11,7 @@
 
 # Next.js
 /.next/
+/.next-e2e/
 /out/
 /build
 
@@ -27,7 +28,7 @@ yarn-error.log*
 
 # Local env files — never commit secrets
 .env
-.env*.local
+.env.*
 !.env.example
 
 # Vercel

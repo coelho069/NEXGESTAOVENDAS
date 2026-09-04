@@ -63,6 +63,166 @@ export type Database = {
           },
         ]
       }
+      cash_movements: {
+        Row: {
+          amount: number
+          cash_session_id: string
+          client_mutation_id: string
+          created_at: string
+          created_by: string
+          id: string
+          movement_type: Database["public"]["Enums"]["cash_movement_type"]
+          org_id: string
+          payment_id: string | null
+          reason: string
+          sale_id: string | null
+          store_id: string
+          terminal_id: string
+        }
+        Insert: {
+          amount: number
+          cash_session_id: string
+          client_mutation_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          movement_type: Database["public"]["Enums"]["cash_movement_type"]
+          org_id: string
+          payment_id?: string | null
+          reason: string
+          sale_id?: string | null
+          store_id: string
+          terminal_id: string
+        }
+        Update: {
+          amount?: number
+          cash_session_id?: string
+          client_mutation_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          movement_type?: Database["public"]["Enums"]["cash_movement_type"]
+          org_id?: string
+          payment_id?: string | null
+          reason?: string
+          sale_id?: string | null
+          store_id?: string
+          terminal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_movements_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_movements_payment_scope_fk"
+            columns: ["payment_id", "org_id", "store_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id", "org_id", "store_id"]
+          },
+          {
+            foreignKeyName: "cash_movements_sale_scope_fk"
+            columns: ["sale_id", "org_id", "store_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id", "org_id", "store_id"]
+          },
+          {
+            foreignKeyName: "cash_movements_session_scope_fk"
+            columns: ["cash_session_id", "org_id", "store_id", "terminal_id"]
+            isOneToOne: false
+            referencedRelation: "cash_sessions"
+            referencedColumns: ["id", "org_id", "store_id", "terminal_id"]
+          },
+          {
+            foreignKeyName: "cash_movements_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cash_sessions: {
+        Row: {
+          close_client_mutation_id: string | null
+          closed_at: string | null
+          closed_by: string | null
+          counted_amount: number | null
+          difference: number | null
+          expected_amount: number | null
+          id: string
+          open_client_mutation_id: string
+          opened_at: string
+          opened_by: string
+          opening_amount: number
+          org_id: string
+          status: Database["public"]["Enums"]["cash_session_status"]
+          store_id: string
+          terminal_id: string
+        }
+        Insert: {
+          close_client_mutation_id?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          counted_amount?: number | null
+          difference?: number | null
+          expected_amount?: number | null
+          id?: string
+          open_client_mutation_id: string
+          opened_at?: string
+          opened_by: string
+          opening_amount?: number
+          org_id: string
+          status?: Database["public"]["Enums"]["cash_session_status"]
+          store_id: string
+          terminal_id: string
+        }
+        Update: {
+          close_client_mutation_id?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          counted_amount?: number | null
+          difference?: number | null
+          expected_amount?: number | null
+          id?: string
+          open_client_mutation_id?: string
+          opened_at?: string
+          opened_by?: string
+          opening_amount?: number
+          org_id?: string
+          status?: Database["public"]["Enums"]["cash_session_status"]
+          store_id?: string
+          terminal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_sessions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_sessions_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_sessions_store_scope_fk"
+            columns: ["store_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           created_at: string
@@ -145,38 +305,71 @@ export type Database = {
       fiscal_documents: {
         Row: {
           adapter: string
+          attempt_count: number
+          cancelled_at: string | null
           created_at: string
           external_id: string | null
           id: string
+          issued_at: string | null
+          last_error: string | null
+          last_operation:
+            | Database["public"]["Enums"]["fiscal_operation_type"]
+            | null
+          operation_id: string | null
           org_id: string
           payload: Json
+          reconciled_at: string | null
+          requested_at: string | null
           sale_id: string
           status: Database["public"]["Enums"]["fiscal_document_status"]
           store_id: string
+          unknown_at: string | null
           updated_at: string
         }
         Insert: {
           adapter?: string
+          attempt_count?: number
+          cancelled_at?: string | null
           created_at?: string
           external_id?: string | null
           id?: string
+          issued_at?: string | null
+          last_error?: string | null
+          last_operation?:
+            | Database["public"]["Enums"]["fiscal_operation_type"]
+            | null
+          operation_id?: string | null
           org_id: string
           payload?: Json
+          reconciled_at?: string | null
+          requested_at?: string | null
           sale_id: string
           status?: Database["public"]["Enums"]["fiscal_document_status"]
           store_id: string
+          unknown_at?: string | null
           updated_at?: string
         }
         Update: {
           adapter?: string
+          attempt_count?: number
+          cancelled_at?: string | null
           created_at?: string
           external_id?: string | null
           id?: string
+          issued_at?: string | null
+          last_error?: string | null
+          last_operation?:
+            | Database["public"]["Enums"]["fiscal_operation_type"]
+            | null
+          operation_id?: string | null
           org_id?: string
           payload?: Json
+          reconciled_at?: string | null
+          requested_at?: string | null
           sale_id?: string
           status?: Database["public"]["Enums"]["fiscal_document_status"]
           store_id?: string
+          unknown_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -200,6 +393,86 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sales"
             referencedColumns: ["id", "store_id", "org_id"]
+          },
+        ]
+      }
+      integration_outbox: {
+        Row: {
+          attempt_count: number
+          created_at: string
+          fiscal_document_id: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          next_attempt_at: string
+          operation_id: string
+          operation_type: Database["public"]["Enums"]["fiscal_operation_type"]
+          org_id: string
+          provider: string
+          status: Database["public"]["Enums"]["integration_outbox_status"]
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string
+          fiscal_document_id: string
+          id?: string
+          idempotency_key: string
+          last_error?: string | null
+          next_attempt_at?: string
+          operation_id: string
+          operation_type: Database["public"]["Enums"]["fiscal_operation_type"]
+          org_id: string
+          provider: string
+          status?: Database["public"]["Enums"]["integration_outbox_status"]
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string
+          fiscal_document_id?: string
+          id?: string
+          idempotency_key?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          operation_id?: string
+          operation_type?: Database["public"]["Enums"]["fiscal_operation_type"]
+          org_id?: string
+          provider?: string
+          status?: Database["public"]["Enums"]["integration_outbox_status"]
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_outbox_fiscal_document_id_fkey"
+            columns: ["fiscal_document_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_outbox_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_outbox_scope_fk"
+            columns: ["fiscal_document_id", "store_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_documents"
+            referencedColumns: ["id", "store_id", "org_id"]
+          },
+          {
+            foreignKeyName: "integration_outbox_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -230,6 +503,20 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_inventory_balances_product_same_org"
+            columns: ["product_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "fk_inventory_balances_store_same_org"
+            columns: ["store_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
             foreignKeyName: "inventory_balances_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
@@ -256,9 +543,13 @@ export type Database = {
         Row: {
           actor_role: Database["public"]["Enums"]["member_role"] | null
           balance_after: number
+          client_mutation_id: string | null
           created_at: string
           created_by: string
           id: string
+          import_id: string | null
+          import_row: number | null
+          movement_seq: number
           movement_type: Database["public"]["Enums"]["inventory_movement_type"]
           org_id: string
           product_id: string
@@ -266,13 +557,18 @@ export type Database = {
           reason: string | null
           sale_id: string | null
           store_id: string
+          terminal_id: string | null
         }
         Insert: {
           actor_role?: Database["public"]["Enums"]["member_role"] | null
           balance_after: number
+          client_mutation_id?: string | null
           created_at?: string
           created_by: string
           id?: string
+          import_id?: string | null
+          import_row?: number | null
+          movement_seq?: never
           movement_type: Database["public"]["Enums"]["inventory_movement_type"]
           org_id: string
           product_id: string
@@ -280,13 +576,18 @@ export type Database = {
           reason?: string | null
           sale_id?: string | null
           store_id: string
+          terminal_id?: string | null
         }
         Update: {
           actor_role?: Database["public"]["Enums"]["member_role"] | null
           balance_after?: number
+          client_mutation_id?: string | null
           created_at?: string
           created_by?: string
           id?: string
+          import_id?: string | null
+          import_row?: number | null
+          movement_seq?: never
           movement_type?: Database["public"]["Enums"]["inventory_movement_type"]
           org_id?: string
           product_id?: string
@@ -294,8 +595,30 @@ export type Database = {
           reason?: string | null
           sale_id?: string | null
           store_id?: string
+          terminal_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_inventory_movements_product_same_org"
+            columns: ["product_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "fk_inventory_movements_sale_store_org"
+            columns: ["sale_id", "store_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id", "store_id", "org_id"]
+          },
+          {
+            foreignKeyName: "fk_inventory_movements_store_same_org"
+            columns: ["store_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id", "org_id"]
+          },
           {
             foreignKeyName: "inventory_movements_org_id_fkey"
             columns: ["org_id"]
@@ -356,41 +679,131 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_provider_events: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          org_id: string
+          payment_id: string
+          provider_reference: string | null
+          status: string
+          store_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          org_id: string
+          payment_id: string
+          provider_reference?: string | null
+          status: string
+          store_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          org_id?: string
+          payment_id?: string
+          provider_reference?: string | null
+          status?: string
+          store_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_provider_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_provider_events_payment_scope_fk"
+            columns: ["payment_id", "org_id", "store_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id", "org_id", "store_id"]
+          },
+          {
+            foreignKeyName: "payment_provider_events_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payments: {
         Row: {
           adapter_status: Database["public"]["Enums"]["adapter_status"]
           amount: number
+          cash_session_id: string | null
+          client_mutation_id: string
           created_at: string
           external_reference: string | null
+          failure_code: string | null
           id: string
           method: Database["public"]["Enums"]["payment_method"]
           org_id: string
+          reconciled_at: string | null
           sale_id: string
           status: Database["public"]["Enums"]["payment_status"]
+          store_id: string
+          unknown_at: string | null
+          updated_at: string
         }
         Insert: {
           adapter_status?: Database["public"]["Enums"]["adapter_status"]
           amount: number
+          cash_session_id?: string | null
+          client_mutation_id: string
           created_at?: string
           external_reference?: string | null
+          failure_code?: string | null
           id?: string
           method: Database["public"]["Enums"]["payment_method"]
           org_id: string
+          reconciled_at?: string | null
           sale_id: string
           status?: Database["public"]["Enums"]["payment_status"]
+          store_id: string
+          unknown_at?: string | null
+          updated_at?: string
         }
         Update: {
           adapter_status?: Database["public"]["Enums"]["adapter_status"]
           amount?: number
+          cash_session_id?: string | null
+          client_mutation_id?: string
           created_at?: string
           external_reference?: string | null
+          failure_code?: string | null
           id?: string
           method?: Database["public"]["Enums"]["payment_method"]
           org_id?: string
+          reconciled_at?: string | null
           sale_id?: string
           status?: Database["public"]["Enums"]["payment_status"]
+          store_id?: string
+          unknown_at?: string | null
+          updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_payments_sale_same_org"
+            columns: ["sale_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "payments_cash_session_scope_fk"
+            columns: ["cash_session_id", "org_id", "store_id"]
+            isOneToOne: false
+            referencedRelation: "cash_sessions"
+            referencedColumns: ["id", "org_id", "store_id"]
+          },
           {
             foreignKeyName: "payments_org_id_fkey"
             columns: ["org_id"]
@@ -404,6 +817,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sales"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_sale_store_scope_fk"
+            columns: ["sale_id", "org_id", "store_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id", "org_id", "store_id"]
           },
         ]
       }
@@ -543,6 +963,7 @@ export type Database = {
       }
       sale_items: {
         Row: {
+          cost_price: number | null
           created_at: string
           discount: number
           id: string
@@ -555,6 +976,7 @@ export type Database = {
           unit_price: number
         }
         Insert: {
+          cost_price?: number | null
           created_at?: string
           discount?: number
           id?: string
@@ -567,6 +989,7 @@ export type Database = {
           unit_price: number
         }
         Update: {
+          cost_price?: number | null
           created_at?: string
           discount?: number
           id?: string
@@ -597,6 +1020,7 @@ export type Database = {
       }
       sales: {
         Row: {
+          cash_session_id: string | null
           cashier_id: string
           client_mutation_id: string
           confirmed_at: string | null
@@ -614,6 +1038,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cash_session_id?: string | null
           cashier_id: string
           client_mutation_id: string
           confirmed_at?: string | null
@@ -631,6 +1056,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cash_session_id?: string | null
           cashier_id?: string
           client_mutation_id?: string
           confirmed_at?: string | null
@@ -648,6 +1074,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_sales_store_same_org"
+            columns: ["store_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "sales_cash_session_scope_fk"
+            columns: ["cash_session_id", "org_id", "store_id"]
+            isOneToOne: false
+            referencedRelation: "cash_sessions"
+            referencedColumns: ["id", "org_id", "store_id"]
+          },
           {
             foreignKeyName: "sales_customer_id_fkey"
             columns: ["customer_id"]
@@ -758,12 +1198,130 @@ export type Database = {
           },
         ]
       }
+      suspended_sales: {
+        Row: {
+          claim_id: string | null
+          claimed_at: string | null
+          claimed_by: string | null
+          claimed_terminal_id: string | null
+          client_mutation_id: string
+          completed_at: string | null
+          completed_sale_id: string | null
+          completion_client_mutation_id: string | null
+          created_at: string
+          customer_id: string | null
+          discount: number
+          id: string
+          operator_id: string
+          org_id: string
+          recovery_client_mutation_id: string | null
+          snapshot: Json
+          snapshot_version: number
+          status: Database["public"]["Enums"]["suspended_sale_status"]
+          store_id: string
+          subtotal: number
+          terminal_id: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          claim_id?: string | null
+          claimed_at?: string | null
+          claimed_by?: string | null
+          claimed_terminal_id?: string | null
+          client_mutation_id: string
+          completed_at?: string | null
+          completed_sale_id?: string | null
+          completion_client_mutation_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          discount: number
+          id?: string
+          operator_id: string
+          org_id: string
+          recovery_client_mutation_id?: string | null
+          snapshot: Json
+          snapshot_version?: number
+          status?: Database["public"]["Enums"]["suspended_sale_status"]
+          store_id: string
+          subtotal: number
+          terminal_id: string
+          total: number
+          updated_at?: string
+        }
+        Update: {
+          claim_id?: string | null
+          claimed_at?: string | null
+          claimed_by?: string | null
+          claimed_terminal_id?: string | null
+          client_mutation_id?: string
+          completed_at?: string | null
+          completed_sale_id?: string | null
+          completion_client_mutation_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          discount?: number
+          id?: string
+          operator_id?: string
+          org_id?: string
+          recovery_client_mutation_id?: string | null
+          snapshot?: Json
+          snapshot_version?: number
+          status?: Database["public"]["Enums"]["suspended_sale_status"]
+          store_id?: string
+          subtotal?: number
+          terminal_id?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suspended_sales_completed_sale_scope_fk"
+            columns: ["completed_sale_id", "org_id", "store_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id", "org_id", "store_id"]
+          },
+          {
+            foreignKeyName: "suspended_sales_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suspended_sales_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suspended_sales_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suspended_sales_store_scope_fk"
+            columns: ["store_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       adjust_inventory: { Args: { p_payload: Json }; Returns: Json }
+      append_fiscal_audit: {
+        Args: { p_action: string; p_document_id: string; p_payload: Json }
+        Returns: undefined
+      }
       assert_sale_discount_cap: {
         Args: { p_discount: number; p_store_id: string; p_subtotal: number }
         Returns: undefined
@@ -772,23 +1330,54 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: undefined
       }
+      build_fiscal_snapshot: { Args: { p_sale_id: string }; Returns: Json }
       category_belongs_to_org: {
         Args: { p_category_id: string; p_org_id: string }
         Returns: boolean
+      }
+      claim_fiscal_outbox: { Args: { p_payload?: Json }; Returns: Json }
+      close_cash_session: { Args: { p_payload: Json }; Returns: Json }
+      complete_suspended_sale: { Args: { p_payload: Json }; Returns: Json }
+      complete_suspended_sale_core: {
+        Args: { p_payload: Json; p_with_cash: boolean }
+        Returns: Json
+      }
+      complete_suspended_sale_with_cash: {
+        Args: { p_payload: Json }
+        Returns: Json
       }
       create_product: {
         Args: { p_payload: Json; p_store_id: string }
         Returns: Json
       }
       current_user_org_id: { Args: never; Returns: string }
+      fiscal_result_error_code: { Args: { p_payload: Json }; Returns: string }
+      get_cash_session: { Args: { p_payload: Json }; Returns: Json }
       get_dashboard_metrics: { Args: { p_payload: Json }; Returns: Json }
       get_inventory_page: { Args: { p_payload: Json }; Returns: Json }
+      list_suspended_sales: { Args: { p_payload: Json }; Returns: Json }
+      open_cash_session: { Args: { p_payload: Json }; Returns: Json }
       process_sale: { Args: { p_payload: Json }; Returns: Json }
       process_sale_core: { Args: { p_payload: Json }; Returns: Json }
+      process_sale_with_cash: { Args: { p_payload: Json }; Returns: Json }
+      reconcile_payment: { Args: { p_payload: Json }; Returns: Json }
+      record_cash_movement: { Args: { p_payload: Json }; Returns: Json }
+      record_fiscal_result: { Args: { p_payload: Json }; Returns: Json }
+      record_payment_provider_event: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      recover_suspended_sale: { Args: { p_payload: Json }; Returns: Json }
+      release_suspended_sale: { Args: { p_payload: Json }; Returns: Json }
+      request_fiscal_cancel: { Args: { p_payload: Json }; Returns: Json }
+      request_fiscal_issue: { Args: { p_payload: Json }; Returns: Json }
+      request_fiscal_reconcile: { Args: { p_payload: Json }; Returns: Json }
+      retry_fiscal_operation: { Args: { p_payload: Json }; Returns: Json }
       sale_payload_matches: {
         Args: { p_payload: Json; p_sale_id: string }
         Returns: boolean
       }
+      suspend_sale: { Args: { p_payload: Json }; Returns: Json }
       update_product: {
         Args: { p_payload: Json; p_product_id: string; p_store_id: string }
         Returns: Json
@@ -798,6 +1387,7 @@ export type Database = {
         Returns: boolean
       }
       user_can_view_reports: { Args: { p_store_id: string }; Returns: boolean }
+      user_has_org_membership: { Args: never; Returns: boolean }
       user_has_org_role: {
         Args: {
           p_roles: Database["public"]["Enums"]["member_role"][]
@@ -813,12 +1403,22 @@ export type Database = {
     }
     Enums: {
       adapter_status: "configured" | "not_configured" | "error"
+      cash_movement_type: "sale_cash" | "supply" | "withdrawal" | "adjustment"
+      cash_session_status: "open" | "closed"
       fiscal_document_status:
         | "not_configured"
         | "pending"
         | "issued"
         | "failed"
         | "cancelled"
+        | "unknown"
+      fiscal_operation_type: "issue" | "cancel" | "consult"
+      integration_outbox_status:
+        | "pending"
+        | "processing"
+        | "completed"
+        | "failed"
+        | "unknown"
       inventory_movement_type: "sale" | "refund" | "restock" | "adjustment"
       member_role: "admin" | "cashier" | "manager"
       payment_method: "cash" | "card" | "pix" | "voucher" | "other"
@@ -829,6 +1429,7 @@ export type Database = {
         | "failed"
         | "cancelled"
         | "refunded"
+        | "unknown"
       sale_status:
         | "draft"
         | "pending_sync"
@@ -836,6 +1437,7 @@ export type Database = {
         | "cancelled"
         | "refunded"
         | "partially_refunded"
+      suspended_sale_status: "suspended" | "claimed" | "completed"
       sync_status: "pending" | "processing" | "synced" | "failed" | "conflict"
     }
     CompositeTypes: {
@@ -965,12 +1567,23 @@ export const Constants = {
   public: {
     Enums: {
       adapter_status: ["configured", "not_configured", "error"],
+      cash_movement_type: ["sale_cash", "supply", "withdrawal", "adjustment"],
+      cash_session_status: ["open", "closed"],
       fiscal_document_status: [
         "not_configured",
         "pending",
         "issued",
         "failed",
         "cancelled",
+        "unknown",
+      ],
+      fiscal_operation_type: ["issue", "cancel", "consult"],
+      integration_outbox_status: [
+        "pending",
+        "processing",
+        "completed",
+        "failed",
+        "unknown",
       ],
       inventory_movement_type: ["sale", "refund", "restock", "adjustment"],
       member_role: ["admin", "cashier", "manager"],
@@ -982,6 +1595,7 @@ export const Constants = {
         "failed",
         "cancelled",
         "refunded",
+        "unknown",
       ],
       sale_status: [
         "draft",
@@ -991,6 +1605,7 @@ export const Constants = {
         "refunded",
         "partially_refunded",
       ],
+      suspended_sale_status: ["suspended", "claimed", "completed"],
       sync_status: ["pending", "processing", "synced", "failed", "conflict"],
     },
   },

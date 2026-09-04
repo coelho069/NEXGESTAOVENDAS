@@ -75,8 +75,8 @@ async function seedStock(db: PdvLocalDatabase, quantity = 10): Promise<void> {
   await db.inventoryBalances.put({
     storeId: STORE_ID,
     productId: PRODUCT_ID,
-    quantity,
-    serverQuantity: quantity,
+    quantity: quantity.toFixed(3),
+    serverQuantity: quantity.toFixed(3),
     updatedAt: new Date().toISOString(),
   });
 }
@@ -123,7 +123,7 @@ describe("Dexie pdv_local_v1 closeSale", () => {
     });
     expect(await db.outbox.count()).toBe(1);
     const stock = await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]);
-    expect(stock?.quantity).toBe(9);
+    expect(stock?.quantity).toBe("9.000");
     const command = await db.outbox.get(MUTATION_ID);
     expect(command?.clientMutationId).toBe(MUTATION_ID);
     expect(command?.payload.client_mutation_id).toBe(MUTATION_ID);
@@ -144,7 +144,7 @@ describe("Dexie pdv_local_v1 closeSale", () => {
 
     expect(await db.sales.count()).toBe(0);
     expect(await db.outbox.count()).toBe(0);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(1);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("1.000");
   });
 });
 
@@ -157,13 +157,13 @@ describe("rollback após falha parcial do fechamento local", () => {
 
     await expect(closeSale(db, saleInput())).rejects.toThrow("sale item write failed");
     await expectLocalTransactionEmpty(db);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(10);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("10.000");
 
     addSpy.mockRestore();
     await closeSale(db, saleInput());
     expect(await db.sales.count()).toBe(1);
     expect(await db.payments.count()).toBe(1);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
   });
 
   it("desfaz venda e itens quando payments.add falha", async () => {
@@ -174,13 +174,13 @@ describe("rollback após falha parcial do fechamento local", () => {
 
     await expect(closeSale(db, saleInput())).rejects.toThrow("payment write failed");
     await expectLocalTransactionEmpty(db);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(10);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("10.000");
 
     addSpy.mockRestore();
     await closeSale(db, saleInput());
     expect(await db.sales.count()).toBe(1);
     expect(await db.payments.count()).toBe(1);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
   });
 
   it("desfaz todas as escritas quando outbox.add falha", async () => {
@@ -191,13 +191,13 @@ describe("rollback após falha parcial do fechamento local", () => {
 
     await expect(closeSale(db, saleInput())).rejects.toThrow("outbox write failed");
     await expectLocalTransactionEmpty(db);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(10);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("10.000");
 
     addSpy.mockRestore();
     await closeSale(db, saleInput());
     expect(await db.sales.count()).toBe(1);
     expect(await db.payments.count()).toBe(1);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
   });
 
   it("desfaz a primeira baixa quando a segunda baixa de estoque falha", async () => {
@@ -208,8 +208,8 @@ describe("rollback após falha parcial do fechamento local", () => {
     await db.inventoryBalances.put({
       storeId: STORE_ID,
       productId: secondProductId,
-      quantity: 10,
-      serverQuantity: 10,
+      quantity: "10.000",
+      serverQuantity: "10.000",
       updatedAt: new Date().toISOString(),
     });
     const originalPut = db.inventoryBalances.put.bind(db.inventoryBalances);
@@ -230,16 +230,16 @@ describe("rollback após falha parcial do fechamento local", () => {
 
     await expect(closeSale(db, input)).rejects.toThrow("second stock write failed");
     await expectLocalTransactionEmpty(db);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(10);
-    expect((await db.inventoryBalances.get([STORE_ID, secondProductId]))?.quantity).toBe(10);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("10.000");
+    expect((await db.inventoryBalances.get([STORE_ID, secondProductId]))?.quantity).toBe("10.000");
 
     putSpy.mockRestore();
     await closeSale(db, input);
     expect(await db.sales.count()).toBe(1);
     expect(await db.saleItems.count()).toBe(2);
     expect(await db.payments.count()).toBe(1);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
-    expect((await db.inventoryBalances.get([STORE_ID, secondProductId]))?.quantity).toBe(9);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
+    expect((await db.inventoryBalances.get([STORE_ID, secondProductId]))?.quantity).toBe("9.000");
   });
 });
 
@@ -255,7 +255,7 @@ describe("reload sem duplicar", () => {
 
     expect(await db.sales.count()).toBe(1);
     expect(await db.outbox.count()).toBe(1);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(4);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("4.000");
   });
 
   it("duas chamadas concorrentes com o mesmo clientMutationId fazem uma única baixa", async () => {
@@ -271,7 +271,7 @@ describe("reload sem duplicar", () => {
     expect(await db.saleItems.count()).toBe(1);
     expect(await db.payments.count()).toBe(1);
     expect(await db.outbox.count()).toBe(1);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(4);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("4.000");
   });
 
   it("duas vendas concorrentes com estoque unitário não deixam saldo negativo", async () => {
@@ -288,7 +288,7 @@ describe("reload sem duplicar", () => {
     expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
     expect(await db.sales.count()).toBe(1);
     expect(await db.payments.count()).toBe(1);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(0);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("0.000");
   });
 
   it("rejeita payload local adulterado antes de qualquer escrita", async () => {
@@ -321,7 +321,7 @@ describe("reload sem duplicar", () => {
     expect(await db.saleItems.count()).toBe(0);
     expect(await db.payments.count()).toBe(0);
     expect(await db.outbox.count()).toBe(0);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(10);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("10.000");
   });
 
   it("rejeita reutilização do mutation ID em outra loja ou com pagamento divergente", async () => {
@@ -345,7 +345,7 @@ describe("reload sem duplicar", () => {
     ).rejects.toThrow(/já utilizado/i);
 
     expect(await db.sales.count()).toBe(1);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(4);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("4.000");
   });
 });
 
@@ -372,7 +372,7 @@ describe("checkout protegido contra clique duplo", () => {
     expect(await db.sales.count()).toBe(1);
     expect(await db.payments.count()).toBe(1);
     expect((await db.payments.toCollection().first())?.amount).toBe("3.50");
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(4);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("4.000");
   });
 
   it("recusa checkout quando outra aba mantém o lock compartilhado", async () => {
@@ -391,7 +391,7 @@ describe("checkout protegido contra clique duplo", () => {
     const { result } = renderHook(() => useCheckout());
     await expect(result.current.checkoutCash()).rejects.toThrow(/outra aba/i);
     expect(await db.sales.count()).toBe(0);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(5);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("5.000");
   });
 });
 
@@ -786,7 +786,7 @@ describe("conflito visível", () => {
     expect(conflicts[0]?.httpStatus).toBe(403);
     expect((await db.outbox.get(MUTATION_ID))?.status).toBe("conflict");
     expect((await db.sales.where("clientMutationId").equals(MUTATION_ID).first())?.syncStatus).toBe("conflict");
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(10);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("10.000");
   });
 });
 
@@ -819,6 +819,10 @@ describe("persist off e Zustand sem token/PAN/CVV", () => {
       access_token: "also-secret",
       pan: "4111111111111111",
       cvv: "123",
+      api_key: "server-key",
+      private_key: "private-key",
+      fiscal_worker_secret: "worker-secret",
+      supabase_service_role_key: "server-role-key",
       lines: [sampleLine],
     });
     expect(stripped).toEqual({ storeId: STORE_ID, lines: [sampleLine] });
@@ -859,8 +863,8 @@ describe("isolamento do storage por sessão", () => {
     await dbB.inventoryBalances.put({
       storeId: STORE_ID,
       productId: PRODUCT_ID,
-      quantity: 10,
-      serverQuantity: 10,
+      quantity: "10.000",
+      serverQuantity: "10.000",
       updatedAt: new Date().toISOString(),
     });
     await clearClientSessionStorage(userB);
@@ -921,8 +925,8 @@ describe("HTTP classify, 401 e backoff", () => {
     expect(uncertain?.outcomeUnknown).toBe(true);
     expect(await db.outbox.count()).toBe(1);
     expect((await db.sales.where("clientMutationId").equals(MUTATION_ID).first())?.syncStatus).toBe("conflict");
-    expect((await db.payments.toCollection().first())?.status).toBe("pending");
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
+    expect((await db.payments.toCollection().first())?.status).toBe("unknown");
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
   });
 
   it("401 chama onEndSession e não recria a chave do outbox", async () => {
@@ -967,7 +971,7 @@ describe("HTTP classify, 401 e backoff", () => {
     expect((await db.outbox.get(MUTATION_ID))?.status).toBe("failed");
     expect((await db.sales.where("clientMutationId").equals(MUTATION_ID).first())?.syncStatus).toBe("failed");
     expect((await db.payments.toCollection().first())?.status).toBe("failed");
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(10);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("10.000");
   });
 
   it("não divide estado quando a reconciliação de falha terminal também falha", async () => {
@@ -992,7 +996,7 @@ describe("HTTP classify, 401 e backoff", () => {
     expect((await db.outbox.get(MUTATION_ID))?.status).toBe("processing");
     expect((await db.sales.where("clientMutationId").equals(MUTATION_ID).first())?.syncStatus).toBe("pending");
     expect((await db.payments.toCollection().first())?.status).toBe("pending");
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
   });
 
   it("não aceita sale_id inválido em uma resposta 2xx", async () => {
@@ -1016,7 +1020,7 @@ describe("HTTP classify, 401 e backoff", () => {
     expect(retry?.attemptCount).toBe(1);
     expect(retry?.lastError).toBe("invalid sale_id");
     expect((await db.sales.where("clientMutationId").equals(MUTATION_ID).first())?.syncStatus).toBe("pending");
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
   });
 
   it("esgotar retries por resposta sem sale_id preserva a reserva até reconciliação", async () => {
@@ -1040,8 +1044,8 @@ describe("HTTP classify, 401 e backoff", () => {
     expect((await db.outbox.get(MUTATION_ID))?.status).toBe("conflict");
     expect((await db.outbox.get(MUTATION_ID))?.outcomeUnknown).toBe(true);
     expect((await db.sales.where("clientMutationId").equals(MUTATION_ID).first())?.syncStatus).toBe("conflict");
-    expect((await db.payments.toCollection().first())?.status).toBe("pending");
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
+    expect((await db.payments.toCollection().first())?.status).toBe("unknown");
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
 
     await pullChanges({
       db,
@@ -1077,7 +1081,7 @@ describe("HTTP classify, 401 e backoff", () => {
     expect((await db.sales.where("clientMutationId").equals(MUTATION_ID).first())?.syncStatus).toBe("synced");
     expect((await db.payments.toCollection().first())?.status).toBe("captured");
     expect(await listVisibleConflicts(db)).toHaveLength(0);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
   });
 });
 
@@ -1088,10 +1092,15 @@ describe("reconcileSale e pullChanges", () => {
     await seedStock(db);
     await closeSale(db, saleInput());
 
-    const confirmed = await reconcileSale(db, MUTATION_ID, { sale_id: SERVER_SALE_ID, status: "confirmed" });
+    const confirmed = await reconcileSale(db, MUTATION_ID, {
+      sale_id: SERVER_SALE_ID,
+      status: "confirmed",
+      fiscalStatus: "not_configured",
+    });
     expect(confirmed.status).toBe("confirmed");
     expect(confirmed.syncStatus).toBe("synced");
     expect(confirmed.serverSaleId).toBe(SERVER_SALE_ID);
+    expect(confirmed.fiscalStatus).toBe("not_configured");
     expect((await db.outbox.get(MUTATION_ID))?.status).toBe("synced");
   });
 
@@ -1109,7 +1118,26 @@ describe("reconcileSale e pullChanges", () => {
       message: "conflict",
     });
 
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
+  });
+
+  it("não confirma localmente uma resposta server-side pending", async () => {
+    const db = await openDb();
+    dbs.push(db);
+    await seedStock(db);
+    await closeSale(db, saleInput());
+
+    await expect(
+      reconcileSale(db, MUTATION_ID, {
+        sale_id: SERVER_SALE_ID,
+        status: "pending_sync",
+      })
+    ).rejects.toThrow("Server sale is not confirmed");
+
+    expect((await db.sales.where("clientMutationId").equals(MUTATION_ID).first())?.status).toBe(
+      "pending_sync"
+    );
+    expect((await db.payments.toCollection().first())?.status).toBe("pending");
   });
 
   it("não desconta duas vezes uma venda já refletida no estoque remoto", async () => {
@@ -1151,8 +1179,8 @@ describe("reconcileSale e pullChanges", () => {
     const sale = await db.sales.where("clientMutationId").equals(MUTATION_ID).first();
     const stock = await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]);
     expect(sale?.stockReconciled).toBe(true);
-    expect(stock?.serverQuantity).toBe(9);
-    expect(stock?.quantity).toBe(9);
+    expect(stock?.serverQuantity).toBe("9.000");
+    expect(stock?.quantity).toBe("9.000");
   });
 
   it("normaliza total numérico recebido do servidor para BRL", async () => {
@@ -1212,7 +1240,7 @@ describe("reconcileSale e pullChanges", () => {
 
     expect(payload).toBeNull();
     expect(await db.meta.get(`lastPullAt:${STORE_ID}`)).toBeUndefined();
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(10);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("10.000");
   });
 
   it("pullChanges aplica estoque do servidor descontando reservas locais", async () => {
@@ -1243,8 +1271,8 @@ describe("reconcileSale e pullChanges", () => {
     });
 
     const stock = await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]);
-    expect(stock?.serverQuantity).toBe(20);
-    expect(stock?.quantity).toBe(19);
+    expect(stock?.serverQuantity).toBe("20.000");
+    expect(stock?.quantity).toBe("19.000");
   });
 
   it("consome páginas de vendas sem avançar o cursor além da página truncada", async () => {

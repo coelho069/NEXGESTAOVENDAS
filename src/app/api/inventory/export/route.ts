@@ -4,6 +4,8 @@ import { inventoryListQuerySchema, storeIdSchema } from "@/lib/validation/schema
 import { getAuthedContext } from "@/lib/auth/session";
 import { canSeeCostPrice } from "@/lib/domain/rbac";
 import { toExportCsv } from "@/lib/domain/inventory";
+import { clientRateLimitKey, consumeRateLimit } from "@/lib/security/rate-limit";
+import { rateLimitedResponse, validationFailedResponse } from "@/lib/security/safe-error";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -18,13 +20,20 @@ export async function GET(request: Request) {
     limit: url.searchParams.get("limit") ?? undefined,
   });
   if (!parsed.success) {
-    return NextResponse.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 400 });
+    return validationFailedResponse(process.env.NODE_ENV === "production", parsed.error.flatten());
   }
 
   const auth = await getAuthedContext(parsed.data.store_id);
   if (!auth?.role) {
     return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
   }
+
+  const rate = consumeRateLimit({
+    key: clientRateLimitKey(request, "inventory-export", auth.userId),
+    limit: 20,
+    windowMs: 60_000,
+  });
+  if (!rate.allowed) return rateLimitedResponse(rate.retryAfterSec);
 
   const role = auth.role;
   const supabase = await createClient();
@@ -45,7 +54,7 @@ export async function GET(request: Request) {
     rows?: Array<{
       sku: string;
       name: string;
-      quantity: number;
+      quantity: string;
       unit_price: string;
       cost_price: string | null;
     }>;

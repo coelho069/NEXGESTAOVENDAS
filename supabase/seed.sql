@@ -66,6 +66,6 @@ WHERE s.org_id = '11111111-1111-4111-8111-111111111111';
 INSERT INTO public.customers (id, org_id, name, document, email, phone)
 VALUES
   ('55555555-5555-4555-8555-555555555501', '11111111-1111-4111-8111-111111111111', 'Cliente Consumidor', NULL, 'consumidor@example.invalid', NULL),
-  ('55555555-5555-4555-8555-555555555502', '11111111-1111-4111-8111-111111111111', 'Maria Silva', '12345678901', 'maria.silva@example.invalid', '11999990001');
+  ('55555555-5555-4555-8555-555555555502', '11111111-1111-4111-8111-111111111111', 'Cliente Teste', 'TEST-ONLY-DOCUMENT', 'cliente-teste@example.invalid', NULL);
 
 -- Auth users, profiles and store_members are created by: pnpm seed:auth

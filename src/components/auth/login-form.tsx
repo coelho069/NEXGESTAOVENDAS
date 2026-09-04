@@ -6,8 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 
 export function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState("cashier@example.invalid");
-  const [password, setPassword] = useState("Cashier123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -21,7 +21,7 @@ export function LoginForm() {
 
     setLoading(false);
     if (signInError) {
-      setError(signInError.message);
+      setError("Credenciais inválidas ou sessão indisponível.");
       return;
     }
 
@@ -33,7 +33,7 @@ export function LoginForm() {
     <form onSubmit={onSubmit} className="mx-auto w-full max-w-md space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <div>
         <h1 className="text-xl font-bold text-slate-900">Entrar no PDV</h1>
-        <p className="text-sm text-slate-500">Use o usuário caixa do seed demo.</p>
+        <p className="text-sm text-slate-500">Use as credenciais fornecidas pelo administrador.</p>
       </div>
       <label className="block text-sm">
         <span className="mb-1 block font-medium text-slate-700">E-mail</span>

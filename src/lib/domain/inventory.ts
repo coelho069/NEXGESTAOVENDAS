@@ -1,9 +1,15 @@
-import { money } from "@/lib/money";
+import {
+  addInventoryQuantities,
+  compareInventoryQuantities,
+  toInventoryDelta,
+  toInventoryQuantity,
+  type QuantityInput,
+} from "@/lib/domain/quantity";
 
 export type InventoryCsvRow = {
   row: number;
   sku: string;
-  delta: number;
+  delta: string;
   reason: string;
   movementType: "restock" | "adjustment";
 };
@@ -87,18 +93,14 @@ export function parseInventoryCsv(text: string): InventoryCsvResult {
       continue;
     }
 
-    let delta: number;
+    let delta: string;
     try {
-      delta = money(deltaRaw).toNumber();
+      delta = toInventoryDelta(deltaRaw);
     } catch {
-      errors.push({ row: rowNumber, sku, message: "Delta inválido" });
+      errors.push({ row: rowNumber, sku, message: "Delta inválido (zero, escala ou limite)" });
       continue;
     }
-    if (!Number.isFinite(delta) || delta === 0) {
-      errors.push({ row: rowNumber, sku, message: "Delta não pode ser zero" });
-      continue;
-    }
-    if (typeRaw === "restock" && !(delta > 0)) {
+    if (typeRaw === "restock" && compareInventoryQuantities(delta, "0.000") <= 0) {
       errors.push({ row: rowNumber, sku, message: "Restock exige delta positivo" });
       continue;
     }
@@ -110,15 +112,32 @@ export function parseInventoryCsv(text: string): InventoryCsvResult {
 }
 
 export function toExportCsv(
-  lines: Array<{ sku: string; name: string; quantity: number; unitPrice: string; costPrice?: string | null }>
+  lines: Array<{
+    sku: string;
+    name: string;
+    quantity: QuantityInput;
+    unitPrice: string;
+    costPrice?: string | null;
+  }>
 ): string {
   const header = "sku,name,quantity,unit_price,cost_price";
   const body = lines.map((line) =>
-    [line.sku, `"${line.name.replace(/"/g, '""')}"`, String(line.quantity), line.unitPrice, line.costPrice ?? ""].join(",")
+    [
+      line.sku,
+      `"${line.name.replace(/"/g, '""')}"`,
+      toInventoryQuantity(line.quantity),
+      line.unitPrice,
+      line.costPrice ?? "",
+    ].join(",")
   );
   return [header, ...body].join("\n");
 }
 
-export function wouldGoNegative(currentQty: number, delta: number): boolean {
-  return currentQty + delta < 0;
+export function wouldGoNegative(currentQty: QuantityInput, delta: QuantityInput): boolean {
+  try {
+    addInventoryQuantities(currentQty, delta);
+    return false;
+  } catch {
+    return true;
+  }
 }

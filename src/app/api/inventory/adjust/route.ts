@@ -34,9 +34,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = await createClient();
+  let supabase: Awaited<ReturnType<typeof createClient>>;
+  try {
+    supabase = await createClient();
+  } catch {
+    return NextResponse.json({ error: "auth_not_configured" }, { status: 503 });
+  }
   const role = auth.role;
-  if (!role || !canManageInventory(role)) {
+  const authorizedStoreId = auth.storeId;
+  if (
+    !auth.orgId ||
+    !authorizedStoreId ||
+    authorizedStoreId !== parsed.data.store_id ||
+    !role ||
+    !canManageInventory(role)
+  ) {
     return NextResponse.json({ error: "forbidden_inventory" }, { status: 403 });
   }
 
@@ -55,8 +67,18 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabase.rpc("adjust_inventory", {
     p_payload: {
-      store_id: parsed.data.store_id,
+      store_id: authorizedStoreId,
       product_id: productId,
+      client_mutation_id: parsed.data.client_mutation_id,
+      ...(parsed.data.terminal_id
+        ? { terminal_id: parsed.data.terminal_id }
+        : {}),
+      ...(parsed.data.import_id
+        ? {
+            import_id: parsed.data.import_id,
+            import_row: parsed.data.import_row,
+          }
+        : {}),
       delta: parsed.data.delta,
       reason: parsed.data.reason,
       movement_type: parsed.data.movement_type,
@@ -64,8 +86,16 @@ export async function POST(request: Request) {
   });
 
   if (error) {
-    const status = error.message.includes("forbidden") ? 403 : 422;
-    return NextResponse.json({ error: status === 403 ? "forbidden_inventory" : "inventory_adjustment_failed" }, { status });
+    if (error.message.includes("idempotency_payload_mismatch")) {
+      return NextResponse.json({ error: "idempotency_payload_mismatch" }, { status: 409 });
+    }
+    if (error.message.includes("forbidden")) {
+      return NextResponse.json({ error: "forbidden_inventory" }, { status: 403 });
+    }
+    if (error.code === "23505") {
+      return NextResponse.json({ error: "inventory_mutation_conflict" }, { status: 409 });
+    }
+    return NextResponse.json({ error: "inventory_adjustment_failed" }, { status: 422 });
   }
 
   return NextResponse.json(data);

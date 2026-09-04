@@ -30,13 +30,19 @@ export async function POST(request: Request) {
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!auth.role || !canEditProducts(auth.role)) {
+  if (
+    !auth.orgId ||
+    !auth.storeId ||
+    auth.storeId !== parsed.data.store_id ||
+    !auth.role ||
+    !canEditProducts(auth.role)
+  ) {
     return NextResponse.json({ error: "forbidden_products" }, { status: 403 });
   }
 
   const supabase = asCatalogClient(await createClient());
   const { data, error } = await supabase.rpc("create_product", {
-    p_store_id: parsed.data.store_id,
+    p_store_id: auth.storeId,
     p_payload: {
       sku: parsed.data.sku,
       name: parsed.data.name,
@@ -51,6 +57,12 @@ export async function POST(request: Request) {
   if (error) {
     if (error.message.includes("forbidden_catalog")) {
       return NextResponse.json({ error: "forbidden_products" }, { status: 403 });
+    }
+    if (
+      error.code === "23505" &&
+      `${error.message} ${error.details ?? ""}`.includes("products_org_barcode_key")
+    ) {
+      return NextResponse.json({ error: "barcode_conflict" }, { status: 409 });
     }
     return NextResponse.json({ error: "product_write_failed" }, { status: 422 });
   }

@@ -1,3 +1,4 @@
+import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { formatBRL } from "@/lib/money";
 import type { CartLine } from "@/lib/domain/sale";
 import { lineTotal } from "@/lib/domain/sale";
@@ -27,13 +28,26 @@ export function CartPanel({
   return (
     <section
       data-testid="pdv-cart"
-      className="flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      className="flex min-h-0 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
     >
-      <h2 className="text-lg font-semibold text-slate-900">Carrinho</h2>
+      <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+        <ShoppingCart size={20} aria-hidden="true" />
+        Carrinho
+      </h2>
       <p className="text-xs text-slate-500">+/- altera a linha selecionada</p>
       <div className="mt-4 flex-1 space-y-3 overflow-y-auto">
         {lines.length === 0 ? (
-          <p className="text-sm text-slate-500">Adicione produtos para iniciar a venda.</p>
+          <div
+            data-testid="cart-empty"
+            className="flex h-full flex-col items-center justify-center gap-3 text-center text-slate-400"
+          >
+            <ShoppingCart size={48} strokeWidth={1} aria-hidden="true" />
+            <p className="text-sm">
+              O carrinho está vazio.
+              <br />
+              Selecione produtos para começar.
+            </p>
+          </div>
         ) : (
           lines.map((line) => {
             const selected = selectedProductId === line.productId;
@@ -59,13 +73,15 @@ export function CartPanel({
                   </div>
                   <button
                     type="button"
-                    className="text-xs text-red-600 hover:underline"
+                    aria-label={`Remover ${line.name}`}
+                    title="Remover item"
+                    className="text-slate-300 transition-colors hover:text-red-500"
                     onClick={(event) => {
                       event.stopPropagation();
                       onRemove(line.productId);
                     }}
                   >
-                    Remover
+                    <Trash2 size={18} aria-hidden="true" />
                   </button>
                 </div>
                 <div className="mt-2 flex items-center justify-between">
@@ -73,17 +89,22 @@ export function CartPanel({
                     <button
                       type="button"
                       data-testid={`cart-dec-${line.sku}`}
-                      className="h-8 w-8 rounded border border-slate-200"
+                      aria-label={`Diminuir ${line.name}`}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100"
                       onClick={(event) => {
                         event.stopPropagation();
                         onDecrement(line.productId);
                       }}
                     >
-                      -
+                      <Minus size={14} aria-hidden="true" />
                     </button>
+                    <label className="sr-only" htmlFor={`cart-qty-${line.sku}`}>
+                      Quantidade de {line.name}
+                    </label>
                     <input
+                      id={`cart-qty-${line.sku}`}
                       data-testid={`cart-qty-${line.sku}`}
-                      className="h-8 w-14 rounded border border-slate-200 text-center"
+                      className="h-8 w-14 rounded-lg border border-slate-200 text-center"
                       value={line.quantity}
                       onChange={(event) => {
                         const value = Number(event.target.value);
@@ -94,13 +115,14 @@ export function CartPanel({
                     <button
                       type="button"
                       data-testid={`cart-inc-${line.sku}`}
-                      className="h-8 w-8 rounded border border-slate-200"
+                      aria-label={`Aumentar ${line.name}`}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100"
                       onClick={(event) => {
                         event.stopPropagation();
                         onIncrement(line.productId);
                       }}
                     >
-                      +
+                      <Plus size={14} aria-hidden="true" />
                     </button>
                   </div>
                   <div className="font-semibold text-slate-900">{formatBRL(lineTotal(line))}</div>

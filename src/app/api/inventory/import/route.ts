@@ -4,6 +4,7 @@ import { inventoryImportSchema, storeIdSchema } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
 import { canManageInventory } from "@/lib/domain/rbac";
 import { parseInventoryCsv } from "@/lib/domain/inventory";
+import { inventoryImportMutationId } from "@/lib/server/inventory-idempotency";
 
 export async function POST(request: Request) {
   let json: unknown;
@@ -28,7 +29,8 @@ export async function POST(request: Request) {
   }
 
   const auth = await getAuthedContext(parsed.data.store_id);
-  if (!auth?.orgId || !auth.role) {
+  const authorizedStoreId = auth?.storeId;
+  if (!auth?.orgId || !authorizedStoreId || authorizedStoreId !== parsed.data.store_id || !auth.role) {
     return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
   }
 
@@ -39,8 +41,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "forbidden_inventory" }, { status: 403 });
   }
 
-  const applied: Array<{ row: number; sku: string; movementId?: string }> = [];
+  const applied: Array<{ row: number; sku: string; movementId?: string; replay: boolean }> = [];
   const errors = [...csv.errors];
+  let replayedCount = 0;
 
   for (const row of csv.rows) {
     const { data: product } = await supabase
@@ -54,10 +57,18 @@ export async function POST(request: Request) {
       continue;
     }
 
+    const clientMutationId = inventoryImportMutationId(
+      authorizedStoreId,
+      parsed.data.import_id,
+      row.row
+    );
     const { data, error } = await supabase.rpc("adjust_inventory", {
       p_payload: {
-        store_id: parsed.data.store_id,
+        store_id: authorizedStoreId,
         product_id: product.id,
+        client_mutation_id: clientMutationId,
+        import_id: parsed.data.import_id,
+        import_row: row.row,
         delta: row.delta,
         reason: row.reason,
         movement_type: row.movementType,
@@ -69,14 +80,17 @@ export async function POST(request: Request) {
       continue;
     }
 
-    const payload = data as { movement_id?: string } | null;
-    applied.push({ row: row.row, sku: row.sku, movementId: payload?.movement_id });
+    const payload = data as { movement_id?: string; replay?: boolean } | null;
+    const replay = payload?.replay === true;
+    if (replay) replayedCount += 1;
+    applied.push({ row: row.row, sku: row.sku, movementId: payload?.movement_id, replay });
   }
 
   return NextResponse.json({
     applied,
     errors,
     appliedCount: applied.length,
+    replayedCount,
     errorCount: errors.length,
   });
 }

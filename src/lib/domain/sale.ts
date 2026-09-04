@@ -28,7 +28,15 @@ export function buildProcessSalePayload(
   clientMutationId: string,
   lines: CartLine[],
   paymentMethod: ProcessSaleInput["payments"][number]["method"],
-  options?: { customerId?: string; discount?: string; saleId?: string }
+  options?: {
+    customerId?: string;
+    discount?: string;
+    saleId?: string;
+    suspendedSaleId?: string;
+    suspensionClaimId?: string;
+    cashSessionId?: string;
+    terminalId?: string;
+  }
 ): ProcessSaleInput {
   const discount = options?.discount ?? "0.00";
   const total = cartTotal(lines, discount);
@@ -41,6 +49,10 @@ export function buildProcessSalePayload(
     sale_id: options?.saleId,
     store_id: storeId,
     client_mutation_id: clientMutationId,
+    suspended_sale_id: options?.suspendedSaleId,
+    suspension_claim_id: options?.suspensionClaimId,
+    cash_session_id: options?.cashSessionId,
+    terminal_id: options?.terminalId,
     customer_id: options?.customerId,
     discount,
     items: lines.map((line) => ({

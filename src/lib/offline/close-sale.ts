@@ -3,6 +3,11 @@ import { buildProcessSalePayload, cartSubtotal, cartTotal, lineTotal } from "@/l
 import { validateSaleAmounts } from "@/lib/domain/sale-ops";
 import { processSaleInputSchema, type ProcessSaleInput } from "@/lib/validation/schemas";
 import { money } from "@/lib/money";
+import {
+  compareInventoryQuantities,
+  subtractInventoryQuantities,
+  toInventoryQuantity,
+} from "@/lib/domain/quantity";
 import { rethrowIfQuotaExceeded } from "@/lib/offline/quota";
 import { assertNoSecrets } from "@/lib/offline/secrets";
 import type { PdvLocalDatabase } from "@/lib/offline/pdv-local-db";
@@ -52,7 +57,15 @@ export async function closeSale(db: PdvLocalDatabase, input: CloseSaleInput): Pr
     input.clientMutationId,
     input.lines,
     "cash",
-    { discount, customerId: input.customerId, saleId }
+    {
+      discount,
+      customerId: input.customerId,
+      saleId,
+      suspendedSaleId: input.suspendedSaleId,
+      suspensionClaimId: input.suspensionClaimId,
+      cashSessionId: input.cashSessionId,
+      terminalId: input.terminalId,
+    }
   );
   const parsedPayload = processSaleInputSchema.safeParse(payload);
   if (!parsedPayload.success) {
@@ -105,16 +118,16 @@ export async function closeSale(db: PdvLocalDatabase, input: CloseSaleInput): Pr
 
         for (const line of input.lines) {
           const balance = await db.inventoryBalances.get([input.storeId, line.productId]);
-          const available = balance?.quantity ?? 0;
-          if (available < line.quantity) {
+          const available = balance?.quantity ?? "0.000";
+          if (compareInventoryQuantities(available, line.quantity) < 0) {
             throw new Error(`Estoque insuficiente para ${line.name}`);
           }
-          const nextQuantity = available - line.quantity;
+          const nextQuantity = subtractInventoryQuantities(available, line.quantity);
           await db.inventoryBalances.put({
             storeId: input.storeId,
             productId: line.productId,
             quantity: nextQuantity,
-            serverQuantity: balance?.serverQuantity ?? available,
+            serverQuantity: toInventoryQuantity(balance?.serverQuantity ?? available),
             updatedAt: createdAt,
           });
         }

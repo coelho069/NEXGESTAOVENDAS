@@ -13,21 +13,21 @@ const USERS = [
   {
     id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     email: "admin@example.invalid",
-    password: "Admin123!",
+    passwordEnv: "SEED_ADMIN_PASSWORD",
     fullName: "Admin Demo",
     role: "admin" as const,
   },
   {
     id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
     email: "manager@example.invalid",
-    password: "Manager123!",
+    passwordEnv: "SEED_MANAGER_PASSWORD",
     fullName: "Gerente Demo",
     role: "manager" as const,
   },
   {
     id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     email: "cashier@example.invalid",
-    password: "Cashier123!",
+    passwordEnv: "SEED_CASHIER_PASSWORD",
     fullName: "Caixa Demo",
     role: "cashier" as const,
   },
@@ -41,11 +41,19 @@ async function main() {
     throw new Error("Missing SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
   }
 
+  const users = USERS.map((user) => {
+    const password = process.env[user.passwordEnv]?.trim();
+    if (!password || password.length < 12) {
+      throw new Error(`Missing or weak ${user.passwordEnv}; provide it only in the local environment`);
+    }
+    return { ...user, password };
+  });
+
   const admin = createClient<Database>(url, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  for (const user of USERS) {
+  for (const user of users) {
     const { data: existing } = await admin.auth.admin.getUserById(user.id);
     if (!existing.user) {
       const { error } = await admin.auth.admin.createUser({
@@ -80,13 +88,11 @@ async function main() {
     }
   }
 
-  console.log("Seed auth completed.");
-  console.log("Admin: admin@example.invalid / Admin123!");
-  console.log("Manager: manager@example.invalid / Manager123!");
-  console.log("Cashier: cashier@example.invalid / Cashier123!");
+  console.log("Seed auth completed for the configured demo users.");
 }
 
 main().catch((error) => {
-  console.error(error);
+  void error;
+  console.error("Seed auth failed. Check the local configuration and seed credentials.");
   process.exit(1);
 });

@@ -25,6 +25,7 @@ export type LocalSale = {
   serverSaleId?: string;
   stockReconciled?: boolean;
   outcomeUnknown?: boolean;
+  fiscalStatus?: Enums<"fiscal_document_status">;
 };
 
 export type LocalSaleItem = {
@@ -44,15 +45,62 @@ export type LocalPayment = {
   saleId: string;
   method: Enums<"payment_method">;
   amount: string;
-  status: Extract<Enums<"payment_status">, "pending" | "captured" | "failed">;
+  status: Extract<
+    Enums<"payment_status">,
+    "pending" | "authorized" | "captured" | "failed" | "unknown" | "cancelled" | "refunded"
+  >;
+  providerReference?: string;
+  reconciledAt?: string;
 };
 
 export type LocalInventoryBalance = {
   storeId: string;
   productId: string;
-  quantity: number;
-  serverQuantity: number;
+  quantity: string;
+  serverQuantity: string;
   updatedAt: string;
+};
+
+export type InventoryAdjustmentPayload = {
+  store_id: string;
+  product_id: string;
+  client_mutation_id: string;
+  terminal_id?: string;
+  import_id?: string;
+  import_row?: number;
+  delta: string;
+  reason: string;
+  movement_type: "restock" | "adjustment";
+};
+
+export type InventoryOutboxCommand = {
+  clientMutationId: string;
+  storeId: string;
+  productId: string;
+  terminalId: string;
+  type: "adjust_inventory";
+  payload: InventoryAdjustmentPayload;
+  status: LocalSyncStatus;
+  attemptCount: number;
+  nextAttemptAt: string;
+  lastError?: string;
+  outcomeUnknown?: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LocalInventoryMovement = {
+  id: string;
+  storeId: string;
+  productId: string;
+  clientMutationId?: string;
+  terminalId?: string;
+  importId?: string;
+  importRow?: number;
+  movementType: Enums<"inventory_movement_type">;
+  quantityChange: string;
+  balanceAfter: string;
+  createdAt: string;
 };
 
 export type OutboxCommand = {
@@ -73,9 +121,13 @@ export type OutboxCommand = {
 export type LocalConflict = {
   id: string;
   clientMutationId: string;
-  saleId: string;
+  saleId?: string;
+  entityType?: "sale" | "inventory";
+  storeId?: string;
+  productId?: string;
   httpStatus: number;
   message: string;
+  outcomeUnknown?: boolean;
   createdAt: string;
   visible: boolean;
 };
@@ -88,6 +140,10 @@ export type LocalMeta = {
 export type CloseSaleInput = {
   storeId: string;
   clientMutationId: string;
+  suspendedSaleId?: string;
+  suspensionClaimId?: string;
+  cashSessionId?: string;
+  terminalId?: string;
   role?: Enums<"member_role">;
   saleId?: string;
   lines: Array<{
@@ -114,14 +170,31 @@ export type PullChangesResponse = {
   hasMore?: boolean;
   nextCursor?: {
     since: string | null;
-    salesAfterUpdatedAt: string;
-    salesAfterId: string;
+    salesAfterUpdatedAt?: string;
+    salesAfterId?: string;
+    inventoryAfterUpdatedAt?: string;
+    inventoryAfterProductId?: string;
+    inventoryAfterCreatedAt?: string;
+    inventoryAfterId?: string;
   };
   inventory: Array<{
     store_id: string;
     product_id: string;
-    quantity: number;
+    quantity: string;
     updated_at: string;
+  }>;
+  inventoryMovements: Array<{
+    id: string;
+    store_id: string;
+    product_id: string;
+    client_mutation_id?: string;
+    terminal_id?: string;
+    import_id?: string;
+    import_row?: number;
+    movement_type: Enums<"inventory_movement_type">;
+    quantity_change: string;
+    balance_after: string;
+    created_at: string;
   }>;
   sales: Array<{
     id: string;

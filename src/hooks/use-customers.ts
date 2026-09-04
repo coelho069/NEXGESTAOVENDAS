@@ -35,7 +35,6 @@ export function useCustomers() {
 
   useEffect(() => {
     // Initial catalog loading synchronizes this client with Supabase.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
 

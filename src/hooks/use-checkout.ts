@@ -4,6 +4,7 @@ import { useCallback, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Enums } from "@/lib/db/types";
 import { getPaymentAdapter } from "@/lib/adapters/payment";
+import { inventoryQuantityToNumber } from "@/lib/domain/quantity";
 import type { CatalogProduct } from "@/lib/domain/catalog";
 import { resolvePaymentAttempt, unifyCheckoutPayment } from "@/lib/domain/payment-attempt";
 import type { ReceiptModel } from "@/lib/domain/receipt";
@@ -21,7 +22,13 @@ import { withMultiTabLock } from "@/lib/offline/multi-tab-lock";
 import { getOutboxCommand } from "@/lib/offline/outbox";
 import { getPdvLocalDbForUser } from "@/lib/offline/pdv-local-db";
 import { isQuotaExceededError } from "@/lib/offline/quota";
-import { refreshLocalSyncState, runSyncCycle } from "@/lib/offline/sync-engine";
+import { pdvFixturesEnabled } from "@/lib/pdv/fixtures";
+import {
+  reconcilePaymentOutcome,
+  reconcileSale,
+  refreshLocalSyncState,
+  runSyncCycle,
+} from "@/lib/offline/sync-engine";
 import { useCartStore } from "@/stores/cart-store";
 import { useSessionStore } from "@/stores/session-store";
 import { useSyncStore } from "@/stores/sync-store";
@@ -70,6 +77,10 @@ export function useCheckout() {
   }, [setConflicts, setFailedCount, setPendingCount]);
 
   const flushPending = useCallback(async () => {
+    if (pdvFixturesEnabled()) {
+      await refreshSyncUi();
+      return;
+    }
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       await refreshSyncUi();
       return;
@@ -121,6 +132,8 @@ export function useCheckout() {
       role: MemberRole;
       products: CatalogProduct[];
       storeName: string;
+      cashSessionId?: string;
+      terminalId?: string;
     }): Promise<
       | { ok: true; draft: false; receipt: ReceiptModel; saleId: string; offline: boolean }
       | { ok: false; draft: true; message: string; receipt: null }
@@ -134,7 +147,7 @@ export function useCheckout() {
         const rows = await db.inventoryBalances.where("storeId").equals(cart.storeId).toArray();
         const liveStock: StockMap = {};
         for (const row of rows) {
-          liveStock[row.productId] = row.quantity;
+          liveStock[row.productId] = inventoryQuantityToNumber(row.quantity);
         }
         if (isLocalStockEmpty(liveStock)) {
           throw new Error("Estoque local vazio");
@@ -170,6 +183,10 @@ export function useCheckout() {
             lines: cart.lines,
             discount: cart.discount,
             customerId: cart.customerId ?? undefined,
+            suspendedSaleId: cart.suspendedSaleId ?? undefined,
+            suspensionClaimId: cart.suspensionClaimId ?? undefined,
+            cashSessionId: input.cashSessionId,
+            terminalId: input.terminalId,
             payments: [payment],
           });
           return { kind: "captured" as const, payment, result };
@@ -200,6 +217,7 @@ export function useCheckout() {
         const pending = useSyncStore.getState().pendingCount;
         const conflicts = useSyncStore.getState().conflicts;
         const outbox = await getOutboxCommand(db, clientMutationId);
+        const localSale = await db.sales.get(result.saleId);
         const online = typeof navigator === "undefined" || navigator.onLine;
         const { syncStatus, saleStatus } = resolveReceiptSyncState({
           pendingCount: pending,
@@ -207,10 +225,18 @@ export function useCheckout() {
           outboxStatus: outbox?.status,
           conflictForSale: conflicts.some((conflict) => conflict.clientMutationId === clientMutationId),
         });
-        const paymentStatus = syncStatus === "synced" ? "captured" : syncStatus === "failed" ? "failed" : "pending";
+        const paymentStatus =
+          syncStatus === "synced"
+            ? "captured"
+            : syncStatus === "failed"
+              ? "failed"
+              : outbox?.outcomeUnknown
+                ? "unknown"
+                : "pending";
 
         const receipt: ReceiptModel = {
           saleId: result.saleId,
+          clientMutationId,
           storeName: input.storeName,
           createdAt,
           customerName,
@@ -221,6 +247,7 @@ export function useCheckout() {
           payments: [{ method: payment.method, amount: payment.amount, status: paymentStatus }],
           syncStatus,
           saleStatus,
+          fiscalStatus: localSale?.fiscalStatus ?? "pending",
         };
         return { ok: true, draft: false, receipt, saleId: result.saleId, offline: syncStatus !== "synced" };
       } catch (error) {
@@ -236,7 +263,11 @@ export function useCheckout() {
     [beginCheckout, endCheckout, flushPending, refreshSyncUi, setQuotaExceeded]
   );
 
-  const checkoutCash = useCallback(async (role: MemberRole = "cashier") => {
+  const checkoutCash = useCallback(
+    async (
+      role: MemberRole = "cashier",
+      cashContext?: { cashSessionId?: string; terminalId?: string }
+    ) => {
     const clientMutationId = beginCheckout();
 
     try {
@@ -252,9 +283,13 @@ export function useCheckout() {
         return closeSale(getPdvLocalDbForUser(useSessionStore.getState().userId), {
           storeId: cart.storeId!,
           clientMutationId,
+          cashSessionId: cashContext?.cashSessionId,
+          terminalId: cashContext?.terminalId,
           role,
           lines: cart.lines,
           discount: cart.discount,
+          suspendedSaleId: cart.suspendedSaleId ?? undefined,
+          suspensionClaimId: cart.suspensionClaimId ?? undefined,
           payments: [payment],
         });
       });
@@ -283,11 +318,68 @@ export function useCheckout() {
     } finally {
       endCheckout();
     }
-  }, [beginCheckout, clear, endCheckout, flushPending, refreshSyncUi, setQuotaExceeded]);
+    },
+    [beginCheckout, clear, endCheckout, flushPending, refreshSyncUi, setQuotaExceeded]
+  );
+
+  const reconcilePayment = useCallback(
+    async (input: { storeId: string; clientMutationId: string }) => {
+      const response = await fetch("/api/payments/reconcile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          store_id: input.storeId,
+          client_mutation_id: input.clientMutationId,
+        }),
+      });
+
+      let body: Record<string, unknown> = {};
+      try {
+        const json: unknown = await response.json();
+        if (json && typeof json === "object") {
+          body = json as Record<string, unknown>;
+        }
+      } catch {
+        body = {};
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          typeof body.error === "string"
+            ? body.error
+            : "Não foi possível reconciliar o pagamento"
+        );
+      }
+
+      const status = typeof body.status === "string" ? body.status : "unknown";
+      if (status === "captured" && typeof body.sale_id === "string") {
+        const db = getPdvLocalDbForUser(useSessionStore.getState().userId);
+        await reconcileSale(db, input.clientMutationId, {
+          sale_id: body.sale_id,
+          status,
+          total: typeof body.total === "string" || typeof body.total === "number" ? body.total : undefined,
+          stockReconciled: true,
+        });
+      } else if (status === "failed" || status === "cancelled") {
+        const db = getPdvLocalDbForUser(useSessionStore.getState().userId);
+        await reconcilePaymentOutcome(
+          db,
+          input.clientMutationId,
+          status,
+          `Pagamento reconciliado como ${status}`
+        );
+      }
+      await refreshSyncUi();
+      return { status, pending: body.pending === true };
+    },
+    [refreshSyncUi]
+  );
 
   return {
     checkoutCash,
     paySale,
+    reconcilePayment,
     flushPending,
     refreshSyncUi,
     checkoutAttemptId,

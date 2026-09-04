@@ -23,7 +23,13 @@ export async function updateSession(request: NextRequest) {
         });
         supabaseResponse = NextResponse.next({ request });
         cookiesToSet.forEach(({ name, value, options }) => {
-          supabaseResponse.cookies.set(name, value, options);
+          supabaseResponse.cookies.set(name, value, {
+            ...options,
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production" ? true : options?.secure,
+            sameSite: options?.sameSite ?? "lax",
+            path: options?.path ?? "/",
+          });
         });
       },
     },

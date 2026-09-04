@@ -1,7 +1,9 @@
 import Dexie, { type Table } from "dexie";
 import type {
+  InventoryOutboxCommand,
   LocalConflict,
   LocalInventoryBalance,
+  LocalInventoryMovement,
   LocalMeta,
   LocalPayment,
   LocalSale,
@@ -9,6 +11,7 @@ import type {
   OutboxCommand,
 } from "@/lib/offline/types";
 import { PDV_LOCAL_DB_NAME } from "@/lib/offline/types";
+import { normalizeLegacyInventoryQuantity } from "@/lib/domain/quantity";
 
 export { PDV_LOCAL_DB_NAME };
 
@@ -17,6 +20,8 @@ export const CLOSE_SALE_TABLES = [
   "saleItems",
   "payments",
   "inventoryBalances",
+  "inventoryMovements",
+  "inventoryOutbox",
   "outbox",
 ] as const;
 
@@ -25,6 +30,8 @@ export class PdvLocalDatabase extends Dexie {
   saleItems!: Table<LocalSaleItem, string>;
   payments!: Table<LocalPayment, string>;
   inventoryBalances!: Table<LocalInventoryBalance, [string, string]>;
+  inventoryMovements!: Table<LocalInventoryMovement, string>;
+  inventoryOutbox!: Table<InventoryOutboxCommand, string>;
   outbox!: Table<OutboxCommand, string>;
   conflicts!: Table<LocalConflict, string>;
   meta!: Table<LocalMeta, string>;
@@ -36,10 +43,33 @@ export class PdvLocalDatabase extends Dexie {
       saleItems: "id, saleId, productId",
       payments: "id, saleId",
       inventoryBalances: "[storeId+productId], storeId, productId",
+      inventoryMovements: "id, storeId, productId, clientMutationId, createdAt",
+      inventoryOutbox: "clientMutationId, storeId, productId, status, nextAttemptAt, createdAt",
       outbox: "clientMutationId, saleId, status, nextAttemptAt, createdAt",
       conflicts: "id, clientMutationId, saleId, createdAt",
       meta: "key",
     });
+    this.version(2)
+      .stores({
+        sales: "id, storeId, clientMutationId, syncStatus, createdAt",
+        saleItems: "id, saleId, productId",
+        payments: "id, saleId",
+        inventoryBalances: "[storeId+productId], storeId, productId",
+        inventoryMovements: "id, storeId, productId, clientMutationId, createdAt",
+        inventoryOutbox: "clientMutationId, storeId, productId, status, nextAttemptAt, createdAt",
+        outbox: "clientMutationId, saleId, status, nextAttemptAt, createdAt",
+        conflicts: "id, clientMutationId, saleId, createdAt",
+        meta: "key",
+      })
+      .upgrade((transaction) =>
+        transaction
+          .table<LocalInventoryBalance>("inventoryBalances")
+          .toCollection()
+          .modify((balance) => {
+            balance.quantity = normalizeLegacyInventoryQuantity(balance.quantity);
+            balance.serverQuantity = normalizeLegacyInventoryQuantity(balance.serverQuantity);
+          })
+      );
   }
 }
 

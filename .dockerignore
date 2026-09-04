@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.cursor
+coverage
+playwright-report
+test-results
+.env
+.env.*
+!.env.example
+*.log
+*.pem
+.DS_Store
+docs/agent-log.md
+tsconfig.tsbuildinfo

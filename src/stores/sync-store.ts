@@ -22,6 +22,7 @@ type SyncState = {
   setQuotaExceeded: (quotaExceeded: boolean) => void;
   setSessionEnded: (sessionEnded: boolean) => void;
   setLastHeartbeatAt: (at: string | null) => void;
+  resetForUser: () => void;
   markSynced: () => void;
 };
 
@@ -43,6 +44,17 @@ export const useSyncStore = create<SyncState>((set) => ({
   setQuotaExceeded: (quotaExceeded) => set({ quotaExceeded }),
   setSessionEnded: (sessionEnded) => set({ sessionEnded }),
   setLastHeartbeatAt: (lastHeartbeatAt) => set({ lastHeartbeatAt }),
+  resetForUser: () =>
+    set({
+      syncing: false,
+      lastSyncAt: null,
+      pendingCount: 0,
+      failedCount: 0,
+      conflicts: [],
+      quotaExceeded: false,
+      sessionEnded: false,
+      lastHeartbeatAt: null,
+    }),
   markSynced: () =>
     set({
       lastSyncAt: new Date().toISOString(),

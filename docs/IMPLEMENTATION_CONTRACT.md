@@ -119,8 +119,9 @@ SQL (`supabase/seed.sql`):
 
 Auth (`pnpm seed:auth`):
 
-- admin@example.invalid / Admin123!
-- cashier@example.invalid / Cashier123!
+- usuários demo definidos pelo script; as senhas são obrigatórias via
+  `SEED_ADMIN_PASSWORD`, `SEED_MANAGER_PASSWORD` e `SEED_CASHIER_PASSWORD`
+  no ambiente local e nunca são impressas ou versionadas.
 
 ## 9. Testes mínimos Sprint 1
 
