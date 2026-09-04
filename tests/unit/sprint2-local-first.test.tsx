@@ -1,18 +1,11 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-<<<<<<< HEAD
-import { render, screen } from "@testing-library/react";
-=======
 import { render, renderHook, screen } from "@testing-library/react";
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 import { backoffBaseSeconds, backoffDelayMs, shouldMarkOutboxFailed } from "@/lib/offline/backoff";
 import { closeSale } from "@/lib/offline/close-sale";
 import { startHeartbeat } from "@/lib/offline/heartbeat";
 import { classifySyncHttpStatus } from "@/lib/offline/http-classify";
-<<<<<<< HEAD
-import { createPdvLocalDb, deletePdvLocalDb } from "@/lib/offline/pdv-local-db";
-=======
 import {
   MULTI_TAB_LOCK_HEARTBEAT_MS,
   MULTI_TAB_LOCK_TTL_MS,
@@ -26,16 +19,12 @@ import {
   getPdvLocalDbName,
 } from "@/lib/offline/pdv-local-db";
 import { PDV_LOCAL_DB_NAME } from "@/lib/offline/types";
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 import type { PdvLocalDatabase } from "@/lib/offline/pdv-local-db";
 import { IndexedDbQuotaError } from "@/lib/offline/quota";
 import { scheduleOutboxRetry } from "@/lib/offline/outbox";
 import { assertNoSecrets, stripSecrets } from "@/lib/offline/secrets";
 import {
-<<<<<<< HEAD
-=======
   countUnsyncedCommands,
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
   listVisibleConflicts,
   pullChanges,
   pushOutboxCommand,
@@ -43,12 +32,6 @@ import {
   reconcileSale,
   recordConflict,
 } from "@/lib/offline/sync-engine";
-<<<<<<< HEAD
-import type { CloseSaleInput } from "@/lib/offline/types";
-import { CART_PERSIST_KEY, createCartStore } from "@/stores/cart-store";
-import { useSessionStore } from "@/stores/session-store";
-import { ConflictBanner } from "@/components/pdv/conflict-banner";
-=======
 import { listDueOutboxCommands } from "@/lib/offline/outbox";
 import type { CloseSaleInput } from "@/lib/offline/types";
 import { clearClientSessionStorage } from "@/lib/offline/end-session";
@@ -56,15 +39,11 @@ import { CART_PERSIST_KEY, createCartStore, useCartStore } from "@/stores/cart-s
 import { useSessionStore } from "@/stores/session-store";
 import { ConflictBanner } from "@/components/pdv/conflict-banner";
 import { useCheckout } from "@/hooks/use-checkout";
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 
 const STORE_ID = "22222222-2222-4222-8222-222222222201";
 const PRODUCT_ID = "44444444-4444-4444-8444-444444444401";
 const MUTATION_ID = "99999999-9999-4999-8999-999999999999";
-<<<<<<< HEAD
-=======
 const SECOND_MUTATION_ID = "99999999-9999-4999-8999-999999999998";
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 const SERVER_SALE_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 const sampleLine = {
@@ -96,14 +75,12 @@ async function seedStock(db: PdvLocalDatabase, quantity = 10): Promise<void> {
   await db.inventoryBalances.put({
     storeId: STORE_ID,
     productId: PRODUCT_ID,
-    quantity,
-    serverQuantity: quantity,
+    quantity: quantity.toFixed(3),
+    serverQuantity: quantity.toFixed(3),
     updatedAt: new Date().toISOString(),
   });
 }
 
-<<<<<<< HEAD
-=======
 async function expectLocalTransactionEmpty(db: PdvLocalDatabase): Promise<void> {
   expect(await db.sales.count()).toBe(0);
   expect(await db.saleItems.count()).toBe(0);
@@ -111,7 +88,6 @@ async function expectLocalTransactionEmpty(db: PdvLocalDatabase): Promise<void> 
   expect(await db.outbox.count()).toBe(0);
 }
 
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 const dbs: PdvLocalDatabase[] = [];
 
 afterEach(async () => {
@@ -140,17 +116,14 @@ describe("Dexie pdv_local_v1 closeSale", () => {
     expect(await db.sales.count()).toBe(1);
     expect(await db.saleItems.count()).toBe(1);
     expect(await db.payments.count()).toBe(1);
-<<<<<<< HEAD
-=======
     expect(await db.payments.toCollection().first()).toMatchObject({
       method: "cash",
       amount: "3.50",
       status: "pending",
     });
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
     expect(await db.outbox.count()).toBe(1);
     const stock = await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]);
-    expect(stock?.quantity).toBe(9);
+    expect(stock?.quantity).toBe("9.000");
     const command = await db.outbox.get(MUTATION_ID);
     expect(command?.clientMutationId).toBe(MUTATION_ID);
     expect(command?.payload.client_mutation_id).toBe(MUTATION_ID);
@@ -161,11 +134,6 @@ describe("Dexie pdv_local_v1 closeSale", () => {
     dbs.push(db);
     await seedStock(db, 1);
 
-<<<<<<< HEAD
-    await expect(closeSale(db, { ...saleInput(), lines: [{ ...sampleLine, quantity: 5 }] })).rejects.toThrow(
-      /estoque insuficiente/i
-    );
-=======
     await expect(
       closeSale(db, {
         ...saleInput(),
@@ -173,16 +141,13 @@ describe("Dexie pdv_local_v1 closeSale", () => {
         payments: [{ method: "cash", amount: "17.50" }],
       })
     ).rejects.toThrow(/estoque insuficiente/i);
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 
     expect(await db.sales.count()).toBe(0);
     expect(await db.outbox.count()).toBe(0);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(1);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("1.000");
   });
 });
 
-<<<<<<< HEAD
-=======
 describe("rollback após falha parcial do fechamento local", () => {
   it("desfaz estoque e venda quando saleItems.add falha", async () => {
     const db = await openDb();
@@ -192,13 +157,13 @@ describe("rollback após falha parcial do fechamento local", () => {
 
     await expect(closeSale(db, saleInput())).rejects.toThrow("sale item write failed");
     await expectLocalTransactionEmpty(db);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(10);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("10.000");
 
     addSpy.mockRestore();
     await closeSale(db, saleInput());
     expect(await db.sales.count()).toBe(1);
     expect(await db.payments.count()).toBe(1);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
   });
 
   it("desfaz venda e itens quando payments.add falha", async () => {
@@ -209,13 +174,13 @@ describe("rollback após falha parcial do fechamento local", () => {
 
     await expect(closeSale(db, saleInput())).rejects.toThrow("payment write failed");
     await expectLocalTransactionEmpty(db);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(10);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("10.000");
 
     addSpy.mockRestore();
     await closeSale(db, saleInput());
     expect(await db.sales.count()).toBe(1);
     expect(await db.payments.count()).toBe(1);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
   });
 
   it("desfaz todas as escritas quando outbox.add falha", async () => {
@@ -226,13 +191,13 @@ describe("rollback após falha parcial do fechamento local", () => {
 
     await expect(closeSale(db, saleInput())).rejects.toThrow("outbox write failed");
     await expectLocalTransactionEmpty(db);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(10);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("10.000");
 
     addSpy.mockRestore();
     await closeSale(db, saleInput());
     expect(await db.sales.count()).toBe(1);
     expect(await db.payments.count()).toBe(1);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
   });
 
   it("desfaz a primeira baixa quando a segunda baixa de estoque falha", async () => {
@@ -243,8 +208,8 @@ describe("rollback após falha parcial do fechamento local", () => {
     await db.inventoryBalances.put({
       storeId: STORE_ID,
       productId: secondProductId,
-      quantity: 10,
-      serverQuantity: 10,
+      quantity: "10.000",
+      serverQuantity: "10.000",
       updatedAt: new Date().toISOString(),
     });
     const originalPut = db.inventoryBalances.put.bind(db.inventoryBalances);
@@ -265,20 +230,19 @@ describe("rollback após falha parcial do fechamento local", () => {
 
     await expect(closeSale(db, input)).rejects.toThrow("second stock write failed");
     await expectLocalTransactionEmpty(db);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(10);
-    expect((await db.inventoryBalances.get([STORE_ID, secondProductId]))?.quantity).toBe(10);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("10.000");
+    expect((await db.inventoryBalances.get([STORE_ID, secondProductId]))?.quantity).toBe("10.000");
 
     putSpy.mockRestore();
     await closeSale(db, input);
     expect(await db.sales.count()).toBe(1);
     expect(await db.saleItems.count()).toBe(2);
     expect(await db.payments.count()).toBe(1);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
-    expect((await db.inventoryBalances.get([STORE_ID, secondProductId]))?.quantity).toBe(9);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
+    expect((await db.inventoryBalances.get([STORE_ID, secondProductId]))?.quantity).toBe("9.000");
   });
 });
 
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 describe("reload sem duplicar", () => {
   it("reexecutar closeSale com o mesmo clientMutationId não duplica venda nem estoque", async () => {
     const db = await openDb();
@@ -291,10 +255,8 @@ describe("reload sem duplicar", () => {
 
     expect(await db.sales.count()).toBe(1);
     expect(await db.outbox.count()).toBe(1);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(4);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("4.000");
   });
-<<<<<<< HEAD
-=======
 
   it("duas chamadas concorrentes com o mesmo clientMutationId fazem uma única baixa", async () => {
     const db = await openDb();
@@ -309,7 +271,7 @@ describe("reload sem duplicar", () => {
     expect(await db.saleItems.count()).toBe(1);
     expect(await db.payments.count()).toBe(1);
     expect(await db.outbox.count()).toBe(1);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(4);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("4.000");
   });
 
   it("duas vendas concorrentes com estoque unitário não deixam saldo negativo", async () => {
@@ -326,7 +288,7 @@ describe("reload sem duplicar", () => {
     expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
     expect(await db.sales.count()).toBe(1);
     expect(await db.payments.count()).toBe(1);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(0);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("0.000");
   });
 
   it("rejeita payload local adulterado antes de qualquer escrita", async () => {
@@ -359,7 +321,7 @@ describe("reload sem duplicar", () => {
     expect(await db.saleItems.count()).toBe(0);
     expect(await db.payments.count()).toBe(0);
     expect(await db.outbox.count()).toBe(0);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(10);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("10.000");
   });
 
   it("rejeita reutilização do mutation ID em outra loja ou com pagamento divergente", async () => {
@@ -383,7 +345,7 @@ describe("reload sem duplicar", () => {
     ).rejects.toThrow(/já utilizado/i);
 
     expect(await db.sales.count()).toBe(1);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(4);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("4.000");
   });
 });
 
@@ -410,7 +372,7 @@ describe("checkout protegido contra clique duplo", () => {
     expect(await db.sales.count()).toBe(1);
     expect(await db.payments.count()).toBe(1);
     expect((await db.payments.toCollection().first())?.amount).toBe("3.50");
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(4);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("4.000");
   });
 
   it("recusa checkout quando outra aba mantém o lock compartilhado", async () => {
@@ -429,9 +391,8 @@ describe("checkout protegido contra clique duplo", () => {
     const { result } = renderHook(() => useCheckout());
     await expect(result.current.checkoutCash()).rejects.toThrow(/outra aba/i);
     expect(await db.sales.count()).toBe(0);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(5);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("5.000");
   });
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 });
 
 describe("retry seguro", () => {
@@ -450,8 +411,6 @@ describe("retry seguro", () => {
     expect(retried.attemptCount).toBe(1);
     expect(await db.outbox.count()).toBe(1);
   });
-<<<<<<< HEAD
-=======
 
   it("aguarda o backoff e depois reconcilia o mesmo comando", async () => {
     const db = await openDb();
@@ -582,7 +541,6 @@ describe("retry seguro", () => {
     expect(await db.payments.count()).toBe(1);
     expect((await db.outbox.get(MUTATION_ID))?.status).toBe("synced");
   });
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 });
 
 describe("idempotência 3x", () => {
@@ -592,15 +550,6 @@ describe("idempotência 3x", () => {
     await seedStock(db);
     await closeSale(db, saleInput());
 
-<<<<<<< HEAD
-    const fetchFn = vi.fn(
-      async (_input: RequestInfo | URL, _init?: RequestInit) =>
-        new Response(JSON.stringify({ sale_id: SERVER_SALE_ID, replay: true, status: "confirmed", total: "3.50" }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        })
-    );
-=======
     const requestBodies: string[] = [];
     const fetchFn = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       requestBodies.push(String(init?.body));
@@ -619,7 +568,6 @@ describe("idempotência 3x", () => {
         }
       );
     });
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 
     for (let index = 0; index < 3; index += 1) {
       const command = await db.outbox.get(MUTATION_ID);
@@ -632,21 +580,11 @@ describe("idempotência 3x", () => {
       await pushPendingCommands({ db, fetchFn, random: () => 0.5 });
     }
 
-<<<<<<< HEAD
-    const bodies = fetchFn.mock.calls.map((call) => {
-      const init = call[1] as { body?: string } | undefined;
-      return JSON.parse(String(init?.body)).client_mutation_id as string;
-    });
-    expect(fetchFn).toHaveBeenCalledTimes(3);
-    expect(new Set(bodies)).toEqual(new Set([MUTATION_ID]));
-    expect(await db.sales.count()).toBe(1);
-=======
     const bodies = requestBodies.map((body) => JSON.parse(body).client_mutation_id as string);
     expect(fetchFn).toHaveBeenCalledTimes(3);
     expect(new Set(bodies)).toEqual(new Set([MUTATION_ID]));
     expect(await db.sales.count()).toBe(1);
     expect(await db.payments.count()).toBe(1);
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
     expect(await db.outbox.count()).toBe(1);
     const sale = await db.sales.where("clientMutationId").equals(MUTATION_ID).first();
     expect(sale?.serverSaleId).toBe(SERVER_SALE_ID);
@@ -655,8 +593,6 @@ describe("idempotência 3x", () => {
   });
 });
 
-<<<<<<< HEAD
-=======
 describe("estado estrito do outbox", () => {
   it("não reenvia comando stale quando o registro já está sincronizado", async () => {
     const db = await openDb();
@@ -752,7 +688,6 @@ describe("estado estrito do outbox", () => {
   });
 });
 
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 describe("conflito visível", () => {
   it("recordConflict marca 409/422 e o banner fica visível", async () => {
     const db = await openDb();
@@ -798,8 +733,6 @@ describe("conflito visível", () => {
     expect(conflicts[0]?.httpStatus).toBe(422);
     expect(conflicts[0]?.visible).toBe(true);
   });
-<<<<<<< HEAD
-=======
 
   it("ignora resposta de conflito de uma lease antiga do outbox", async () => {
     const db = await openDb();
@@ -853,9 +786,8 @@ describe("conflito visível", () => {
     expect(conflicts[0]?.httpStatus).toBe(403);
     expect((await db.outbox.get(MUTATION_ID))?.status).toBe("conflict");
     expect((await db.sales.where("clientMutationId").equals(MUTATION_ID).first())?.syncStatus).toBe("conflict");
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(10);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("10.000");
   });
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 });
 
 describe("quota", () => {
@@ -887,6 +819,10 @@ describe("persist off e Zustand sem token/PAN/CVV", () => {
       access_token: "also-secret",
       pan: "4111111111111111",
       cvv: "123",
+      api_key: "server-key",
+      private_key: "private-key",
+      fiscal_worker_secret: "worker-secret",
+      supabase_service_role_key: "server-role-key",
       lines: [sampleLine],
     });
     expect(stripped).toEqual({ storeId: STORE_ID, lines: [sampleLine] });
@@ -898,10 +834,6 @@ describe("persist off e Zustand sem token/PAN/CVV", () => {
   });
 });
 
-<<<<<<< HEAD
-describe("HTTP classify, 401 e backoff", () => {
-  it("classifica 408/429/5xx como transitório, 401 encerra sessão, 409/422 conflito", () => {
-=======
 describe("isolamento do storage por sessão", () => {
   it("usa bancos distintos por usuário, limpa carrinho e preserva outbox pendente", async () => {
     const userA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -931,8 +863,8 @@ describe("isolamento do storage por sessão", () => {
     await dbB.inventoryBalances.put({
       storeId: STORE_ID,
       productId: PRODUCT_ID,
-      quantity: 10,
-      serverQuantity: 10,
+      quantity: "10.000",
+      serverQuantity: "10.000",
       updatedAt: new Date().toISOString(),
     });
     await clearClientSessionStorage(userB);
@@ -947,26 +879,18 @@ describe("isolamento do storage por sessão", () => {
 
 describe("HTTP classify, 401 e backoff", () => {
   it("classifica 408/429/5xx como transitório, 401 encerra sessão, 403/409/422 conflito", () => {
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
     expect(classifySyncHttpStatus(200)).toBe("success");
     expect(classifySyncHttpStatus(408)).toBe("transient");
     expect(classifySyncHttpStatus(429)).toBe("transient");
     expect(classifySyncHttpStatus(500)).toBe("transient");
     expect(classifySyncHttpStatus(503)).toBe("transient");
     expect(classifySyncHttpStatus(401)).toBe("end_session");
-<<<<<<< HEAD
-=======
     expect(classifySyncHttpStatus(403)).toBe("conflict");
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
     expect(classifySyncHttpStatus(409)).toBe("conflict");
     expect(classifySyncHttpStatus(422)).toBe("conflict");
   });
 
-<<<<<<< HEAD
-  it("usa backoff 1,2,4,8,16s com teto 60s, jitter e 10 falhas → failed", async () => {
-=======
   it("usa backoff 1,2,4,8,16s com teto 60s e preserva resultado incerto após 10 falhas", async () => {
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
     expect([0, 1, 2, 3, 4].map(backoffBaseSeconds)).toEqual([1, 2, 4, 8, 16]);
     expect(backoffBaseSeconds(6)).toBe(60);
     expect(backoffDelayMs(0, () => 1)).toBe(1000);
@@ -994,13 +918,6 @@ describe("HTTP classify, 401 e backoff", () => {
       await pushPendingCommands({ db, fetchFn, random: () => 0.5 });
     }
 
-<<<<<<< HEAD
-    const failed = await db.outbox.get(MUTATION_ID);
-    expect(failed?.status).toBe("failed");
-    expect(failed?.attemptCount).toBe(10);
-    expect(failed?.clientMutationId).toBe(MUTATION_ID);
-    expect(await db.outbox.count()).toBe(1);
-=======
     const uncertain = await db.outbox.get(MUTATION_ID);
     expect(uncertain?.status).toBe("conflict");
     expect(uncertain?.attemptCount).toBe(10);
@@ -1008,9 +925,8 @@ describe("HTTP classify, 401 e backoff", () => {
     expect(uncertain?.outcomeUnknown).toBe(true);
     expect(await db.outbox.count()).toBe(1);
     expect((await db.sales.where("clientMutationId").equals(MUTATION_ID).first())?.syncStatus).toBe("conflict");
-    expect((await db.payments.toCollection().first())?.status).toBe("pending");
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
+    expect((await db.payments.toCollection().first())?.status).toBe("unknown");
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
   });
 
   it("401 chama onEndSession e não recria a chave do outbox", async () => {
@@ -1036,8 +952,6 @@ describe("HTTP classify, 401 e backoff", () => {
     expect(pending?.clientMutationId).toBe(MUTATION_ID);
     expect(await db.outbox.count()).toBe(1);
   });
-<<<<<<< HEAD
-=======
 
   it("falha HTTP fatal libera a reserva local e fecha a venda como failed", async () => {
     const db = await openDb();
@@ -1057,7 +971,7 @@ describe("HTTP classify, 401 e backoff", () => {
     expect((await db.outbox.get(MUTATION_ID))?.status).toBe("failed");
     expect((await db.sales.where("clientMutationId").equals(MUTATION_ID).first())?.syncStatus).toBe("failed");
     expect((await db.payments.toCollection().first())?.status).toBe("failed");
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(10);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("10.000");
   });
 
   it("não divide estado quando a reconciliação de falha terminal também falha", async () => {
@@ -1082,7 +996,7 @@ describe("HTTP classify, 401 e backoff", () => {
     expect((await db.outbox.get(MUTATION_ID))?.status).toBe("processing");
     expect((await db.sales.where("clientMutationId").equals(MUTATION_ID).first())?.syncStatus).toBe("pending");
     expect((await db.payments.toCollection().first())?.status).toBe("pending");
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
   });
 
   it("não aceita sale_id inválido em uma resposta 2xx", async () => {
@@ -1106,7 +1020,7 @@ describe("HTTP classify, 401 e backoff", () => {
     expect(retry?.attemptCount).toBe(1);
     expect(retry?.lastError).toBe("invalid sale_id");
     expect((await db.sales.where("clientMutationId").equals(MUTATION_ID).first())?.syncStatus).toBe("pending");
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
   });
 
   it("esgotar retries por resposta sem sale_id preserva a reserva até reconciliação", async () => {
@@ -1130,8 +1044,8 @@ describe("HTTP classify, 401 e backoff", () => {
     expect((await db.outbox.get(MUTATION_ID))?.status).toBe("conflict");
     expect((await db.outbox.get(MUTATION_ID))?.outcomeUnknown).toBe(true);
     expect((await db.sales.where("clientMutationId").equals(MUTATION_ID).first())?.syncStatus).toBe("conflict");
-    expect((await db.payments.toCollection().first())?.status).toBe("pending");
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
+    expect((await db.payments.toCollection().first())?.status).toBe("unknown");
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
 
     await pullChanges({
       db,
@@ -1167,9 +1081,8 @@ describe("HTTP classify, 401 e backoff", () => {
     expect((await db.sales.where("clientMutationId").equals(MUTATION_ID).first())?.syncStatus).toBe("synced");
     expect((await db.payments.toCollection().first())?.status).toBe("captured");
     expect(await listVisibleConflicts(db)).toHaveLength(0);
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
   });
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 });
 
 describe("reconcileSale e pullChanges", () => {
@@ -1179,15 +1092,18 @@ describe("reconcileSale e pullChanges", () => {
     await seedStock(db);
     await closeSale(db, saleInput());
 
-    const confirmed = await reconcileSale(db, MUTATION_ID, { sale_id: SERVER_SALE_ID, status: "confirmed" });
+    const confirmed = await reconcileSale(db, MUTATION_ID, {
+      sale_id: SERVER_SALE_ID,
+      status: "confirmed",
+      fiscalStatus: "not_configured",
+    });
     expect(confirmed.status).toBe("confirmed");
     expect(confirmed.syncStatus).toBe("synced");
     expect(confirmed.serverSaleId).toBe(SERVER_SALE_ID);
+    expect(confirmed.fiscalStatus).toBe("not_configured");
     expect((await db.outbox.get(MUTATION_ID))?.status).toBe("synced");
   });
 
-<<<<<<< HEAD
-=======
   it("mantém venda sincronizada como reserva até o pull confirmar o estoque", async () => {
     const db = await openDb();
     dbs.push(db);
@@ -1202,7 +1118,26 @@ describe("reconcileSale e pullChanges", () => {
       message: "conflict",
     });
 
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(9);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("9.000");
+  });
+
+  it("não confirma localmente uma resposta server-side pending", async () => {
+    const db = await openDb();
+    dbs.push(db);
+    await seedStock(db);
+    await closeSale(db, saleInput());
+
+    await expect(
+      reconcileSale(db, MUTATION_ID, {
+        sale_id: SERVER_SALE_ID,
+        status: "pending_sync",
+      })
+    ).rejects.toThrow("Server sale is not confirmed");
+
+    expect((await db.sales.where("clientMutationId").equals(MUTATION_ID).first())?.status).toBe(
+      "pending_sync"
+    );
+    expect((await db.payments.toCollection().first())?.status).toBe("pending");
   });
 
   it("não desconta duas vezes uma venda já refletida no estoque remoto", async () => {
@@ -1244,8 +1179,8 @@ describe("reconcileSale e pullChanges", () => {
     const sale = await db.sales.where("clientMutationId").equals(MUTATION_ID).first();
     const stock = await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]);
     expect(sale?.stockReconciled).toBe(true);
-    expect(stock?.serverQuantity).toBe(9);
-    expect(stock?.quantity).toBe(9);
+    expect(stock?.serverQuantity).toBe("9.000");
+    expect(stock?.quantity).toBe("9.000");
   });
 
   it("normaliza total numérico recebido do servidor para BRL", async () => {
@@ -1305,10 +1240,9 @@ describe("reconcileSale e pullChanges", () => {
 
     expect(payload).toBeNull();
     expect(await db.meta.get(`lastPullAt:${STORE_ID}`)).toBeUndefined();
-    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe(10);
+    expect((await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]))?.quantity).toBe("10.000");
   });
 
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
   it("pullChanges aplica estoque do servidor descontando reservas locais", async () => {
     const db = await openDb();
     dbs.push(db);
@@ -1337,11 +1271,9 @@ describe("reconcileSale e pullChanges", () => {
     });
 
     const stock = await db.inventoryBalances.get([STORE_ID, PRODUCT_ID]);
-    expect(stock?.serverQuantity).toBe(20);
-    expect(stock?.quantity).toBe(19);
+    expect(stock?.serverQuantity).toBe("20.000");
+    expect(stock?.quantity).toBe("19.000");
   });
-<<<<<<< HEAD
-=======
 
   it("consome páginas de vendas sem avançar o cursor além da página truncada", async () => {
     const db = await openDb();
@@ -1396,7 +1328,6 @@ describe("reconcileSale e pullChanges", () => {
       value: "2026-09-01T12:05:00.000Z",
     });
   });
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 });
 
 describe("heartbeat separado de multiTabLock", () => {
@@ -1405,11 +1336,7 @@ describe("heartbeat separado de multiTabLock", () => {
     const heartbeatSrc = readFileSync(path.join(root, "heartbeat.ts"), "utf8");
     const lockSrc = readFileSync(path.join(root, "multi-tab-lock.ts"), "utf8");
     expect(heartbeatSrc).not.toMatch(/multi-tab-lock|withMultiTabLock|MULTI_TAB_LOCK/);
-<<<<<<< HEAD
-    expect(lockSrc).not.toMatch(/heartbeat|startHeartbeat/);
-=======
     expect(lockSrc).not.toMatch(/startHeartbeat/);
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 
     const lock = await import("@/lib/offline/multi-tab-lock");
     const spy = vi.spyOn(lock, "withMultiTabLock");
@@ -1421,8 +1348,6 @@ describe("heartbeat separado de multiTabLock", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 });
-<<<<<<< HEAD
-=======
 
 describe("lease do lock multi-tab", () => {
   it("respeita escopos diferentes e recupera lease expirado", async () => {
@@ -1468,4 +1393,3 @@ describe("lease do lock multi-tab", () => {
     expect(localStorage.getItem(`lock:${scope}`)).toBeNull();
   });
 });
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)

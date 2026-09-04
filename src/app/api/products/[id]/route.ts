@@ -1,21 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { productPatchSchema } from "@/lib/validation/schemas";
+import { productPatchSchema, storeIdSchema } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
 import { canEditProducts } from "@/lib/domain/rbac";
-import type { Database } from "@/lib/db/types";
+import { asCatalogClient } from "@/lib/db/catalog-rpc";
 
-type ProductUpdate = Database["public"]["Tables"]["products"]["Update"];
-
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
-  const auth = await getAuthedContext();
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (!canEditProducts(auth.role) || !auth.orgId) {
-    return NextResponse.json({ error: "forbidden_products" }, { status: 403 });
-  }
-
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   let json: unknown;
   try {
     json = await request.json();
@@ -23,39 +13,69 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
+  const requestedStoreId =
+    json && typeof json === "object" && "store_id" in json
+      ? (json as { store_id?: unknown }).store_id
+      : undefined;
+  if (!storeIdSchema.safeParse(requestedStoreId).success) {
+    return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
+  }
+
   const parsed = productPatchSchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const patch = parsed.data;
-  const update: ProductUpdate = {};
-  if (patch.sku !== undefined) update.sku = patch.sku;
-  if (patch.name !== undefined) update.name = patch.name;
-  if (patch.unit_price !== undefined) update.unit_price = Number(patch.unit_price);
-  if (patch.cost_price !== undefined) update.cost_price = Number(patch.cost_price);
-  if (patch.barcode !== undefined) update.barcode = patch.barcode;
-  if (patch.is_active !== undefined) update.is_active = patch.is_active;
-  if (patch.category_id !== undefined) update.category_id = patch.category_id;
-
-  if (Object.keys(update).length === 0) {
+  const { store_id: storeId, ...patch } = parsed.data;
+  if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "empty_patch" }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("products")
-    .update(update)
-    .eq("id", params.id)
-    .eq("org_id", auth.orgId)
-    .select("id, sku")
-    .maybeSingle();
+  const auth = await getAuthedContext(storeId);
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (
+    !auth.orgId ||
+    !auth.storeId ||
+    auth.storeId !== storeId ||
+    !auth.role ||
+    !canEditProducts(auth.role)
+  ) {
+    return NextResponse.json({ error: "forbidden_products" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const patchPayload = {
+    ...(patch.sku !== undefined ? { sku: patch.sku } : {}),
+    ...(patch.name !== undefined ? { name: patch.name } : {}),
+    ...(patch.unit_price !== undefined ? { unit_price: patch.unit_price } : {}),
+    ...(patch.cost_price !== undefined ? { cost_price: patch.cost_price } : {}),
+    ...(patch.barcode !== undefined ? { barcode: patch.barcode } : {}),
+    ...(patch.is_active !== undefined ? { is_active: patch.is_active } : {}),
+    ...(patch.category_id !== undefined ? { category_id: patch.category_id } : {}),
+  };
+  const supabase = asCatalogClient(await createClient());
+  const { data, error } = await supabase.rpc("update_product", {
+    p_store_id: auth.storeId,
+    p_product_id: id,
+    p_payload: patchPayload,
+  });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 422 });
-  }
-  if (!data) {
-    return NextResponse.json({ error: "product_not_found" }, { status: 404 });
+    if (error.message.includes("forbidden_catalog")) {
+      return NextResponse.json({ error: "forbidden_products" }, { status: 403 });
+    }
+    if (error.message.includes("product_not_found")) {
+      return NextResponse.json({ error: "product_not_found" }, { status: 404 });
+    }
+    if (
+      error.code === "23505" &&
+      `${error.message} ${error.details ?? ""}`.includes("products_org_barcode_key")
+    ) {
+      return NextResponse.json({ error: "barcode_conflict" }, { status: 409 });
+    }
+    return NextResponse.json({ error: "product_write_failed" }, { status: 422 });
   }
 
   return NextResponse.json(data);

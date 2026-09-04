@@ -1,26 +1,41 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { inventoryListQuerySchema } from "@/lib/validation/schemas";
+import { inventoryListQuerySchema, storeIdSchema } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
 import { canSeeCostPrice } from "@/lib/domain/rbac";
 import { toExportCsv } from "@/lib/domain/inventory";
+import { clientRateLimitKey, consumeRateLimit } from "@/lib/security/rate-limit";
+import { rateLimitedResponse, validationFailedResponse } from "@/lib/security/safe-error";
 
 export async function GET(request: Request) {
-  const auth = await getAuthedContext();
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const url = new URL(request.url);
+  const storeIdResult = storeIdSchema.safeParse(url.searchParams.get("store_id"));
+  if (!storeIdResult.success) {
+    return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
   }
 
-  const url = new URL(request.url);
   const parsed = inventoryListQuerySchema.safeParse({
-    store_id: url.searchParams.get("store_id") ?? undefined,
+    store_id: storeIdResult.data,
     cursor_sku: url.searchParams.get("cursor_sku") ?? undefined,
     limit: url.searchParams.get("limit") ?? undefined,
   });
   if (!parsed.success) {
-    return NextResponse.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 400 });
+    return validationFailedResponse(process.env.NODE_ENV === "production", parsed.error.flatten());
   }
 
+  const auth = await getAuthedContext(parsed.data.store_id);
+  if (!auth?.role) {
+    return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
+  }
+
+  const rate = consumeRateLimit({
+    key: clientRateLimitKey(request, "inventory-export", auth.userId),
+    limit: 20,
+    windowMs: 60_000,
+  });
+  if (!rate.allowed) return rateLimitedResponse(rate.retryAfterSec);
+
+  const role = auth.role;
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("get_inventory_page", {
     p_payload: {
@@ -32,14 +47,14 @@ export async function GET(request: Request) {
 
   if (error) {
     const status = error.message.includes("forbidden") ? 403 : 422;
-    return NextResponse.json({ error: error.message }, { status });
+    return NextResponse.json({ error: status === 403 ? "forbidden_store" : "inventory_unavailable" }, { status });
   }
 
   const payload = data as {
     rows?: Array<{
       sku: string;
       name: string;
-      quantity: number;
+      quantity: string;
       unit_price: string;
       cost_price: string | null;
     }>;
@@ -51,7 +66,7 @@ export async function GET(request: Request) {
       name: row.name,
       quantity: row.quantity,
       unitPrice: row.unit_price,
-      costPrice: canSeeCostPrice(auth.role) ? row.cost_price : null,
+      costPrice: canSeeCostPrice(role) ? row.cost_price : null,
     }))
   );
 

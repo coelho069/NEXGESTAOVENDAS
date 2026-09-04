@@ -1,9 +1,34 @@
 import { PdvScreen } from "@/components/pdv/pdv-screen";
+import { getAuthedContext } from "@/lib/auth/session";
+import { fixtureStoreOptions, pdvFixturesEnabled } from "@/lib/pdv/fixtures";
+import type { MemberRole } from "@/lib/domain/rbac";
+import type { StoreOption } from "@/lib/auth/store-context";
 
-export default function PdvPage() {
+export const dynamic = "force-dynamic";
+
+export default async function PdvPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ store?: string }>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const auth = await getAuthedContext(resolvedSearchParams?.store);
+  const fixtureMode = !auth && pdvFixturesEnabled();
+  const stores: Array<StoreOption & { role?: MemberRole }> =
+    auth?.stores.map(({ id, name, role }) => ({ id, name, role })) ??
+    (fixtureMode ? fixtureStoreOptions().map((store) => ({ ...store, role: "cashier" as const })) : []);
+  const fixtureStoreId =
+    fixtureMode &&
+    resolvedSearchParams?.store &&
+    stores.some((store) => store.id === resolvedSearchParams.store)
+      ? resolvedSearchParams.store
+      : null;
+  const initialStoreId = auth?.storeId ?? fixtureStoreId;
+  const role = auth?.role ?? (fixtureMode && initialStoreId ? "cashier" : null);
+
   return (
     <main>
-      <PdvScreen />
+      <PdvScreen stores={stores} initialStoreId={initialStoreId} role={role} />
     </main>
   );
 }

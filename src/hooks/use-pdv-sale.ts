@@ -12,6 +12,7 @@ import {
   maxDiscountForRole,
   parseMoneyInput,
   setQuantity,
+  type MemberRole,
   type SaleState,
 } from "@/lib/domain/sale-ops";
 import { useCheckout } from "@/hooks/use-checkout";
@@ -36,11 +37,18 @@ function applyState(state: SaleState): void {
   }
 }
 
-export function usePdvSale(products: ProductRow[], stock: Record<string, number>, storeName: string) {
+export function usePdvSale(
+  products: ProductRow[],
+  stock: Record<string, number>,
+  storeName: string,
+  role: MemberRole,
+  hasStoreContext: boolean,
+  cashSessionId: string | null,
+  terminalId: string
+) {
   const catalog = useMemo(() => products.map(toCatalogProduct), [products]);
-  const { lines, discount, customerId, customerName, setCustomer, removeLine } = useCartStore();
+  const { storeId, lines, discount, customerId, customerName, setCustomer, removeLine } = useCartStore();
   const {
-    role,
     selectedProductId,
     setSelectedProductId,
     setOpenPanel,
@@ -48,7 +56,7 @@ export function usePdvSale(products: ProductRow[], stock: Record<string, number>
     setDraftReason,
     bumpInventory,
   } = usePdvUiStore();
-  const { paySale } = useCheckout();
+  const { paySale, reconcilePayment, checkoutAttemptId, checkoutInFlight } = useCheckout();
   const [message, setMessage] = useState<string | null>(null);
   const [discountDraft, setDiscountDraft] = useState(discount);
   const [discountError, setDiscountError] = useState<string | null>(null);
@@ -58,7 +66,6 @@ export function usePdvSale(products: ProductRow[], stock: Record<string, number>
     [lines, discount, customerId]
   );
   const cartQty = useMemo(() => cartQtyByProduct(lines), [lines]);
-  const stockOrNull = Object.keys(stock).length > 0 ? stock : null;
 
   const report = useCallback((text: string | null) => {
     setMessage(text);
@@ -66,7 +73,12 @@ export function usePdvSale(products: ProductRow[], stock: Record<string, number>
 
   const addProduct = useCallback(
     (product: ProductRow) => {
-      const result = addItem(saleSnapshot(), toCatalogProduct(product), 1, stockOrNull);
+      if (checkoutInFlight) return;
+      if (!hasStoreContext) {
+        report("Selecione uma loja autorizada antes de adicionar produtos.");
+        return;
+      }
+      const result = addItem(saleSnapshot(), toCatalogProduct(product), 1, stock);
       if (!result.ok) {
         report(result.error);
         return;
@@ -76,7 +88,7 @@ export function usePdvSale(products: ProductRow[], stock: Record<string, number>
       setDraftReason(null);
       report(null);
     },
-    [report, setDraftReason, setSelectedProductId, stockOrNull]
+    [checkoutInFlight, hasStoreContext, report, setDraftReason, setSelectedProductId, stock]
   );
 
   const scanCode = useCallback(
@@ -94,8 +106,9 @@ export function usePdvSale(products: ProductRow[], stock: Record<string, number>
 
   const changeQty = useCallback(
     (productId: string, quantity: number) => {
+      if (checkoutInFlight) return;
       const product = catalog.find((item) => item.productId === productId);
-      const result = setQuantity(saleSnapshot(), productId, quantity, stockOrNull, product);
+      const result = setQuantity(saleSnapshot(), productId, quantity, stock, product);
       if (!result.ok) {
         report(result.error);
         return;
@@ -103,11 +116,20 @@ export function usePdvSale(products: ProductRow[], stock: Record<string, number>
       applyState(result.state);
       report(null);
     },
-    [catalog, report, stockOrNull]
+    [catalog, checkoutInFlight, report, stock]
+  );
+
+  const removeCartLine = useCallback(
+    (productId: string) => {
+      if (checkoutInFlight) return;
+      removeLine(productId);
+    },
+    [checkoutInFlight, removeLine]
   );
 
   const applyDiscountValue = useCallback(
     (raw: string) => {
+      if (checkoutInFlight) return false;
       const parsed = parseMoneyInput(raw);
       if (!parsed) {
         setDiscountError("Valor inválido");
@@ -124,15 +146,16 @@ export function usePdvSale(products: ProductRow[], stock: Record<string, number>
       report(null);
       return true;
     },
-    [report, role, setOpenPanel]
+    [checkoutInFlight, report, role, setOpenPanel]
   );
 
   const associateCustomer = useCallback(
     (customer: CatalogCustomer | null) => {
+      if (checkoutInFlight) return;
       setCustomer(customer?.id ?? null, customer?.name ?? null);
       setOpenPanel("none");
     },
-    [setCustomer, setOpenPanel]
+    [checkoutInFlight, setCustomer, setOpenPanel]
   );
 
   const pay = useCallback(
@@ -144,6 +167,8 @@ export function usePdvSale(products: ProductRow[], stock: Record<string, number>
           role,
           products: catalog,
           storeName,
+          cashSessionId: cashSessionId ?? undefined,
+          terminalId,
         });
         if (!result.ok) {
           setDraftReason(result.message);
@@ -160,7 +185,53 @@ export function usePdvSale(products: ProductRow[], stock: Record<string, number>
         report(error instanceof Error ? error.message : "Erro no pagamento");
       }
     },
-    [bumpInventory, catalog, paySale, report, role, setDraftReason, setLastReceipt, setOpenPanel, storeName]
+    [
+      bumpInventory,
+      cashSessionId,
+      catalog,
+      paySale,
+      report,
+      role,
+      setDraftReason,
+      setLastReceipt,
+      setOpenPanel,
+      storeName,
+      terminalId,
+    ]
+  );
+
+  const reconcileLastPayment = useCallback(async () => {
+    const receipt = usePdvUiStore.getState().lastReceipt;
+    if (!receipt?.clientMutationId || !storeId) {
+      throw new Error("Pagamento sem identidade para reconciliação");
+    }
+
+    const result = await reconcilePayment({
+      storeId,
+      clientMutationId: receipt.clientMutationId,
+    });
+    if (result.status === "captured") {
+      setLastReceipt({
+        ...receipt,
+        payments: receipt.payments.map((payment) => ({ ...payment, status: "captured" })),
+        syncStatus: "synced",
+        saleStatus: "confirmed",
+      });
+      report(null);
+    } else {
+      report("Ainda não há evidência server-side de pagamento confirmado. Não tente cobrar novamente.");
+    }
+    return result;
+  }, [reconcilePayment, report, setLastReceipt, storeId]);
+
+  const reconcilePaymentByMutation = useCallback(
+    async (clientMutationId: string) => {
+      if (!storeId) {
+        throw new Error("Selecione uma loja antes de reconciliar o pagamento");
+      }
+      return reconcilePayment({ storeId, clientMutationId });
+    },
+    [reconcilePayment, storeId]
   );
 
   return {
@@ -177,10 +248,14 @@ export function usePdvSale(products: ProductRow[], stock: Record<string, number>
     addProduct,
     scanCode,
     changeQty,
-    removeLine,
+    removeLine: removeCartLine,
     applyDiscountValue,
     associateCustomer,
     pay,
+    reconcileLastPayment,
+    reconcilePaymentByMutation,
+    checkoutAttemptId,
+    checkoutInFlight,
     setDiscountDraft,
     setSelectedProductId,
     selectedProductId,

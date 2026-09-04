@@ -1,3 +1,4 @@
+import { Plus } from "lucide-react";
 import { formatBRL } from "@/lib/money";
 import type { ProductRow } from "@/lib/domain/product";
 import { StockLabel } from "@/components/pdv/stock-label";
@@ -19,7 +20,7 @@ export function ProductGrid({ products, onAdd, stock, cartQty }: ProductGridProp
   }
 
   return (
-    <div className="grid grid-cols-1 gap-3">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {products.map((product) => {
         const inCart = cartQty?.[product.id] ?? 0;
         return (
@@ -28,19 +29,28 @@ export function ProductGrid({ products, onAdd, stock, cartQty }: ProductGridProp
             type="button"
             data-testid={`product-sku-${product.sku}`}
             onClick={() => onAdd(product)}
-            className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-emerald-500 hover:shadow"
+            className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:border-indigo-500 hover:shadow-md"
           >
-            <div className="text-sm font-medium text-slate-500">{product.sku}</div>
-            <div className="mt-1 font-semibold text-slate-900">{product.name}</div>
-            <div className="mt-2">
+            <div className="flex items-start justify-between gap-3">
+              <div className="rounded bg-indigo-50 px-2 py-1 text-xs font-bold uppercase tracking-wider text-indigo-600">
+                {product.sku}
+              </div>
+              <div className="text-lg font-bold text-slate-800">{formatBRL(product.unit_price)}</div>
+            </div>
+            <div className="mt-3 font-semibold text-slate-700 transition-colors group-hover:text-indigo-600">
+              {product.name}
+            </div>
+            <div className="mt-4 flex items-center justify-between gap-3">
               <StockLabel
                 productId={product.id}
                 sku={product.sku}
                 stockQty={stock?.[product.id]}
                 cartQty={inCart}
               />
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                <Plus size={16} aria-hidden="true" />
+              </span>
             </div>
-            <div className="mt-2 text-lg font-bold text-emerald-700">{formatBRL(product.unit_price)}</div>
           </button>
         );
       })}

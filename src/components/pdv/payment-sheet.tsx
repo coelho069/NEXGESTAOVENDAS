@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { formatBRL } from "@/lib/money";
 import { PaymentActions } from "@/components/pdv/sale-summary";
 
@@ -14,17 +15,32 @@ export function PaymentSheet({ open, total, disabled, onCash, onCard, onClose }:
   if (!open) return null;
 
   return (
-    <div data-testid="pdv-payment-sheet" className="fixed inset-0 z-50 lg:hidden">
-      <button type="button" className="absolute inset-0 bg-slate-900/40" aria-label="Fechar pagamento" onClick={onClose} />
-      <div className="absolute inset-x-0 bottom-0 rounded-t-2xl bg-white p-5 shadow-xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Pagamento</h2>
-          <button type="button" className="text-sm text-slate-500" onClick={onClose}>
-            Esc
+    <div data-testid="pdv-payment-sheet" className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+        aria-label="Fechar pagamento"
+        onClick={onClose}
+      />
+      <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-100 p-6">
+          <h2 className="text-xl font-bold text-slate-900">Forma de pagamento</h2>
+          <button
+            type="button"
+            className="text-slate-400 transition hover:text-slate-700"
+            aria-label="Fechar pagamento"
+            onClick={onClose}
+          >
+            <X size={24} aria-hidden="true" />
           </button>
         </div>
-        <p className="mb-4 text-2xl font-bold text-slate-900">{formatBRL(total)}</p>
-        <PaymentActions disabled={disabled} onCash={onCash} onCard={onCard} />
+        <div className="space-y-5 p-6">
+          <div className="flex items-center justify-between rounded-2xl bg-indigo-50 p-4">
+            <span className="font-medium text-indigo-700">Total a pagar:</span>
+            <span className="text-2xl font-black text-indigo-900">{formatBRL(total)}</span>
+          </div>
+          <PaymentActions disabled={disabled} onCash={onCash} onCard={onCard} />
+        </div>
       </div>
     </div>
   );

@@ -40,7 +40,7 @@ describe("inventory CSV", () => {
       ].join("\n")
     );
     expect(parsed.rows).toEqual([
-      expect.objectContaining({ sku: "BEV-003", delta: 4, movementType: "restock" }),
+      expect.objectContaining({ sku: "BEV-003", delta: "4.000", movementType: "restock" }),
     ]);
     expect(parsed.errors.map((issue) => issue.message).join(" ")).toMatch(/zero/);
     expect(parsed.errors.some((issue) => /positivo/i.test(issue.message))).toBe(true);
@@ -111,11 +111,13 @@ describe("RBAC and org isolation", () => {
 
 describe("Zod inventory and dashboard", () => {
   const storeId = "22222222-2222-4222-8222-222222222201";
+  const mutationId = "99999999-9999-4999-8999-999999999999";
 
   it("accepts audited adjust payload and rejects restock with negative delta", () => {
     const ok = inventoryAdjustSchema.safeParse({
       store_id: storeId,
       sku: "BEV-001",
+      client_mutation_id: mutationId,
       delta: 2,
       reason: "compra",
       movement_type: "restock",
@@ -125,6 +127,7 @@ describe("Zod inventory and dashboard", () => {
     const bad = inventoryAdjustSchema.safeParse({
       store_id: storeId,
       sku: "BEV-001",
+      client_mutation_id: mutationId,
       delta: -1,
       reason: "compra",
       movement_type: "restock",
@@ -133,12 +136,18 @@ describe("Zod inventory and dashboard", () => {
   });
 
   it("validates import, dashboard query and product money strings", () => {
-    expect(inventoryImportSchema.safeParse({ store_id: storeId, csv: "x" }).success).toBe(true);
+    expect(
+      inventoryImportSchema.safeParse({
+        store_id: storeId,
+        import_id: mutationId,
+        csv: "x",
+      }).success
+    ).toBe(true);
     expect(
       dashboardMetricsQuerySchema.safeParse({
         store_id: storeId,
         from: "2026-09-01",
-        to: "2026-09-01",
+        to: "2026-09-02",
       }).success
     ).toBe(true);
     expect(

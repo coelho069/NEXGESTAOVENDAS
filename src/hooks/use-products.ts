@@ -1,44 +1,63 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { DEMO_PRODUCTS } from "@/lib/domain/catalog";
 import { filterActiveProducts, type ProductRow } from "@/lib/domain/product";
+import { resolveCatalogLoad } from "@/lib/domain/catalog-load";
+import { fixtureProducts, pdvFixturesEnabled } from "@/lib/pdv/fixtures";
 import { createClient } from "@/lib/supabase/client";
 
-export function useProducts() {
-  const [products, setProducts] = useState<ProductRow[]>(filterActiveProducts(DEMO_PRODUCTS));
-  const [loading, setLoading] = useState(false);
+function applyCatalogResult(failed: boolean, data: ProductRow[] | null) {
+  const resolved = resolveCatalogLoad({
+    failed,
+    data: data ? filterActiveProducts(data) : null,
+    fixtures: pdvFixturesEnabled(),
+    fixtureProducts: filterActiveProducts(fixtureProducts()),
+  });
+  return resolved;
+}
+
+export function useProducts(options: { storeId?: string | null } = {}) {
+  const { storeId = null } = options;
+  const [products, setProducts] = useState<ProductRow[]>(() =>
+    pdvFixturesEnabled() ? filterActiveProducts(fixtureProducts()) : []
+  );
+  const [loading, setLoading] = useState(() => !pdvFixturesEnabled());
   const [error, setError] = useState<string | null>(null);
-  const [fromCatalog, setFromCatalog] = useState(true);
+  const [fromCatalog, setFromCatalog] = useState(false);
 
   const load = useCallback(async () => {
+    setLoading(true);
+    if (!storeId && !pdvFixturesEnabled()) {
+      setProducts([]);
+      setFromCatalog(false);
+      setError("Selecione uma loja autorizada");
+      setLoading(false);
+      return;
+    }
+
     try {
       const supabase = createClient();
-      setLoading(true);
       const { data, error: queryError } = await supabase
         .from("products")
         .select("id, sku, name, unit_price, barcode, category_id, is_active")
         .order("name");
 
-      if (queryError || !data) {
-        setProducts(filterActiveProducts(DEMO_PRODUCTS));
-        setFromCatalog(true);
-        setError(queryError?.message ?? null);
-      } else {
-        setProducts(filterActiveProducts(data as ProductRow[]));
-        setFromCatalog(false);
-        setError(null);
-      }
+      const resolved = applyCatalogResult(Boolean(queryError) || !data, (data as ProductRow[] | null) ?? null);
+      setProducts(resolved.products);
+      setFromCatalog(false);
+      setError(resolved.error);
     } catch {
-      setProducts(filterActiveProducts(DEMO_PRODUCTS));
-      setFromCatalog(true);
-      setError(null);
+      const resolved = applyCatalogResult(true, null);
+      setProducts(resolved.products);
+      setFromCatalog(false);
+      setError(resolved.error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [storeId]);
 
   useEffect(() => {
+    // Initial catalog loading synchronizes this client with Supabase.
     void load();
   }, [load]);
 

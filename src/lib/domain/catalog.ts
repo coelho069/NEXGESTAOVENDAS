@@ -78,7 +78,7 @@ export const DEMO_CUSTOMERS: CatalogCustomer[] = [
   {
     id: "55555555-5555-4555-8555-555555555502",
     name: "Maria Silva",
-    document: "12345678901",
+    document: "TEST-ONLY-DOCUMENT",
     email: "maria.silva@example.invalid",
   },
 ];

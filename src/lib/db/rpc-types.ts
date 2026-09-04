@@ -7,4 +7,8 @@ export type ProcessSaleResult = {
   status: Enums<"sale_status">;
   total?: string;
   stock_reconciled: boolean;
+  fiscal?: {
+    status?: Enums<"fiscal_document_status">;
+    external_id?: string | null;
+  };
 };

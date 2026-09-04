@@ -12,7 +12,16 @@ const FORBIDDEN_KEY_EXACT = new Set([
   "securitycode",
   "security_code",
   "password",
-  "supabase_service_role_key",
+  "secret",
+  "client_secret",
+  "api_key",
+  "apikey",
+  "private_key",
+  "privatekey",
+  "jwt_secret",
+  "database_url",
+  "authorization",
+  "bearer",
 ]);
 
 export function isForbiddenSecretKey(key: string): boolean {
@@ -20,6 +29,15 @@ export function isForbiddenSecretKey(key: string): boolean {
   if (FORBIDDEN_KEY_EXACT.has(normalized)) return true;
   if (normalized === "pan" || normalized.endsWith("_pan")) return true;
   if (normalized.includes("cvv") || normalized.includes("cvc")) return true;
+  if (
+    normalized.includes("secret") ||
+    normalized.includes("password") ||
+    normalized.includes("privatekey") ||
+    normalized.endsWith("apikey") ||
+    (normalized.includes("service") && normalized.includes("role"))
+  ) {
+    return true;
+  }
   if (normalized === "token" || normalized.endsWith("_token") || normalized.endsWith("token")) {
     if (normalized.includes("mutation")) return false;
     return normalized === "token" || normalized.endsWith("token");

@@ -19,7 +19,13 @@ export async function createClient() {
       setAll(cookiesToSet) {
         try {
           cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options);
+            cookieStore.set(name, value, {
+              ...options,
+              httpOnly: true,
+              secure: process.env.NODE_ENV === "production" ? true : options?.secure,
+              sameSite: options?.sameSite ?? "lax",
+              path: options?.path ?? "/",
+            });
           });
         } catch {
           // setAll from Server Component — middleware refreshes session.

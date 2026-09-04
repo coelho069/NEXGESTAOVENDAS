@@ -14,13 +14,20 @@ export type CartState = {
   discount: string;
   customerId: string | null;
   customerName: string | null;
-  setStoreId: (storeId: string) => void;
+  suspendedSaleId: string | null;
+  suspensionClaimId: string | null;
+  checkoutAttemptId: string | null;
+  checkoutInFlight: boolean;
+  setStoreId: (storeId: string | null) => boolean;
+  setCheckoutAttemptId: (checkoutAttemptId: string | null) => void;
+  setCheckoutInFlight: (checkoutInFlight: boolean) => void;
   addLine: (line: CartLine) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   removeLine: (productId: string) => void;
   setDiscount: (discount: string) => void;
   setLines: (lines: CartLine[]) => void;
   setCustomer: (customerId: string | null, customerName: string | null) => void;
+  setSuspendedContext: (context: { suspendedSaleId: string; claimId: string } | null) => void;
   clear: () => void;
   total: () => string;
 };
@@ -33,7 +40,19 @@ const createCartSlice: StateCreator<CartState> = (set, get) => ({
   discount: "0.00",
   customerId: null,
   customerName: null,
-  setStoreId: (storeId) => set({ storeId }),
+  suspendedSaleId: null,
+  suspensionClaimId: null,
+  checkoutAttemptId: null,
+  checkoutInFlight: false,
+  setStoreId: (storeId) => {
+    const current = get();
+    if (current.storeId === storeId) return true;
+    if (current.lines.length > 0 || current.checkoutAttemptId || current.checkoutInFlight) return false;
+    set({ storeId });
+    return true;
+  },
+  setCheckoutAttemptId: (checkoutAttemptId) => set({ checkoutAttemptId }),
+  setCheckoutInFlight: (checkoutInFlight) => set({ checkoutInFlight }),
   addLine: (line) =>
     set((state) => {
       const existing = state.lines.find((item) => item.productId === line.productId);
@@ -61,7 +80,21 @@ const createCartSlice: StateCreator<CartState> = (set, get) => ({
   setDiscount: (discount) => set({ discount }),
   setLines: (lines) => set({ lines }),
   setCustomer: (customerId, customerName) => set({ customerId, customerName }),
-  clear: () => set({ lines: [], discount: "0.00", customerId: null, customerName: null }),
+  setSuspendedContext: (context) =>
+    set({
+      suspendedSaleId: context?.suspendedSaleId ?? null,
+      suspensionClaimId: context?.claimId ?? null,
+    }),
+  clear: () =>
+    set({
+      lines: [],
+      discount: "0.00",
+      customerId: null,
+      customerName: null,
+      suspendedSaleId: null,
+      suspensionClaimId: null,
+      checkoutAttemptId: null,
+    }),
   total: () => cartTotal(get().lines, get().discount),
 });
 
@@ -80,6 +113,9 @@ export function createCartStore(options?: { persist?: boolean }): CartStore {
           discount: state.discount,
           customerId: state.customerId,
           customerName: state.customerName,
+          suspendedSaleId: state.suspendedSaleId,
+          suspensionClaimId: state.suspensionClaimId,
+          checkoutAttemptId: state.checkoutAttemptId,
         }),
     })
   );

@@ -14,6 +14,10 @@ export function canEditProducts(role: MemberRole | null | undefined): boolean {
   return role === "admin" || role === "manager";
 }
 
+export function canManageFiscal(role: MemberRole | null | undefined): boolean {
+  return role === "admin" || role === "manager";
+}
+
 export function canSeeCostPrice(role: MemberRole | null | undefined): boolean {
   return canViewReports(role);
 }

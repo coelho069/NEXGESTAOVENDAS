@@ -4,13 +4,13 @@ import type { MemberRole } from "@/lib/domain/rbac";
 
 type PermissionGateProps = {
   allow: MemberRole[];
-  role: MemberRole;
+  role: MemberRole | null | undefined;
   children: React.ReactNode;
   fallback?: React.ReactNode;
 };
 
 export function PermissionGate({ allow, role, children, fallback }: PermissionGateProps) {
-  if (!allow.includes(role)) {
+  if (!role || !allow.includes(role)) {
     return (
       fallback ?? (
         <div

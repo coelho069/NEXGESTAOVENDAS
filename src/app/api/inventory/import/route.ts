@@ -1,19 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { inventoryImportSchema } from "@/lib/validation/schemas";
+import { inventoryImportSchema, storeIdSchema } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
 import { canManageInventory } from "@/lib/domain/rbac";
 import { parseInventoryCsv } from "@/lib/domain/inventory";
+import { inventoryImportMutationId } from "@/lib/server/inventory-idempotency";
 
 export async function POST(request: Request) {
-  const auth = await getAuthedContext();
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (!canManageInventory(auth.role)) {
-    return NextResponse.json({ error: "forbidden_inventory" }, { status: 403 });
-  }
-
   let json: unknown;
   try {
     json = await request.json();
@@ -21,19 +14,36 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
+  const requestedStoreId =
+    json && typeof json === "object" && "store_id" in json
+      ? (json as { store_id?: unknown }).store_id
+      : undefined;
+  const storeIdResult = storeIdSchema.safeParse(requestedStoreId);
+  if (!storeIdResult.success) {
+    return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
+  }
+
   const parsed = inventoryImportSchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  if (!auth.orgId) {
-    return NextResponse.json({ error: "org_required" }, { status: 403 });
+  const auth = await getAuthedContext(parsed.data.store_id);
+  const authorizedStoreId = auth?.storeId;
+  if (!auth?.orgId || !authorizedStoreId || authorizedStoreId !== parsed.data.store_id || !auth.role) {
+    return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
   }
 
   const csv = parseInventoryCsv(parsed.data.csv);
   const supabase = await createClient();
-  const applied: Array<{ row: number; sku: string; movementId?: string }> = [];
+  const role = auth.role;
+  if (!role || !canManageInventory(role)) {
+    return NextResponse.json({ error: "forbidden_inventory" }, { status: 403 });
+  }
+
+  const applied: Array<{ row: number; sku: string; movementId?: string; replay: boolean }> = [];
   const errors = [...csv.errors];
+  let replayedCount = 0;
 
   for (const row of csv.rows) {
     const { data: product } = await supabase
@@ -47,10 +57,18 @@ export async function POST(request: Request) {
       continue;
     }
 
+    const clientMutationId = inventoryImportMutationId(
+      authorizedStoreId,
+      parsed.data.import_id,
+      row.row
+    );
     const { data, error } = await supabase.rpc("adjust_inventory", {
       p_payload: {
-        store_id: parsed.data.store_id,
+        store_id: authorizedStoreId,
         product_id: product.id,
+        client_mutation_id: clientMutationId,
+        import_id: parsed.data.import_id,
+        import_row: row.row,
         delta: row.delta,
         reason: row.reason,
         movement_type: row.movementType,
@@ -58,18 +76,21 @@ export async function POST(request: Request) {
     });
 
     if (error) {
-      errors.push({ row: row.row, sku: row.sku, message: error.message });
+      errors.push({ row: row.row, sku: row.sku, message: "Ajuste de inventário rejeitado" });
       continue;
     }
 
-    const payload = data as { movement_id?: string } | null;
-    applied.push({ row: row.row, sku: row.sku, movementId: payload?.movement_id });
+    const payload = data as { movement_id?: string; replay?: boolean } | null;
+    const replay = payload?.replay === true;
+    if (replay) replayedCount += 1;
+    applied.push({ row: row.row, sku: row.sku, movementId: payload?.movement_id, replay });
   }
 
   return NextResponse.json({
     applied,
     errors,
     appliedCount: applied.length,
+    replayedCount,
     errorCount: errors.length,
   });
 }

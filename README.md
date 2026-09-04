@@ -1,118 +1,123 @@
-<<<<<<< HEAD
-# Nex Gestão Vendas — PDV Local-first
+# Nex Gestão Vendas
 
-Sprint 4 do PDV local-first para varejo brasileiro (BRL, `America/Sao_Paulo`): inventário auditado, dashboard SSR de rentabilidade e RBAC. Os contratos Sprint 1 (RPC cash, RLS), Sprint 2 (Dexie outbox) e Sprint 3 (UI de vendas) permanecem.
+PDV local-first para varejo brasileiro, com catálogo tipado, carrinho persistido,
+sincronização offline, inventário auditado, dashboard SSR e RBAC no servidor.
 
 ## Stack
 
-- Next.js 14 App Router + TypeScript strict + Tailwind (`@/*`)
-- Supabase Auth + Postgres + RLS
-- pnpm
-- Zustand + Dexie (`pdv_local_v1`) para PDV local-first
-- Zod nas rotas de API
-- Vitest + Playwright
+- Next.js 15 App Router e TypeScript strict
+- Tailwind CSS
+- Supabase com clientes browser/server tipados
+- Zustand para estado do carrinho
+- Zod, Dexie e `decimal.js`
 
-## Escopo Sprint 1
-
-- Login Supabase
-- Catálogo de produtos (cashier: somente leitura de produtos ativos)
-- Carrinho PDV + checkout em **dinheiro**
-- Fila offline (`pending_sync`) com replay idempotente via RPC `public.process_sale`
-- Adapters cartão/pix/NFC-e/SAT expostos como `not_configured`
-
-## Escopo Sprint 2
-
-- Dexie `pdv_local_v1`
-- Fechar venda em 1 transação IndexedDB (venda + itens + pagamentos + estoque projetado + outbox)
-- Outbox com `clientMutationId` imutável
-- `pushPendingCommands`, `pullChanges`, `reconcileSale`, `recordConflict`
-- Heartbeat separado de multi-tab lock
-- Zustand sem token / PAN / CVV
-
-## Escopo Sprint 3
-
-- Layout desktop (busca / carrinho / resumo) e tablet (2 regiões + pagamento em sheet)
-- Busca com debounce e scanner HID sem limpar o carrinho
-- Estoque projetado; bloqueio de negativo e produto inativo
-- Cliente, desconto (limites por papel) e recibo HTML com status de sync
-- Pagamento falho permanece rascunho local
-
-## Escopo Sprint 4
-
-- Inventário: listagem paginada, ajuste via RPC (`reason` + papel), CSV import/export com erros
-- Dashboard SSR: COGS, margem, sell-through, filtro loja/período, estado degradado
-- RBAC: cashier sem relatórios/ajustes/custo; manager/admin no servidor (RLS/RPC)
-- `PermissionGate` apenas como fallback de UX
-
-Fora de escopo: NFC-e/SAT real, cartão/pix real, estorno UI, integração bancária.
-
-## Setup local
+## Desenvolvimento
 
 ```bash
 pnpm install
-cp .env.example .env
-# Preencha NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-# Supabase local (requer Docker)
-supabase start
-supabase db reset
-pnpm seed:auth   # usa SUPABASE_SERVICE_ROLE_KEY apenas no servidor
-
-pnpm db:types
+cp .env.example .env.local
 pnpm dev
 ```
 
-App: http://localhost:3000
+Preencha `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` no
+`.env.local`. Para usar o catálogo de demonstração sem Supabase, defina
+`NEXT_PUBLIC_PDV_FIXTURES=1` somente em desenvolvimento/testes; o modo fixture
+é desativado automaticamente em produção.
 
-### Usuários demo (seed)
-
-| Papel   | E-mail                   | Senha        |
-|---------|--------------------------|--------------|
-| Admin   | admin@example.invalid    | Admin123!    |
-| Gerente | manager@example.invalid  | Manager123!  |
-| Caixa   | cashier@example.invalid  | Cashier123!  |
-
-## Scripts
-
-| Script        | Descrição                          |
-|---------------|------------------------------------|
-| `pnpm dev`    | Next.js dev server                 |
-| `pnpm build`  | Build produção                     |
-| `pnpm lint`   | ESLint                             |
-| `pnpm typecheck` | `tsc --noEmit`                  |
-| `pnpm test`   | Vitest unitários                   |
-| `pnpm test:e2e` | Playwright smoke                 |
-| `pnpm db:types` | Gera `src/lib/db/types.ts`       |
-| `pnpm seed:auth` | Cria usuários Auth demo (server) |
-
-## Segurança
-
-- `SUPABASE_SERVICE_ROLE_KEY` **nunca** no client, logs ou bundle
-- RLS ativo; role `anon` revogada em `public`
-- Vendas imutáveis (sem UPDATE/DELETE direto)
-- Audit log append-only
+Variáveis server-only, como `SUPABASE_SERVICE_ROLE_KEY`, credenciais fiscais,
+`FISCAL_WORKER_SECRET` e as senhas do seed, nunca devem usar o prefixo
+`NEXT_PUBLIC_`, ser colocadas no navegador ou ser impressas em logs. O segredo
+`FISCAL_WORKER_SECRET` deve ter ao menos 32 caracteres aleatórios. O seed
+exige `SEED_ADMIN_PASSWORD`, `SEED_MANAGER_PASSWORD` e `SEED_CASHIER_PASSWORD`
+no ambiente local e não exibe essas credenciais.
 
 ## Estrutura
 
-```
-src/app          Rotas App Router + API
-src/components   UI
-src/lib          Supabase, domínio, adapters, validação
-src/stores       Zustand
-src/hooks        React hooks
-src/types        Re-exports de tipos
-src/workers      Service worker sync
-supabase/        Migrations + seed SQL
-tests/           Unit + e2e
-docs/            Contrato e decisões
+```text
+src/
+├── app/                         # App Router e rotas de API
+├── components/
+│   ├── features/                # funcionalidades de negócio na UI
+│   └── ui/                      # componentes visuais reutilizáveis
+├── hooks/                       # comportamento reativo
+├── lib/
+│   ├── db/                      # tipos gerados e RPCs
+│   ├── domain/                  # regras de domínio
+│   ├── offline/                 # IndexedDB, outbox e sync
+│   └── supabase/                # clientes SSR/browser e middleware
+├── stores/                      # estado global Zustand
+└── workers/                     # processamento em background
 ```
 
-## Documentação
+`src/lib/db/types.ts` é gerado por `pnpm db:types` e não deve ser editado
+manualmente. `src/types/database.ts` existe apenas como ponto de entrada
+compatível para as features.
 
-- [AGENTS.md](./AGENTS.md)
-- [docs/IMPLEMENTATION_CONTRACT.md](./docs/IMPLEMENTATION_CONTRACT.md)
-- [docs/assumptions.md](./docs/assumptions.md)
-- [docs/agent-log.md](./docs/agent-log.md)
-=======
-# Novo PDV - Do Zero
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
+## Caixa e terminal
+
+O terminal é identificado por `nex-terminal-id`, persistido no navegador. Abertura,
+movimentações administrativas e fechamento do caixa são operações online e passam
+por RPCs idempotentes; vendas offline de uma sessão já aberta seguem o outbox
+durável e geram a movimentação de dinheiro somente na reconciliação server-side.
+
+## Verificações
+
+```bash
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
+pnpm test:e2e
+```
+
+Pipeline serializado (recomendado em CI / validação completa):
+
+```bash
+pnpm verify:pipeline
+```
+
+Ordem fixa: `typecheck → lint → test → build → test:e2e`. O E2E sobe o
+`webServer` com `NEX_NEXT_DIST_DIR=.next-e2e`, isolado do artefato de
+produção `.next`, para que `pnpm build` e `pnpm test:e2e` não corrompam o
+mesmo cache/output se forem disparados em paralelo. Prova de isolamento:
+
+```bash
+pnpm verify:build-e2e-isolation
+```
+
+Em produção, configure `APP_ORIGIN` com a origem HTTPS pública da aplicação.
+Sem `APP_ORIGIN`, mutações autenticadas por cookie são rejeitadas (fail-closed).
+As APIs mutáveis rejeitam requisições cross-site e a aplicação envia CSP,
+HSTS, `X-Frame-Options`, `nosniff`, `Referrer-Policy` e `Permissions-Policy`.
+
+Há um limitador em processo (`src/lib/security/rate-limit.ts`) como defesa
+adicional para exportações, reconciliação de pagamento e o worker fiscal.
+Chaves preferem o sujeito autenticado; `X-Forwarded-For` só é usado com
+`TRUST_PROXY=1`. O contador **não** é compartilhado entre instâncias: o
+proxy/edge de produção deve aplicar quotas distribuídas para login/Auth,
+exportações, pagamentos e `/api/fiscal/outbox/process`. Cookies de sessão
+usam `HttpOnly` + `SameSite=Lax` (+ `Secure` em produção).
+
+CSP e exceções necessárias do Next.js estão documentadas em
+`docs/SECURITY-CSP.md`.
+
+Validação PostgreSQL/RBAC com concorrência real via dblink:
+
+```bash
+bash scripts/run-pg-rbac-validation.sh
+```
+
+Health checks (sem autenticação):
+
+- `GET /health/liveness`
+- `GET /health/readiness`
+
+Observabilidade e recuperação: `docs/OPERATIONAL-RECOVERY.md`.
+Deploy/produção/DR: `docs/PRODUCTION-DEPLOY.md` (Dockerfile + `deploy/nginx.conf.example`).
+
+```bash
+pnpm install --frozen-lockfile
+pnpm build
+pnpm check:prod   # exige NODE_ENV=production + APP_ORIGIN https + Supabase
+pnpm start:prod
+```

@@ -130,4 +130,20 @@ describe("final migration chain state (RBAC hardening regression net)", () => {
     expect(chain).toContain("profiles_provisioning_guard");
     expect(chain).toContain("fk_store_members_store_same_org");
   });
+
+  it("enforces normalized barcode uniqueness per organization without banning NULL/blank values", () => {
+    expect(chain).toContain("CREATE UNIQUE INDEX products_org_barcode_key");
+    expect(chain).toContain("ON public.products (org_id, lower(btrim(barcode)))");
+    expect(chain).toContain("WHERE barcode IS NOT NULL AND btrim(barcode) <> ''");
+  });
+
+  it("enforces inventory mutation identity and import-row uniqueness", () => {
+    expect(chain).toContain("ADD COLUMN IF NOT EXISTS client_mutation_id uuid");
+    expect(chain).toContain("ADD COLUMN IF NOT EXISTS import_id uuid");
+    expect(chain).toContain("ADD COLUMN IF NOT EXISTS import_row integer");
+    expect(chain).toContain("CREATE UNIQUE INDEX inventory_movements_store_mutation_key");
+    expect(chain).toContain("CREATE UNIQUE INDEX inventory_movements_import_row_key");
+    expect(chain).toContain("pg_advisory_xact_lock");
+    expect(chain).toContain("idempotency_payload_mismatch");
+  });
 });
