@@ -16,13 +16,7 @@ export function ReceiptDialog({ open, receipt, onClose, onReconcile }: ReceiptDi
 
   return (
     <div data-testid="receipt" className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
-        data-testid="receipt-close"
-        className="absolute inset-0 bg-slate-900/40"
-        aria-label="Fechar recibo"
-        onClick={onClose}
-      />
+      <button type="button" className="absolute inset-0 bg-slate-900/40" aria-label="Fechar recibo" onClick={onClose} />
       <div className="relative flex h-[90vh] w-full max-w-2xl flex-col rounded-xl bg-white p-4 shadow-xl">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
@@ -34,7 +28,12 @@ export function ReceiptDialog({ open, receipt, onClose, onReconcile }: ReceiptDi
               Fiscal: {fiscalStatusLabel(receipt.fiscalStatus ?? "pending")}
             </p>
           </div>
-          <button type="button" className="text-sm text-slate-500" onClick={onClose}>
+          <button
+            type="button"
+            data-testid="receipt-close"
+            className="relative z-10 text-sm text-slate-500"
+            onClick={onClose}
+          >
             Esc
           </button>
         </div>
