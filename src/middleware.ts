@@ -72,14 +72,14 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user && isProtected) {
-    const redirect = request.nextUrl.clone();
-    redirect.pathname = "/login";
+    const publicOrigin = process.env.APP_ORIGIN?.trim() || request.nextUrl.origin;
+    const redirect = new URL("/login", publicOrigin);
     return withSecurityHeaders(NextResponse.redirect(redirect), correlationId);
   }
 
   if (user && isAuthRoute) {
-    const redirect = request.nextUrl.clone();
-    redirect.pathname = "/pdv";
+    const publicOrigin = process.env.APP_ORIGIN?.trim() || request.nextUrl.origin;
+    const redirect = new URL("/pdv", publicOrigin);
     return withSecurityHeaders(NextResponse.redirect(redirect), correlationId);
   }
 
