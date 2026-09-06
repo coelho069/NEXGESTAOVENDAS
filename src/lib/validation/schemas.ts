@@ -78,6 +78,45 @@ export const reconcilePaymentInputSchema = z
 
 export type ReconcilePaymentInput = z.infer<typeof reconcilePaymentInputSchema>;
 
+export const cardPaymentActionSchema = z.enum(["authorize", "capture", "cancel"]);
+
+export const cardPaymentInputSchema = z
+  .object({
+    action: cardPaymentActionSchema,
+    store_id: storeIdSchema,
+    amount: z.string().regex(moneyPattern, "amount must be numeric(12,2) string"),
+    client_mutation_id: z.string().uuid(),
+    provider_reference: z
+      .string()
+      .regex(/^pi_[A-Za-z0-9]+$/, "provider_reference must be a PaymentIntent id")
+      .optional(),
+    customer_id: z.string().uuid().optional(),
+    discount: z
+      .string()
+      .regex(moneyPattern, "discount must be numeric(12,2) string")
+      .optional()
+      .default("0.00"),
+    items: z.array(saleItemInputSchema).min(1).max(500).optional(),
+  })
+  .superRefine((value, context) => {
+    if ((value.action === "capture" || value.action === "cancel") && !value.provider_reference) {
+      context.addIssue({
+        code: "custom",
+        path: ["provider_reference"],
+        message: "provider_reference is required for capture/cancel",
+      });
+    }
+    if (value.action === "authorize" && (!value.items || value.items.length === 0)) {
+      context.addIssue({
+        code: "custom",
+        path: ["items"],
+        message: "items are required to authorize a card sale",
+      });
+    }
+  });
+
+export type CardPaymentInput = z.infer<typeof cardPaymentInputSchema>;
+
 const fiscalDocumentReferenceSchema = z
   .object({
     store_id: storeIdSchema,

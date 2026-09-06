@@ -128,6 +128,30 @@ export function validateProductionConfig(
     });
   }
 
+  const stripeSecret = read(envSource, "STRIPE_SECRET_KEY");
+  const stripeWebhook = read(envSource, "STRIPE_WEBHOOK_SECRET");
+  if (stripeSecret && !stripeSecret.startsWith("sk_test_") && !stripeSecret.startsWith("rk_test_")) {
+    warnings.push({
+      code: "stripe_livemode_unsupported",
+      message: "STRIPE_SECRET_KEY is not a testmode key; card adapter stays not_configured",
+      severity: "warning",
+    });
+  }
+  if (stripeSecret && !stripeWebhook) {
+    warnings.push({
+      code: "stripe_webhook_secret_missing",
+      message: "STRIPE_SECRET_KEY set without STRIPE_WEBHOOK_SECRET; card adapter stays not_configured",
+      severity: "warning",
+    });
+  }
+  if (stripeSecret.startsWith("sk_live_") || stripeSecret.startsWith("rk_live_")) {
+    warnings.push({
+      code: "stripe_live_key_blocked",
+      message: "Livemode Stripe keys are out of scope; card adapter stays not_configured",
+      severity: "warning",
+    });
+  }
+
   return {
     ok: fatal.length === 0,
     fatal,

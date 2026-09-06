@@ -35,17 +35,17 @@ describe("payment state machine", () => {
 });
 
 describe("payment adapters", () => {
-  it("never simulates a configured result for an unavailable provider", () => {
+  it("never simulates a configured result for an unavailable provider", async () => {
     const adapter = getPaymentAdapter("card");
-    expect(adapter.authorize("10.00").status).toBe("not_configured");
-    expect(adapter.capture("10.00").status).toBe("not_configured");
-    expect(adapter.reconcile("10.00").status).toBe("not_configured");
+    expect((await adapter.authorize("10.00")).status).toBe("not_configured");
+    expect((await adapter.capture("10.00")).status).toBe("not_configured");
+    expect((await adapter.reconcile("10.00")).status).toBe("not_configured");
     expect(resolvePaymentAttempt(adapter.process("10.00")).kind).toBe("keep_draft");
   });
 
-  it("uses the server record as the source of truth for cash reconciliation", () => {
+  it("uses the server record as the source of truth for cash reconciliation", async () => {
     const adapter = getPaymentAdapter("cash");
-    expect(adapter.capture("10.00", { clientMutationId: "mutation" }).status).toBe("captured");
-    expect(adapter.reconcile("10.00", { clientMutationId: "mutation" }).status).toBe("unknown");
+    expect((await adapter.capture("10.00", { clientMutationId: "mutation" })).status).toBe("captured");
+    expect((await adapter.reconcile("10.00", { clientMutationId: "mutation" })).status).toBe("unknown");
   });
 });

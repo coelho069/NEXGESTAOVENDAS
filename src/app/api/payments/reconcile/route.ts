@@ -7,6 +7,8 @@ import {
 } from "@/lib/validation/schemas";
 import { clientRateLimitKey, consumeRateLimit } from "@/lib/security/rate-limit";
 import { rateLimitedResponse, validationFailedResponse } from "@/lib/security/safe-error";
+import { reconcileCardAgainstStripe } from "@/lib/server/card-payment";
+import { toMoneyString, money } from "@/lib/money";
 
 export async function POST(request: Request) {
   let supabase: Awaited<ReturnType<typeof createClient>>;
@@ -54,6 +56,43 @@ export async function POST(request: Request) {
   const auth = await getAuthedContext(parsed.data.store_id);
   if (!auth?.orgId || !auth.role) {
     return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
+  }
+
+  const cardIntent = await supabase.rpc("get_card_payment_intent", {
+    p_payload: parsed.data,
+  });
+  if (!cardIntent.error && cardIntent.data && typeof cardIntent.data === "object" && !Array.isArray(cardIntent.data)) {
+    const intent = cardIntent.data;
+    const providerRef = typeof intent.provider_ref === "string" ? intent.provider_ref : "";
+    const amount =
+      typeof intent.amount === "string"
+        ? intent.amount
+        : typeof intent.amount === "number"
+          ? toMoneyString(money(intent.amount))
+          : "";
+    if (providerRef && amount) {
+      const card = await reconcileCardAgainstStripe({
+        supabase,
+        storeId: parsed.data.store_id,
+        clientMutationId:
+          parsed.data.client_mutation_id ??
+          (typeof intent.client_mutation_id === "string" ? intent.client_mutation_id : undefined),
+        amount,
+        providerReference: providerRef,
+      });
+      return NextResponse.json({
+        status: card.status,
+        method: "card",
+        amount,
+        provider_reference: card.providerReference,
+        sale_id: card.sale_id,
+        sale_status: card.sale_status,
+        sale_confirmed: card.sale_confirmed === true,
+        reconciled: card.status === "captured" && card.sale_confirmed === true,
+        pending: card.status !== "captured",
+        evidence: card.status !== "unknown",
+      });
+    }
   }
 
   const { data, error } = await supabase.rpc("reconcile_payment", {

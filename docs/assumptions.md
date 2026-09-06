@@ -17,8 +17,9 @@ Decisões assumidas para destravar o MVP. Revisar antes dos próximos sprints.
 ## Pagamentos
 
 - Checkout PDV Sprint 1: **somente dinheiro** via RPC.
-- Cartão, Pix, voucher e outros métodos existem no enum, mas retornam adapter `not_configured` na API/RPC.
-- Troco/cash drawer não modelado no Sprint 1.
+- Cartão Stripe (testmode) entra só com secrets server-only + health probe. Authorize não confirma venda; `captured` exige PaymentIntent `succeeded`. Sem health, card permanece `not_configured`.
+- Pix, voucher e other continuam `not_configured`.
+- Troco/cash drawer não modelado no Sprint 1. Estorno card permanece `pending_external` (nunca `refund_cash`).
 
 ## Fiscal
 
