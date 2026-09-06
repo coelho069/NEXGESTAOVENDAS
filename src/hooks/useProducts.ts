@@ -2,8 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchProducts } from "@/lib/catalog-api";
+import {
+  catalogLoadCauseFromUnknown,
+  resolveCatalogLoad,
+} from "@/lib/domain/catalog-load";
 import { filterActiveProducts, searchProducts, type ProductRow } from "@/lib/domain/product";
 import { fixtureProducts, pdvFixturesEnabled } from "@/lib/pdv/fixtures";
+import { createClient } from "@/lib/supabase/client";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 type UseProductsOptions = {
@@ -44,19 +49,42 @@ export function useProducts(options: UseProductsOptions = {}) {
       setProducts(nextProducts);
       setSource("catalog");
       setError(null);
-    } catch {
-      const fallback = pdvFixturesEnabled() ? filterActiveProducts(fixtureProducts()) : [];
-      setProducts(fallback);
-      setSource(fallback.length > 0 ? "fixtures" : null);
-      setError(fallback.length > 0 ? null : "Falha ao carregar catálogo");
+    } catch (cause) {
+      const resolved = resolveCatalogLoad({
+        failed: true,
+        data: null,
+        fixtures: pdvFixturesEnabled(),
+        fixtureProducts: filterActiveProducts(fixtureProducts()),
+        cause: catalogLoadCauseFromUnknown(cause),
+      });
+      setProducts(resolved.products);
+      setSource(resolved.products.length > 0 ? "fixtures" : null);
+      setError(resolved.error);
     } finally {
       setLoading(false);
     }
   }, [cacheTtlMs, scopeKey, storeId]);
 
   useEffect(() => {
-    // Initial catalog loading synchronizes this client with Supabase.
+    // Reload when storeId becomes available or changes.
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    let supabase: ReturnType<typeof createClient>;
+    try {
+      supabase = createClient();
+    } catch {
+      return;
+    }
+
+    const { data } = supabase.auth.onAuthStateChange(() => {
+      void load();
+    });
+
+    return () => {
+      data.subscription.unsubscribe();
+    };
   }, [load]);
 
   const filteredProducts = useMemo(
