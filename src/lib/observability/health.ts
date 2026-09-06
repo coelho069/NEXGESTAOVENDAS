@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { validateProductionConfig } from "@/lib/production/config";
 
 export type LivenessStatus = {
@@ -56,7 +56,21 @@ export async function checkReadiness(): Promise<ReadinessStatus> {
   }
 
   try {
-    const supabase = await createClient();
+    // Readiness is unauthenticated; use service-role probe so RLS does not
+    // report a healthy DB as unavailable for anonymous health checks.
+    const supabase = createAdminClient();
+    if (!supabase) {
+      return {
+        status: "not_ready",
+        service: "nexgestaovendas",
+        checked_at: checkedAt,
+        checks: {
+          auth_configured: true,
+          production_config: productionConfig,
+          database: "not_configured",
+        },
+      };
+    }
     const { error } = await supabase.from("stores").select("id").limit(1);
     if (error) {
       return {
