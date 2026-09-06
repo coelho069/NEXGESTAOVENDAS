@@ -451,20 +451,28 @@ async function payCardOnServer(input: {
     discount: line.discount,
   }));
 
-  const authorizeResponse = await fetch("/api/payments/card", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({
-      action: "authorize",
-      store_id: input.storeId,
-      amount: input.amount,
-      client_mutation_id: input.clientMutationId,
-      customer_id: input.customerId,
-      discount: input.discount,
-      items,
-    }),
-  });
+  let authorizeResponse: Response;
+  try {
+    authorizeResponse = await fetch("/api/payments/card", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        action: "authorize",
+        store_id: input.storeId,
+        amount: input.amount,
+        client_mutation_id: input.clientMutationId,
+        customer_id: input.customerId,
+        discount: input.discount,
+        items,
+      }),
+    });
+  } catch {
+    return {
+      kind: "draft",
+      message: "Pagamento não configurado. Venda permanece como rascunho local.",
+    };
+  }
   const authorizeBody = await readJsonBody(authorizeResponse);
   const authorizeStatus = typeof authorizeBody.status === "string" ? authorizeBody.status : "";
 
@@ -500,21 +508,29 @@ async function payCardOnServer(input: {
     };
   }
 
-  const captureResponse = await fetch("/api/payments/card", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({
-      action: "capture",
-      store_id: input.storeId,
-      amount: input.amount,
-      client_mutation_id: input.clientMutationId,
-      provider_reference: authorizeBody.provider_reference,
-      customer_id: input.customerId,
-      discount: input.discount,
-      items,
-    }),
-  });
+  let captureResponse: Response;
+  try {
+    captureResponse = await fetch("/api/payments/card", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        action: "capture",
+        store_id: input.storeId,
+        amount: input.amount,
+        client_mutation_id: input.clientMutationId,
+        provider_reference: authorizeBody.provider_reference,
+        customer_id: input.customerId,
+        discount: input.discount,
+        items,
+      }),
+    });
+  } catch {
+    return {
+      kind: "unknown",
+      message: "Stripe não confirmou o PaymentIntent. Pagamento permanece unknown.",
+    };
+  }
   const captureBody = await readJsonBody(captureResponse);
   const captureStatus = typeof captureBody.status === "string" ? captureBody.status : "";
   const saleConfirmed = captureBody.sale_confirmed === true;
