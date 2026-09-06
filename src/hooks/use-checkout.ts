@@ -16,6 +16,7 @@ import {
   type MemberRole,
   type StockMap,
 } from "@/lib/domain/sale-ops";
+import { confirmFixtureLocalSales } from "@/lib/domain/sale-return-local";
 import { closeSale } from "@/lib/offline/close-sale";
 import { endClientSession } from "@/lib/offline/end-session";
 import { withMultiTabLock } from "@/lib/offline/multi-tab-lock";
@@ -78,6 +79,8 @@ export function useCheckout() {
 
   const flushPending = useCallback(async () => {
     if (pdvFixturesEnabled()) {
+      const db = getPdvLocalDbForUser(useSessionStore.getState().userId);
+      await confirmFixtureLocalSales(db);
       await refreshSyncUi();
       return;
     }

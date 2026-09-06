@@ -12,11 +12,14 @@ import { ReceiptDialog } from "@/components/pdv/receipt-dialog";
 import { ConflictBanner } from "@/components/pdv/conflict-banner";
 import { SyncStatusBadge } from "@/components/pdv/sync-status-badge";
 import { SuspendedSalesPanel } from "@/components/pdv/suspended-sales-panel";
+import { SalesHistoryPanel } from "@/components/pdv/sales-history-panel";
+import { SaleReturnDialog } from "@/components/pdv/sale-return-dialog";
 import { CashRegisterPanel } from "@/components/cash/cash-register-panel";
 import { useProducts } from "@/hooks/use-products";
 import { useCustomers } from "@/hooks/use-customers";
 import { useProjectedStock } from "@/hooks/use-projected-stock";
 import { useSuspendedSales } from "@/hooks/use-suspended-sales";
+import { useSalesHistory } from "@/hooks/use-sales-history";
 import { useCashSession } from "@/hooks/use-cash-session";
 import { useHidScanner } from "@/hooks/use-hid-scanner";
 import { usePdvShortcuts } from "@/hooks/use-pdv-shortcuts";
@@ -55,9 +58,12 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     lastReceipt,
     draftReason,
     inventoryEpoch,
+    bumpInventory,
   } = usePdvUiStore();
   const [contextMessage, setContextMessage] = useState<string | null>(null);
   const [showSuspendedSales, setShowSuspendedSales] = useState(false);
+  const [showSalesHistory, setShowSalesHistory] = useState(false);
+  const [showSaleReturn, setShowSaleReturn] = useState(false);
   const authorizedStore = useMemo(
     () => stores.find((store) => store.id === storeId) ?? null,
     [storeId, stores]
@@ -68,7 +74,13 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
   const displayRole = role ?? authorizedStore?.role ?? null;
   const { balances, loading: stockLoading } = useProjectedStock(storeId, inventoryEpoch);
   const suspended = useSuspendedSales(storeId);
+  const salesHistory = useSalesHistory(storeId);
   const [query, setQuery] = useState("");
+
+  const openSalesHistory = () => {
+    setShowSalesHistory(true);
+    void salesHistory.refresh().catch(() => undefined);
+  };
 
   const storeName = authorizedStore?.name ?? "Loja";
   const sale = usePdvSale(
@@ -223,7 +235,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
 
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-900">
-      <PdvSidebar storeId={storeId} />
+      <PdvSidebar storeId={storeId} onOpenSalesHistory={openSalesHistory} />
       <div className="min-w-0 flex-1 overflow-hidden">
         <div className="mx-auto flex min-h-screen max-w-[1600px] flex-col gap-4 p-4 lg:p-6">
           <header className="flex flex-wrap items-center justify-between gap-3">
@@ -394,6 +406,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
                   setShowSuspendedSales(true);
                   void suspended.refresh().catch(() => undefined);
                 }}
+                onOpenSalesHistory={openSalesHistory}
               />
             </div>
           </div>
@@ -443,6 +456,50 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             onRecover={recoverSale}
             onReleaseActive={releaseActiveSale}
             onClose={() => setShowSuspendedSales(false)}
+          />
+          <SalesHistoryPanel
+            open={showSalesHistory}
+            rows={salesHistory.rows}
+            detail={salesHistory.detail}
+            loading={salesHistory.loading}
+            detailLoading={salesHistory.detailLoading}
+            error={salesHistory.error}
+            query={salesHistory.query}
+            hasMore={salesHistory.hasMore}
+            role={displayRole}
+            onQueryChange={salesHistory.setQuery}
+            onRefresh={() => void salesHistory.refresh()}
+            onLoadMore={() => void salesHistory.loadMore()}
+            onOpenDetail={(saleId) => void salesHistory.openDetail(saleId)}
+            onClearDetail={salesHistory.clearDetail}
+            onStartReturn={() => setShowSaleReturn(true)}
+            onClose={() => {
+              setShowSalesHistory(false);
+              setShowSaleReturn(false);
+              salesHistory.clearDetail();
+            }}
+          />
+          <SaleReturnDialog
+            open={showSaleReturn}
+            detail={salesHistory.detail}
+            role={displayRole}
+            mutating={salesHistory.mutating}
+            error={salesHistory.error}
+            onSubmit={async (input) => {
+              if (!salesHistory.detail) return;
+              await salesHistory.submitReturn({
+                saleId: salesHistory.detail.sale_id,
+                operation: input.operation,
+                reason: input.reason,
+                notes: input.notes,
+                items: input.items,
+                cashSessionId: cash.session?.cash_session_id ?? null,
+              });
+              bumpInventory();
+              await cash.refresh().catch(() => undefined);
+              setShowSaleReturn(false);
+            }}
+            onClose={() => setShowSaleReturn(false)}
           />
         </div>
       </div>

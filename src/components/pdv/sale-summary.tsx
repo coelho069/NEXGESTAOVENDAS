@@ -48,6 +48,7 @@ type SaleSummaryProps = {
   onOpenPayment: () => void;
   onSuspend: () => void;
   onOpenSuspended: () => void;
+  onOpenSalesHistory: () => void;
 };
 
 export function SaleSummary({
@@ -62,6 +63,7 @@ export function SaleSummary({
   onOpenPayment,
   onSuspend,
   onOpenSuspended,
+  onOpenSalesHistory,
 }: SaleSummaryProps) {
   return (
     <aside
@@ -122,6 +124,14 @@ export function SaleSummary({
           className="rounded-xl border border-indigo-200 px-3 py-2 text-sm font-semibold text-indigo-700 hover:border-indigo-400"
         >
           Vendas suspensas
+        </button>
+        <button
+          type="button"
+          data-testid="open-sales-history"
+          onClick={onOpenSalesHistory}
+          className="col-span-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-indigo-300"
+        >
+          Consultar vendas
         </button>
       </div>
       {!online ? (
