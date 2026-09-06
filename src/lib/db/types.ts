@@ -1111,6 +1111,81 @@ export type Database = {
           },
         ]
       }
+      sale_returns: {
+        Row: {
+          cash_session_id: string | null
+          client_mutation_id: string
+          created_at: string
+          header_discount_share: number
+          id: string
+          items_subtotal: number
+          notes: string | null
+          operation: string
+          operator_id: string
+          org_id: string
+          payment_method: Database["public"]["Enums"]["payment_method"]
+          payment_refund_status: string
+          reason: string
+          refund_total: number
+          sale_id: string
+          store_id: string
+          terminal_id: string
+        }
+        Insert: {
+          cash_session_id?: string | null
+          client_mutation_id: string
+          created_at?: string
+          header_discount_share: number
+          id?: string
+          items_subtotal: number
+          notes?: string | null
+          operation: string
+          operator_id: string
+          org_id: string
+          payment_method: Database["public"]["Enums"]["payment_method"]
+          payment_refund_status: string
+          reason: string
+          refund_total: number
+          sale_id: string
+          store_id: string
+          terminal_id: string
+        }
+        Update: {
+          cash_session_id?: string | null
+          client_mutation_id?: string
+          created_at?: string
+          header_discount_share?: number
+          id?: string
+          items_subtotal?: number
+          notes?: string | null
+          operation?: string
+          operator_id?: string
+          org_id?: string
+          payment_method?: Database["public"]["Enums"]["payment_method"]
+          payment_refund_status?: string
+          reason?: string
+          refund_total?: number
+          sale_id?: string
+          store_id?: string
+          terminal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_returns_sale_scope_fk"
+            columns: ["sale_id", "org_id", "store_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id", "org_id", "store_id"]
+          },
+          {
+            foreignKeyName: "sale_returns_store_scope_fk"
+            columns: ["store_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
       store_members: {
         Row: {
           created_at: string
@@ -1352,12 +1427,16 @@ export type Database = {
       }
       current_user_org_id: { Args: never; Returns: string }
       fiscal_result_error_code: { Args: { p_payload: Json }; Returns: string }
+      cancel_sale: { Args: { p_payload: Json }; Returns: Json }
       get_cash_session: { Args: { p_payload: Json }; Returns: Json }
       get_dashboard_metrics: { Args: { p_payload: Json }; Returns: Json }
       get_inventory_page: { Args: { p_payload: Json }; Returns: Json }
+      get_sale_detail: { Args: { p_payload: Json }; Returns: Json }
+      list_sales: { Args: { p_payload: Json }; Returns: Json }
       list_suspended_sales: { Args: { p_payload: Json }; Returns: Json }
       open_cash_session: { Args: { p_payload: Json }; Returns: Json }
       process_sale: { Args: { p_payload: Json }; Returns: Json }
+      process_sale_return: { Args: { p_payload: Json }; Returns: Json }
       process_sale_core: { Args: { p_payload: Json }; Returns: Json }
       process_sale_with_cash: { Args: { p_payload: Json }; Returns: Json }
       reconcile_payment: { Args: { p_payload: Json }; Returns: Json }
@@ -1403,7 +1482,7 @@ export type Database = {
     }
     Enums: {
       adapter_status: "configured" | "not_configured" | "error"
-      cash_movement_type: "sale_cash" | "supply" | "withdrawal" | "adjustment"
+      cash_movement_type: "sale_cash" | "supply" | "withdrawal" | "adjustment" | "refund_cash"
       cash_session_status: "open" | "closed"
       fiscal_document_status:
         | "not_configured"
@@ -1567,7 +1646,7 @@ export const Constants = {
   public: {
     Enums: {
       adapter_status: ["configured", "not_configured", "error"],
-      cash_movement_type: ["sale_cash", "supply", "withdrawal", "adjustment"],
+      cash_movement_type: ["sale_cash", "supply", "withdrawal", "adjustment", "refund_cash"],
       cash_session_status: ["open", "closed"],
       fiscal_document_status: [
         "not_configured",

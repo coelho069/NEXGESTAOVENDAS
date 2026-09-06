@@ -155,6 +155,89 @@ export const suspendedSaleListQuerySchema = z.object({
 
 export type SuspendedSaleListQuery = z.infer<typeof suspendedSaleListQuerySchema>;
 
+export const saleHistoryListQuerySchema = z
+  .object({
+    store_id: storeIdSchema,
+    limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+    after_created_at: z.string().datetime().optional(),
+    after_id: z.string().uuid().optional(),
+    query: z.string().trim().max(120).optional(),
+    status: z
+      .enum([
+        "draft",
+        "pending_sync",
+        "confirmed",
+        "cancelled",
+        "refunded",
+        "partially_refunded",
+      ])
+      .optional(),
+  })
+  .superRefine((value, context) => {
+    if (Boolean(value.after_created_at) !== Boolean(value.after_id)) {
+      context.addIssue({
+        code: "custom",
+        path: ["after_id"],
+        message: "after_created_at and after_id must be provided together",
+      });
+    }
+  });
+
+export type SaleHistoryListQuery = z.infer<typeof saleHistoryListQuerySchema>;
+
+export const saleHistoryDetailQuerySchema = z.object({
+  store_id: storeIdSchema,
+  sale_id: z.string().uuid(),
+});
+
+export type SaleHistoryDetailQuery = z.infer<typeof saleHistoryDetailQuerySchema>;
+
+export const saleReturnItemInputSchema = z.object({
+  sale_item_id: z.string().uuid(),
+  quantity: z
+    .string()
+    .regex(/^(?:0|[1-9]\d{0,9})(?:\.\d{1,3})?$/, "quantity must be numeric(12,3) string")
+    .refine((value) => Number(value) > 0, "quantity must be positive"),
+});
+
+export const saleReturnInputSchema = z.object({
+  store_id: storeIdSchema,
+  sale_id: z.string().uuid(),
+  terminal_id: z.string().uuid(),
+  cash_session_id: z.string().uuid().optional(),
+  client_mutation_id: z.string().uuid(),
+  operation: z.enum(["cancel", "return"]).default("return"),
+  reason: z.enum([
+    "produto_com_defeito",
+    "cliente_desistiu",
+    "produto_incorreto",
+    "erro_de_venda",
+    "outro",
+  ]),
+  notes: z.string().trim().min(1).max(500).optional(),
+  items: z.array(saleReturnItemInputSchema).min(1).max(500),
+});
+
+export type SaleReturnInput = z.infer<typeof saleReturnInputSchema>;
+
+export const saleCancelInputSchema = z.object({
+  store_id: storeIdSchema,
+  sale_id: z.string().uuid(),
+  terminal_id: z.string().uuid(),
+  cash_session_id: z.string().uuid().optional(),
+  client_mutation_id: z.string().uuid(),
+  reason: z.enum([
+    "produto_com_defeito",
+    "cliente_desistiu",
+    "produto_incorreto",
+    "erro_de_venda",
+    "outro",
+  ]),
+  notes: z.string().trim().min(1).max(500).optional(),
+});
+
+export type SaleCancelInput = z.infer<typeof saleCancelInputSchema>;
+
 export const recoverSuspendedSaleInputSchema = z.object({
   store_id: storeIdSchema,
   terminal_id: z.string().uuid(),

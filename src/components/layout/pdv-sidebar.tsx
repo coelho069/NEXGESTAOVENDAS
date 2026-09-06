@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   BarChart3,
+  History,
   LogOut,
   Package,
   Settings,
@@ -34,7 +35,13 @@ function storeHref(path: string, storeId: string | null): string {
   return storeId ? `${path}?store=${encodeURIComponent(storeId)}` : path;
 }
 
-export function PdvSidebar({ storeId }: { storeId: string | null }) {
+export function PdvSidebar({
+  storeId,
+  onOpenSalesHistory,
+}: {
+  storeId: string | null;
+  onOpenSalesHistory?: () => void;
+}) {
   return (
     <aside className="hidden w-64 shrink-0 flex-col gap-8 border-r border-slate-200 bg-white p-4 lg:flex">
       <Link href={storeHref("/pdv", storeId)} className="flex items-center gap-2 px-2">
@@ -64,6 +71,17 @@ export function PdvSidebar({ storeId }: { storeId: string | null }) {
         >
           <Users size={20} aria-hidden="true" />
           <span className="font-medium">Clientes</span>
+        </button>
+        <button
+          type="button"
+          data-testid="sidebar-sales-history"
+          onClick={onOpenSalesHistory}
+          disabled={!onOpenSalesHistory}
+          className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:text-slate-400"
+          title="Consultar vendas da loja"
+        >
+          <History size={20} aria-hidden="true" />
+          <span className="font-medium">Vendas</span>
         </button>
       </nav>
 
