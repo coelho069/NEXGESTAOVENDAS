@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { buildProcessSalePayload, cartSubtotal, cartTotal, lineTotal } from "@/lib/domain/sale";
 import { validateSaleAmounts } from "@/lib/domain/sale-ops";
+import { evaluateSaleCommercialRules } from "@/lib/domain/store-settings";
 import { processSaleInputSchema, type ProcessSaleInput } from "@/lib/validation/schemas";
 import { money } from "@/lib/money";
 import {
@@ -15,8 +16,24 @@ import type { CloseSaleInput, CloseSaleResult, LocalSale, OutboxCommand } from "
 
 function assertCashOnlyAndNoSecrets(input: CloseSaleInput): void {
   assertNoSecrets(input, "closeSale");
-  if (input.payments.length !== 1 || input.payments[0]?.method !== "cash") {
-    throw new Error("Only one cash payment is supported in Sprint 1 MVP");
+  const method = input.payments[0]?.method;
+  if (input.payments.length !== 1 || method !== "cash") {
+    if (method === "pix") {
+      throw new Error(
+        "PIX não pode ser finalizado offline nem enfileirado como pago. Use dinheiro ou conecte-se com provedor configurado."
+      );
+    }
+    if (method === "card") {
+      throw new Error(
+        "Cartão não pode ser finalizado offline nem enfileirado como aprovado. Use dinheiro ou conecte-se com provedor configurado."
+      );
+    }
+    if (method === "other") {
+      throw new Error(
+        "TEF não pode ser finalizado offline nem enfileirado como aprovado. Use dinheiro ou conecte-se com provedor configurado."
+      );
+    }
+    throw new Error("Apenas um pagamento em dinheiro é suportado no fluxo offline atual");
   }
 }
 
@@ -28,6 +45,27 @@ function comparablePayload(payload: ProcessSaleInput): string {
 
 export async function closeSale(db: PdvLocalDatabase, input: CloseSaleInput): Promise<CloseSaleResult> {
   assertCashOnlyAndNoSecrets(input);
+
+  // Enforce commercial rules before writing local sale + outbox.
+  // When flags are provided, block locally so sync will not later reject.
+  // When flags are omitted (legacy callers/tests), skip — callers that know
+  // store policy (checkout) must pass flags; unavailable settings should
+  // refuse checkout upstream rather than enqueue a doomed mutation.
+  if (input.commercialFlags) {
+    const blocked = evaluateSaleCommercialRules({
+      settings: {
+        require_customer_on_sale: input.commercialFlags.require_customer_on_sale === true,
+        require_open_cash_session: input.commercialFlags.require_open_cash_session === true,
+        require_customer_document: input.commercialFlags.require_customer_document === true,
+      },
+      customerId: input.customerId ?? null,
+      customerDocument: input.customerDocument,
+      cashSessionOpen: Boolean(input.cashSessionId),
+    });
+    if (blocked) {
+      throw new Error(blocked.message);
+    }
+  }
 
   const discount = input.discount ?? "0.00";
   const amountError = validateSaleAmounts(

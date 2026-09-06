@@ -9,10 +9,13 @@ import {
   type CashSessionResponse,
 } from "@/lib/domain/cash";
 import { pdvFixturesEnabled } from "@/lib/pdv/fixtures";
+import {
+  readFixtureCashCache,
+  writeFixtureCashCache,
+} from "@/lib/pdv/cash-fixture-ledger";
 import { getTerminalId } from "@/lib/offline/terminal-identity";
 import { useSessionStore } from "@/stores/session-store";
 
-const CACHE_KEY_PREFIX = "nex-cash-session:";
 const FIXTURE_ORG_ID = "11111111-1111-4111-8111-111111111111";
 const FIXTURE_USER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
@@ -50,28 +53,12 @@ function writePendingMutations(userId: string | null, storeId: string, mutations
   sessionStorage.setItem(pendingMutationStorageKey(userId, storeId), JSON.stringify(mutations));
 }
 
-function cacheKey(userId: string | null, storeId: string): string {
-  return `${CACHE_KEY_PREFIX}${userId ?? "anonymous"}:${storeId}`;
-}
-
 function readCached(userId: string | null, storeId: string): CashSessionResponse | null {
-  if (typeof localStorage === "undefined") return null;
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(cacheKey(userId, storeId)) ?? "null");
-    if (!value || typeof value !== "object") return null;
-    const response = value as Partial<CashSessionResponse>;
-    if (!Array.isArray(response.movements) || typeof response.expected_amount !== "string") {
-      return null;
-    }
-    return response as CashSessionResponse;
-  } catch {
-    return null;
-  }
+  return readFixtureCashCache(userId, storeId);
 }
 
 function writeCached(userId: string | null, storeId: string, response: CashSessionResponse): void {
-  if (typeof localStorage === "undefined") return;
-  localStorage.setItem(cacheKey(userId, storeId), JSON.stringify(response));
+  writeFixtureCashCache(userId, storeId, response);
 }
 
 function fixtureResponse(storeId: string, terminalId: string): CashSessionResponse {

@@ -1,3 +1,9 @@
+import {
+  fiscalCancelNotConfiguredMessage,
+  fiscalNotConfiguredMessage,
+  type FiscalDocumentKind,
+} from "@/lib/domain/fiscal";
+
 export const FISCAL_ADAPTER_STATUSES = [
   "issued",
   "failed",
@@ -42,6 +48,14 @@ export interface FiscalAdapter {
   consult(input: FiscalOperationInput): FiscalAdapterResultOrPromise;
 }
 
+/**
+ * Kind-aware fiscal port for NFC-e / SAT. issue/consult/cancel never invent
+ * issued/authorized outcomes without a live provider.
+ */
+export interface KindFiscalPort extends FiscalAdapter {
+  readonly kind: FiscalDocumentKind;
+}
+
 /** Backwards-compatible name used by the first fiscal placeholder. */
 export type FiscalDocumentAdapter = FiscalAdapter;
 
@@ -77,6 +91,95 @@ export class NotConfiguredFiscalAdapter implements FiscalAdapter {
       retryable: false,
     };
   }
+}
+
+/**
+ * NFC-e adapter (client-safe). B24 keeps all issue paths on not_configured and
+ * never returns issued/authorized without a live SEFAZ/provider confirmation.
+ */
+export class NfceFiscalAdapter implements KindFiscalPort {
+  readonly name = "nfce";
+  readonly kind = "nfce" as const;
+
+  issue(input: FiscalOperationInput): FiscalAdapterResult {
+    void input;
+    return {
+      status: "not_configured",
+      message: fiscalNotConfiguredMessage("nfce"),
+      errorCode: "provider_not_configured",
+      retryable: false,
+    };
+  }
+
+  cancel(input: FiscalOperationInput): FiscalAdapterResult {
+    void input;
+    return {
+      status: "not_configured",
+      message: fiscalCancelNotConfiguredMessage("nfce"),
+      errorCode: "provider_not_configured",
+      retryable: false,
+    };
+  }
+
+  consult(input: FiscalOperationInput): FiscalAdapterResult {
+    void input;
+    return {
+      status: "not_configured",
+      message: fiscalNotConfiguredMessage("nfce"),
+      errorCode: "provider_not_configured",
+      retryable: false,
+    };
+  }
+}
+
+/**
+ * SAT / CF-e-SAT adapter (client-safe). Never invents CF-e number, key, or protocol.
+ */
+export class SatFiscalAdapter implements KindFiscalPort {
+  readonly name = "sat";
+  readonly kind = "sat" as const;
+
+  issue(input: FiscalOperationInput): FiscalAdapterResult {
+    void input;
+    return {
+      status: "not_configured",
+      message: fiscalNotConfiguredMessage("sat"),
+      errorCode: "provider_not_configured",
+      retryable: false,
+    };
+  }
+
+  cancel(input: FiscalOperationInput): FiscalAdapterResult {
+    void input;
+    return {
+      status: "not_configured",
+      message: fiscalCancelNotConfiguredMessage("sat"),
+      errorCode: "provider_not_configured",
+      retryable: false,
+    };
+  }
+
+  consult(input: FiscalOperationInput): FiscalAdapterResult {
+    void input;
+    return {
+      status: "not_configured",
+      message: fiscalNotConfiguredMessage("sat"),
+      errorCode: "provider_not_configured",
+      retryable: false,
+    };
+  }
+}
+
+export function getNfceFiscalAdapter(): KindFiscalPort {
+  return new NfceFiscalAdapter();
+}
+
+export function getSatFiscalAdapter(): KindFiscalPort {
+  return new SatFiscalAdapter();
+}
+
+export function getFiscalAdapterByKind(kind: FiscalDocumentKind): KindFiscalPort {
+  return kind === "sat" ? new SatFiscalAdapter() : new NfceFiscalAdapter();
 }
 
 type FiscalHttpOperation = "issue" | "cancel" | "consult";

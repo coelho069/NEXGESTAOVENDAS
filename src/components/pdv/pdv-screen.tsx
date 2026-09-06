@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PdvSidebar } from "@/components/layout/pdv-sidebar";
 import { ProductSearch, focusPdvSearch } from "@/components/pdv/product-search";
 import { CartPanel } from "@/components/pdv/cart-panel";
@@ -12,12 +12,17 @@ import { ReceiptDialog } from "@/components/pdv/receipt-dialog";
 import { ConflictBanner } from "@/components/pdv/conflict-banner";
 import { SyncStatusBadge } from "@/components/pdv/sync-status-badge";
 import { SuspendedSalesPanel } from "@/components/pdv/suspended-sales-panel";
+import { SalesHistoryPanel } from "@/components/pdv/sales-history-panel";
+import { SaleReturnDialog } from "@/components/pdv/sale-return-dialog";
+import { SettingsPanel } from "@/components/pdv/settings-panel";
 import { CashRegisterPanel } from "@/components/cash/cash-register-panel";
 import { useProducts } from "@/hooks/use-products";
 import { useCustomers } from "@/hooks/use-customers";
 import { useProjectedStock } from "@/hooks/use-projected-stock";
 import { useSuspendedSales } from "@/hooks/use-suspended-sales";
+import { useSalesHistory } from "@/hooks/use-sales-history";
 import { useCashSession } from "@/hooks/use-cash-session";
+import { useStoreSettings } from "@/hooks/use-store-settings";
 import { useHidScanner } from "@/hooks/use-hid-scanner";
 import { usePdvShortcuts } from "@/hooks/use-pdv-shortcuts";
 import { usePdvSale } from "@/hooks/use-pdv-sale";
@@ -26,6 +31,11 @@ import { useSyncStore } from "@/stores/sync-store";
 import { usePdvUiStore } from "@/stores/pdv-ui-store";
 import type { StoreOption } from "@/lib/auth/store-context";
 import type { MemberRole } from "@/lib/domain/rbac";
+import { canManageCustomers, canViewStoreSettings } from "@/lib/domain/rbac";
+import {
+  enrichReceiptWithSettings,
+  saleBlockedBySettings,
+} from "@/lib/domain/store-settings";
 import { snapshotToCartLines, type SuspendedCartContext } from "@/lib/domain/suspended-sale";
 
 type PdvScreenProps = {
@@ -35,10 +45,10 @@ type PdvScreenProps = {
 };
 
 export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
-  const { customers } = useCustomers();
   const {
     storeId,
     setStoreId,
+    customerId,
     suspendedSaleId,
     suspensionClaimId,
     setLines,
@@ -46,6 +56,11 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     setCustomer,
     setSuspendedContext,
   } = useCartStore();
+  const customersApi = useCustomers(storeId);
+  const { search: searchCustomer } = customersApi;
+  const searchCustomers = useCallback((query: string) => {
+    void searchCustomer(query);
+  }, [searchCustomer]);
   const cash = useCashSession(storeId);
   const { products, loading, error, fromCatalog } = useProducts({ storeId });
   const { online, pendingCount, failedCount, syncing, conflicts, quotaExceeded, sessionEnded } = useSyncStore();
@@ -55,9 +70,13 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     lastReceipt,
     draftReason,
     inventoryEpoch,
+    bumpInventory,
   } = usePdvUiStore();
   const [contextMessage, setContextMessage] = useState<string | null>(null);
   const [showSuspendedSales, setShowSuspendedSales] = useState(false);
+  const [showSalesHistory, setShowSalesHistory] = useState(false);
+  const [showSaleReturn, setShowSaleReturn] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const authorizedStore = useMemo(
     () => stores.find((store) => store.id === storeId) ?? null,
     [storeId, stores]
@@ -68,9 +87,20 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
   const displayRole = role ?? authorizedStore?.role ?? null;
   const { balances, loading: stockLoading } = useProjectedStock(storeId, inventoryEpoch);
   const suspended = useSuspendedSales(storeId);
+  const salesHistory = useSalesHistory(storeId);
+  const storeSettings = useStoreSettings(hasStoreContext ? storeId : null, displayRole);
   const [query, setQuery] = useState("");
 
+  useEffect(() => {
+    if (openPanel !== "receipt" || !lastReceipt?.saleId) return;
+    void cash.refresh().catch(() => undefined);
+    // Refresh once per closed sale so fixture sale_cash appears on the ledger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid re-entry when cash memo updates
+  }, [lastReceipt?.saleId, openPanel]);
+
   const storeName = authorizedStore?.name ?? "Loja";
+  const selectedCustomerDocument =
+    customersApi.customers.find((customer) => customer.id === customerId)?.document ?? null;
   const sale = usePdvSale(
     products,
     balances,
@@ -78,7 +108,17 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     effectiveRole,
     hasStoreContext,
     cash.session?.cash_session_id ?? null,
-    cash.terminalId
+    cash.terminalId,
+    {
+      customerDocument: selectedCustomerDocument,
+      commercialFlags: storeSettings.settings
+        ? {
+            require_customer_on_sale: storeSettings.settings.require_customer_on_sale,
+            require_open_cash_session: storeSettings.settings.require_open_cash_session,
+            require_customer_document: storeSettings.settings.require_customer_document,
+          }
+        : undefined,
+    }
   );
   const activeSuspendedContext: SuspendedCartContext | null =
     suspendedSaleId && suspensionClaimId
@@ -178,7 +218,49 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     stores,
   ]);
 
-  useHidScanner(sale.scanCode, true, openPanel !== "none");
+  useHidScanner(
+    sale.scanCode,
+    true,
+    openPanel !== "none" || showSettings || showSalesHistory || showSuspendedSales,
+    storeSettings.settings?.beep_on_scan !== false
+  );
+
+  const assertSaleSettings = useCallback(() => {
+    if (storeSettings.error) {
+      setContextMessage(
+        "Configurações da loja indisponíveis; não é possível fechar a venda com segurança."
+      );
+      return false;
+    }
+    if (!storeSettings.settings) {
+      if (storeSettings.loading) {
+        setContextMessage("Carregando configurações da loja…");
+        return false;
+      }
+      setContextMessage(
+        "Configurações da loja indisponíveis; não é possível fechar a venda com segurança."
+      );
+      return false;
+    }
+    const blocked = saleBlockedBySettings({
+      settings: storeSettings.settings,
+      customerId: sale.customerId,
+      customerDocument: selectedCustomerDocument,
+      cashSessionOpen: cash.session?.status === "open",
+    });
+    if (blocked) {
+      setContextMessage(blocked);
+      return false;
+    }
+    return true;
+  }, [
+    cash.session?.status,
+    sale.customerId,
+    selectedCustomerDocument,
+    storeSettings.error,
+    storeSettings.loading,
+    storeSettings.settings,
+  ]);
 
   usePdvShortcuts({
     search: () => {
@@ -191,6 +273,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
       setOpenPanel("discount");
     },
     payment: () => {
+      if (!assertSaleSettings()) return;
       setOpenPanel("payment");
       document.querySelector<HTMLButtonElement>("[data-testid=checkout-cash]")?.focus();
     },
@@ -208,8 +291,9 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
       const line = sale.lines.find((item) => item.productId === id);
       if (line) sale.changeQty(line.productId, line.quantity - 1);
     },
-  }, openPanel !== "none");
+  }, openPanel !== "none" || showSettings);
 
+  const requireOpenCash = Boolean(storeSettings.settings?.require_open_cash_session);
   const checkoutDisabled =
     !hasStoreContext ||
     sessionEnded ||
@@ -219,11 +303,27 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     Boolean(error) ||
     products.length === 0 ||
     Object.keys(balances).length === 0 ||
-    !cash.canSell;
+    // Only force open cash when the store commercial rule demands it.
+    (requireOpenCash && !cash.canSell);
 
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-900">
-      <PdvSidebar storeId={storeId} />
+      <PdvSidebar
+        storeId={storeId}
+        onOpenCustomers={() => setOpenPanel("customer")}
+        onOpenSalesHistory={() => {
+          setShowSalesHistory(true);
+          void salesHistory.refresh().catch(() => undefined);
+        }}
+        onOpenSettings={
+          hasStoreContext && canViewStoreSettings(displayRole)
+            ? () => {
+                setShowSettings(true);
+                void storeSettings.refresh();
+              }
+            : undefined
+        }
+      />
       <div className="min-w-0 flex-1 overflow-hidden">
         <div className="mx-auto flex min-h-screen max-w-[1600px] flex-col gap-4 p-4 lg:p-6">
           <header className="flex flex-wrap items-center justify-between gap-3">
@@ -366,6 +466,11 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
               }}
               onQuantity={sale.changeQty}
               onRemove={sale.removeLine}
+              onClear={() => {
+                if (sale.checkoutInFlight) return;
+                useCartStore.getState().clear();
+                setContextMessage("Carrinho limpo.");
+              }}
             />
             <div className="md:col-span-2 lg:col-span-1">
               <SaleSummary
@@ -388,11 +493,18 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
                   sale.setDiscountDraft(sale.discount);
                   setOpenPanel("discount");
                 }}
-                onOpenPayment={() => setOpenPanel("payment")}
+                onOpenPayment={() => {
+                  if (!assertSaleSettings()) return;
+                  setOpenPanel("payment");
+                }}
                 onSuspend={() => void suspendSale()}
                 onOpenSuspended={() => {
                   setShowSuspendedSales(true);
                   void suspended.refresh().catch(() => undefined);
+                }}
+                onOpenSalesHistory={() => {
+                  setShowSalesHistory(true);
+                  void salesHistory.refresh().catch(() => undefined);
                 }}
               />
             </div>
@@ -402,16 +514,45 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             open={openPanel === "payment"}
             total={sale.totals.total}
             disabled={checkoutDisabled}
-            onCash={() => void sale.pay("cash")}
-            onCard={() => void sale.pay("card")}
+            online={online}
+            onCash={(amountReceived) => {
+              if (!assertSaleSettings()) return;
+              void sale.pay("cash", amountReceived).then(() => {
+                const receipt = usePdvUiStore.getState().lastReceipt;
+                if (receipt && storeSettings.settings) {
+                  usePdvUiStore
+                    .getState()
+                    .setLastReceipt(enrichReceiptWithSettings(receipt, storeSettings.settings));
+                }
+              });
+            }}
+            onCreditCard={() => void sale.pay("credit_card")}
+            onDebitCard={() => void sale.pay("debit_card")}
+            onPix={() => void sale.pay("pix")}
+            onTef={() => void sale.pay("tef")}
             onClose={() => setOpenPanel("none")}
           />
           <CustomerDialog
             open={openPanel === "customer"}
-            customers={customers}
+            customers={customersApi.customers}
             selectedId={sale.customerId}
+            canManage={canManageCustomers(effectiveRole)}
+            requireDocument={Boolean(storeSettings.settings?.require_customer_document)}
+            loading={customersApi.loading}
+            mutating={customersApi.mutating}
+            error={customersApi.error}
+            detail={customersApi.detail}
+            detailLoading={customersApi.detailLoading}
+            onSearch={searchCustomers}
             onSelect={sale.associateCustomer}
-            onClose={() => setOpenPanel("none")}
+            onSave={customersApi.save}
+            onOpenDetail={(customerId) => void customersApi.openDetail(customerId)}
+            onLoadMoreDetail={() => void customersApi.loadMoreDetail()}
+            onClearDetail={customersApi.clearDetail}
+            onClose={() => {
+              customersApi.clearDetail();
+              setOpenPanel("none");
+            }}
           />
           <DiscountDialog
             open={openPanel === "discount"}
@@ -427,9 +568,29 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
           />
           <ReceiptDialog
             open={openPanel === "receipt"}
-            receipt={lastReceipt}
+            receipt={
+              lastReceipt
+                ? enrichReceiptWithSettings(lastReceipt, storeSettings.settings)
+                : null
+            }
+            autoPrint={Boolean(storeSettings.settings?.auto_print_receipt)}
+            printMode={storeSettings.settings?.print_mode ?? "browser"}
+            paperWidthMm={storeSettings.settings?.paper_width_mm ?? 80}
+            storeId={storeId}
+            orgId={storeSettings.settings?.org_id ?? null}
             onClose={() => setOpenPanel("none")}
             onReconcile={sale.reconcileLastPayment}
+          />
+          <SettingsPanel
+            open={showSettings}
+            data={storeSettings.data}
+            loading={storeSettings.loading}
+            saving={storeSettings.saving}
+            error={storeSettings.error}
+            savedAt={storeSettings.savedAt}
+            onSave={storeSettings.save}
+            onRefresh={() => void storeSettings.refresh()}
+            onClose={() => setShowSettings(false)}
           />
           <SuspendedSalesPanel
             open={showSuspendedSales}
@@ -443,6 +604,50 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             onRecover={recoverSale}
             onReleaseActive={releaseActiveSale}
             onClose={() => setShowSuspendedSales(false)}
+          />
+          <SalesHistoryPanel
+            open={showSalesHistory}
+            rows={salesHistory.rows}
+            detail={salesHistory.detail}
+            loading={salesHistory.loading}
+            detailLoading={salesHistory.detailLoading}
+            error={salesHistory.error}
+            query={salesHistory.query}
+            hasMore={salesHistory.hasMore}
+            role={displayRole}
+            onQueryChange={salesHistory.setQuery}
+            onRefresh={() => void salesHistory.refresh()}
+            onLoadMore={() => void salesHistory.loadMore()}
+            onOpenDetail={(saleId) => void salesHistory.openDetail(saleId)}
+            onClearDetail={salesHistory.clearDetail}
+            onStartReturn={() => setShowSaleReturn(true)}
+            onClose={() => {
+              setShowSalesHistory(false);
+              setShowSaleReturn(false);
+              salesHistory.clearDetail();
+            }}
+          />
+          <SaleReturnDialog
+            open={showSaleReturn}
+            detail={salesHistory.detail}
+            role={displayRole}
+            mutating={salesHistory.mutating}
+            error={salesHistory.error}
+            onSubmit={async (input) => {
+              if (!salesHistory.detail) return;
+              await salesHistory.submitReturn({
+                saleId: salesHistory.detail.sale_id,
+                operation: input.operation,
+                reason: input.reason,
+                notes: input.notes,
+                items: input.items,
+                cashSessionId: cash.session?.cash_session_id ?? null,
+              });
+              bumpInventory();
+              await cash.refresh().catch(() => undefined);
+              setShowSaleReturn(false);
+            }}
+            onClose={() => setShowSaleReturn(false)}
           />
         </div>
       </div>

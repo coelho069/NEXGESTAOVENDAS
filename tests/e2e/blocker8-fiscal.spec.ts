@@ -21,6 +21,10 @@ test("B: venda sem emissão confirmada não apresenta fiscal como emitido", asyn
   await expect(fiscalStatus).toBeVisible();
   await expect(fiscalStatus).not.toContainText("emitido");
   await expect(fiscalStatus).toContainText(/pendente|não configurado|desconhecido/);
+  await expect(page.getByTestId("receipt-commercial-disclaimer")).toContainText(
+    /comprovante comercial|não constitui/i
+  );
+  await expect(page.getByTestId("receipt-fiscal-qr")).toContainText(/indisponível/i);
 });
 
 test("F: rota de emissão fiscal rejeita usuário não autenticado", async ({ request }) => {

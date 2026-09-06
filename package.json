@@ -8,6 +8,7 @@
     "start": "next start",
     "start:prod": "NODE_ENV=production next start",
     "check:prod": "tsx scripts/check-production-config.ts",
+    "check:backup": "tsx scripts/check-backup-readiness.ts",
     "lint": "ESLINT_USE_FLAT_CONFIG=false eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

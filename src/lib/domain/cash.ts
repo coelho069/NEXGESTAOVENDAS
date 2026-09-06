@@ -4,7 +4,7 @@ import { money, toMoneyString } from "@/lib/money";
 
 export type CashSessionStatus = Enums<"cash_session_status">;
 export type CashMovementType = Enums<"cash_movement_type">;
-export type OperatorCashMovementType = Exclude<CashMovementType, "sale_cash">;
+export type OperatorCashMovementType = Exclude<CashMovementType, "sale_cash" | "refund_cash">;
 
 export type CashMovementView = {
   cash_movement_id: string;

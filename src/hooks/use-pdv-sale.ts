@@ -44,7 +44,15 @@ export function usePdvSale(
   role: MemberRole,
   hasStoreContext: boolean,
   cashSessionId: string | null,
-  terminalId: string
+  terminalId: string,
+  options?: {
+    customerDocument?: string | null;
+    commercialFlags?: {
+      require_customer_on_sale?: boolean;
+      require_open_cash_session?: boolean;
+      require_customer_document?: boolean;
+    };
+  }
 ) {
   const catalog = useMemo(() => products.map(toCatalogProduct), [products]);
   const { storeId, lines, discount, customerId, customerName, setCustomer, removeLine } = useCartStore();
@@ -159,7 +167,10 @@ export function usePdvSale(
   );
 
   const pay = useCallback(
-    async (method: Enums<"payment_method">) => {
+    async (
+      method: Enums<"payment_method"> | "credit_card" | "debit_card" | "tef",
+      amountReceived?: string
+    ) => {
       setMessage(null);
       try {
         const result = await paySale({
@@ -169,6 +180,10 @@ export function usePdvSale(
           storeName,
           cashSessionId: cashSessionId ?? undefined,
           terminalId,
+          amountReceived,
+          operatorName: roleLabel(role),
+          customerDocument: options?.customerDocument,
+          commercialFlags: options?.commercialFlags,
         });
         if (!result.ok) {
           setDraftReason(result.message);
@@ -189,6 +204,8 @@ export function usePdvSale(
       bumpInventory,
       cashSessionId,
       catalog,
+      options?.commercialFlags,
+      options?.customerDocument,
       paySale,
       report,
       role,
@@ -260,4 +277,10 @@ export function usePdvSale(
     setSelectedProductId,
     selectedProductId,
   };
+}
+
+function roleLabel(role: MemberRole): string {
+  if (role === "admin") return "Admin";
+  if (role === "manager") return "Gerente";
+  return "Caixa";
 }

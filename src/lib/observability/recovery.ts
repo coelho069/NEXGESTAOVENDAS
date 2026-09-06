@@ -2,7 +2,15 @@
  * Operational recovery invariants for local-first + server idempotency.
  * These helpers are pure so unit tests can assert restart/replay safety
  * without spinning infrastructure.
+ *
+ * B26: backup orchestration remains outside the app. See
+ * `src/lib/domain/backup-continuity.ts` for honest status contracts.
  */
+
+import {
+  resolveBackupContinuityStatus,
+  type BackupContinuityStatus,
+} from "@/lib/domain/backup-continuity";
 
 export type OutboxRecoveryState = {
   status: "pending" | "processing" | "failed" | "conflict" | "synced";
@@ -49,7 +57,18 @@ export function describeBackupRecoveryLimitations(): BackupRecoveryLimitation {
       "Application recovery relies on Postgres backups operated outside the app (Supabase/PITR or VM snapshots).",
       "Local IndexedDB outbox survives process restart and retries with the same client_mutation_id.",
       "Fiscal integration_outbox is durable server-side and is reclaimed by the worker after crash.",
-      "No in-app automated backup/restore orchestration is provided in Bloqueador 11.",
+      "No in-app automated backup/restore orchestration is provided (B11/B26).",
+      "Honest backup status is available via resolveBackupContinuityStatus / pnpm check:backup.",
     ],
   };
+}
+
+/**
+ * Public continuity projection for operators/scripts.
+ * Does not invent timestamps; recovery_ready stays false without attestation.
+ */
+export function getBackupContinuityProjection(
+  attestation?: { status?: string | null; lastVerifiedAt?: string | null }
+): BackupContinuityStatus {
+  return resolveBackupContinuityStatus(attestation ?? {});
 }

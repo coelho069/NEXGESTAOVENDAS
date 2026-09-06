@@ -3,9 +3,17 @@
 import { useCallback, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Enums } from "@/lib/db/types";
-import { getPaymentAdapter } from "@/lib/adapters/payment";
+import { getCommercialPaymentAdapter, getPaymentAdapter } from "@/lib/adapters/payment";
 import { inventoryQuantityToNumber } from "@/lib/domain/quantity";
 import type { CatalogProduct } from "@/lib/domain/catalog";
+import { resolveCashTender } from "@/lib/domain/cash-tender";
+import {
+  canCompletePaymentOffline,
+  offlinePaymentBlockedMessage,
+  paymentNotConfiguredMessage,
+  toDbPaymentMethod,
+  type PaymentMethodKind,
+} from "@/lib/domain/payment";
 import { resolvePaymentAttempt, unifyCheckoutPayment } from "@/lib/domain/payment-attempt";
 import type { ReceiptModel } from "@/lib/domain/receipt";
 import { resolveReceiptSyncState } from "@/lib/domain/receipt-sync";
@@ -23,6 +31,8 @@ import { getOutboxCommand } from "@/lib/offline/outbox";
 import { getPdvLocalDbForUser } from "@/lib/offline/pdv-local-db";
 import { isQuotaExceededError } from "@/lib/offline/quota";
 import { pdvFixturesEnabled } from "@/lib/pdv/fixtures";
+import { appendFixtureSaleCash } from "@/lib/pdv/cash-fixture-ledger";
+import { confirmFixtureLocalSales } from "@/lib/domain/sale-return-local";
 import {
   reconcilePaymentOutcome,
   reconcileSale,
@@ -78,6 +88,8 @@ export function useCheckout() {
 
   const flushPending = useCallback(async () => {
     if (pdvFixturesEnabled()) {
+      const db = getPdvLocalDbForUser(useSessionStore.getState().userId);
+      await confirmFixtureLocalSales(db);
       await refreshSyncUi();
       return;
     }
@@ -128,12 +140,20 @@ export function useCheckout() {
 
   const paySale = useCallback(
     async (input: {
-      method: Enums<"payment_method">;
+      method: PaymentMethodKind | Enums<"payment_method">;
       role: MemberRole;
       products: CatalogProduct[];
       storeName: string;
       cashSessionId?: string;
       terminalId?: string;
+      amountReceived?: string;
+      operatorName?: string | null;
+      customerDocument?: string | null;
+      commercialFlags?: {
+        require_customer_on_sale?: boolean;
+        require_open_cash_session?: boolean;
+        require_customer_document?: boolean;
+      };
     }): Promise<
       | { ok: true; draft: false; receipt: ReceiptModel; saleId: string; offline: boolean }
       | { ok: false; draft: true; message: string; receipt: null }
@@ -143,6 +163,7 @@ export function useCheckout() {
       try {
         if (!cart.storeId) throw new Error("Selecione uma loja");
 
+        const dbMethod = toDbPaymentMethod(input.method);
         const db = getPdvLocalDbForUser(useSessionStore.getState().userId);
         const rows = await db.inventoryBalances.where("storeId").equals(cart.storeId).toArray();
         const liveStock: StockMap = {};
@@ -168,14 +189,44 @@ export function useCheckout() {
         }
 
         const totals = calculateTotals(saleState);
+        const cashTender =
+          dbMethod === "cash"
+            ? resolveCashTender(totals.total, input.amountReceived ?? totals.total)
+            : null;
+        if (cashTender && !cashTender.ok) {
+          throw new Error(cashTender.error);
+        }
+
         const checkout = await withCheckoutLock(cart.storeId, async () => {
-          const adapter = getPaymentAdapter(input.method);
-          const decision = resolvePaymentAttempt(adapter.process(totals.total));
-          if (decision.kind === "keep_draft") {
-            return { kind: "draft" as const, message: decision.message };
+          const online = typeof navigator === "undefined" || navigator.onLine;
+          if (!online && !canCompletePaymentOffline(input.method)) {
+            return {
+              kind: "draft" as const,
+              message: offlinePaymentBlockedMessage(input.method),
+            };
           }
 
-          const payment = unifyCheckoutPayment(input.method, totals.total);
+          const adapter = getCommercialPaymentAdapter(input.method);
+          const decision = resolvePaymentAttempt(adapter.process(totals.total));
+          if (decision.kind === "keep_draft") {
+            return {
+              kind: "draft" as const,
+              message:
+                decision.message ||
+                paymentNotConfiguredMessage(input.method),
+            };
+          }
+
+          // Only cash may be enqueued/finalized locally. Card/PIX/TEF never write a paid outbox row.
+          if (dbMethod !== "cash") {
+            return {
+              kind: "draft" as const,
+              message: paymentNotConfiguredMessage(input.method),
+            };
+          }
+
+          // Server authority: payment amount must equal sale total. Tendered/change are receipt-only.
+          const payment = unifyCheckoutPayment(dbMethod, totals.total);
           const result = await closeSale(db, {
             storeId: cart.storeId!,
             clientMutationId,
@@ -183,6 +234,8 @@ export function useCheckout() {
             lines: cart.lines,
             discount: cart.discount,
             customerId: cart.customerId ?? undefined,
+            customerDocument: input.customerDocument,
+            commercialFlags: input.commercialFlags,
             suspendedSaleId: cart.suspendedSaleId ?? undefined,
             suspensionClaimId: cart.suspensionClaimId ?? undefined,
             cashSessionId: input.cashSessionId,
@@ -197,6 +250,23 @@ export function useCheckout() {
         }
         const { payment, result } = checkout;
         setQuotaExceeded(false);
+
+        if (
+          pdvFixturesEnabled() &&
+          payment.method === "cash" &&
+          input.cashSessionId &&
+          input.terminalId
+        ) {
+          appendFixtureSaleCash({
+            userId: useSessionStore.getState().userId,
+            storeId: cart.storeId!,
+            terminalId: input.terminalId,
+            cashSessionId: input.cashSessionId,
+            saleId: result.saleId,
+            amount: payment.amount,
+            clientMutationId,
+          });
+        }
 
         const createdAt = new Date().toISOString();
         const receiptLines = cart.lines;
@@ -240,10 +310,13 @@ export function useCheckout() {
           storeName: input.storeName,
           createdAt,
           customerName,
+          operatorName: input.operatorName ?? null,
           lines: receiptLines,
           subtotal: totals.subtotal,
           discount: totals.discount,
           total: totals.total,
+          amountReceived: cashTender?.ok ? cashTender.amountReceived : undefined,
+          changeDue: cashTender?.ok ? cashTender.changeDue : undefined,
           payments: [{ method: payment.method, amount: payment.amount, status: paymentStatus }],
           syncStatus,
           saleStatus,

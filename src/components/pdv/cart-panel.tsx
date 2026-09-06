@@ -13,6 +13,7 @@ type CartPanelProps = {
   onDecrement: (productId: string) => void;
   onQuantity: (productId: string, quantity: number) => void;
   onRemove: (productId: string) => void;
+  onClear?: () => void;
 };
 
 export function CartPanel({
@@ -24,17 +25,36 @@ export function CartPanel({
   onDecrement,
   onQuantity,
   onRemove,
+  onClear,
 }: CartPanelProps) {
   return (
     <section
       data-testid="pdv-cart"
       className="flex min-h-0 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
     >
-      <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-        <ShoppingCart size={20} aria-hidden="true" />
-        Carrinho
-      </h2>
-      <p className="text-xs text-slate-500">+/- altera a linha selecionada</p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <ShoppingCart size={20} aria-hidden="true" />
+            Carrinho
+          </h2>
+          <p className="text-xs text-slate-500">+/- altera a linha selecionada</p>
+        </div>
+        {onClear && lines.length > 0 ? (
+          <button
+            type="button"
+            data-testid="cart-clear"
+            className="rounded-lg border border-red-200 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
+            onClick={() => {
+              if (window.confirm("Limpar todos os itens do carrinho?")) {
+                onClear();
+              }
+            }}
+          >
+            Limpar
+          </button>
+        ) : null}
+      </div>
       <div className="mt-4 flex-1 space-y-3 overflow-y-auto">
         {lines.length === 0 ? (
           <div

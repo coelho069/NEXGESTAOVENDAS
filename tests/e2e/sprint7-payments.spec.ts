@@ -57,8 +57,114 @@ test("pagamento cash finaliza uma vez mesmo com retry de clique", async ({ page 
 
 test("adapter card não configurado mantém o carrinho como rascunho", async ({ page }) => {
   await openCart(page);
-  await page.getByTestId("checkout-card").click();
-  await expect(page.getByTestId("sale-draft-banner")).toContainText("não configurado");
+  await page.getByTestId("checkout-credit-card").click();
+  await expect(page.getByTestId("sale-draft-banner")).toContainText(/não configurado/i);
   await expect(page.getByTestId("cart-line-BEV-001")).toBeVisible();
   await expect(page.getByTestId("receipt")).toHaveCount(0);
+});
+
+test("crédito, débito e TEF não configurados mantêm rascunho sem outbox", async ({ page }) => {
+  await openCart(page);
+  for (const testId of ["checkout-credit-card", "checkout-debit-card", "checkout-tef"] as const) {
+    await expect(page.getByTestId(testId)).toContainText(/não configurado/i);
+    await page.getByTestId(testId).click();
+    await expect(page.getByTestId("sale-draft-banner")).toContainText(/não configurado|crédito|débito|TEF|Cartão/i);
+    await expect(page.getByTestId("cart-line-BEV-001")).toBeVisible();
+    await expect(page.getByTestId("receipt")).toHaveCount(0);
+    await page.getByTestId("open-payment").click();
+  }
+
+  const counts = await page.evaluate(
+    () =>
+      new Promise<{ sales: number; payments: number; outbox: number }>((resolve, reject) => {
+        const request = indexedDB.open("pdv_local_v1");
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result;
+          const names = ["sales", "payments", "outbox"] as const;
+          const transaction = db.transaction([...names], "readonly");
+          const result = { sales: 0, payments: 0, outbox: 0 };
+          let completed = 0;
+          const finish = () => {
+            completed += 1;
+            if (completed === names.length) {
+              db.close();
+              resolve(result);
+            }
+          };
+          for (const name of names) {
+            const req = transaction.objectStore(name).count();
+            req.onsuccess = () => {
+              result[name] = req.result;
+              finish();
+            };
+          }
+        };
+      })
+  );
+  expect(counts).toEqual({ sales: 0, payments: 0, outbox: 0 });
+});
+
+test("PIX não configurado mantém rascunho e não grava outbox pago", async ({ page }) => {
+  await openCart(page);
+  await expect(page.getByTestId("checkout-pix")).toContainText(/não configurado/i);
+  await page.getByTestId("checkout-pix").click();
+  await expect(page.getByTestId("sale-draft-banner")).toContainText(/não configurado|PIX/i);
+  await expect(page.getByTestId("cart-line-BEV-001")).toBeVisible();
+  await expect(page.getByTestId("receipt")).toHaveCount(0);
+
+  const counts = await page.evaluate(
+    () =>
+      new Promise<{ sales: number; payments: number; outbox: number }>((resolve, reject) => {
+        const request = indexedDB.open("pdv_local_v1");
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result;
+          const names = ["sales", "payments", "outbox"] as const;
+          const transaction = db.transaction([...names], "readonly");
+          const result = { sales: 0, payments: 0, outbox: 0 };
+          let completed = 0;
+          const finish = () => {
+            completed += 1;
+            if (completed === names.length) {
+              db.close();
+              resolve(result);
+            }
+          };
+          for (const name of names) {
+            const req = transaction.objectStore(name).count();
+            req.onsuccess = () => {
+              result[name] = req.result;
+              finish();
+            };
+          }
+        };
+      })
+  );
+  expect(counts).toEqual({ sales: 0, payments: 0, outbox: 0 });
+});
+
+test("PIX offline fica indisponível e não finaliza venda", async ({ page, context }) => {
+  await openCart(page);
+  await context.setOffline(true);
+  await expect(page.getByTestId("checkout-pix")).toContainText(/indisponível offline/i);
+  await page.getByTestId("checkout-pix").click();
+  await expect(page.getByTestId("sale-draft-banner")).toContainText(/offline|PIX|indisponível/i);
+  await expect(page.getByTestId("receipt")).toHaveCount(0);
+  await expect(page.getByTestId("cart-line-BEV-001")).toBeVisible();
+  await context.setOffline(false);
+});
+
+test("crédito, débito e TEF offline ficam indisponíveis e não finalizam", async ({ page, context }) => {
+  await openCart(page);
+  await context.setOffline(true);
+  for (const testId of ["checkout-credit-card", "checkout-debit-card", "checkout-tef"] as const) {
+    await expect(page.getByTestId(testId)).toContainText(/indisponível offline/i);
+    await page.getByTestId(testId).click();
+    await expect(page.getByTestId("sale-draft-banner")).toContainText(/offline|indisponível|crédito|débito|TEF|Cartão/i);
+    await expect(page.getByTestId("receipt")).toHaveCount(0);
+    await expect(page.getByTestId("cart-line-BEV-001")).toBeVisible();
+    await page.getByTestId("open-payment").click();
+  }
+  await context.setOffline(false);
 });

@@ -6,17 +6,25 @@ import type { StoreOption } from "@/lib/auth/store-context";
 
 export const dynamic = "force-dynamic";
 
+function fixtureRoleFromSearch(role: string | undefined): MemberRole {
+  if (role === "manager" || role === "admin" || role === "cashier") return role;
+  return "cashier";
+}
+
 export default async function PdvPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ store?: string }>;
+  searchParams?: Promise<{ store?: string; role?: string }>;
 }) {
   const resolvedSearchParams = await searchParams;
   const auth = await getAuthedContext(resolvedSearchParams?.store);
   const fixtureMode = !auth && pdvFixturesEnabled();
+  const fixtureRole = fixtureRoleFromSearch(resolvedSearchParams?.role);
   const stores: Array<StoreOption & { role?: MemberRole }> =
     auth?.stores.map(({ id, name, role }) => ({ id, name, role })) ??
-    (fixtureMode ? fixtureStoreOptions().map((store) => ({ ...store, role: "cashier" as const })) : []);
+    (fixtureMode
+      ? fixtureStoreOptions().map((store) => ({ ...store, role: fixtureRole }))
+      : []);
   const fixtureStoreId =
     fixtureMode &&
     resolvedSearchParams?.store &&
@@ -24,7 +32,7 @@ export default async function PdvPage({
       ? resolvedSearchParams.store
       : null;
   const initialStoreId = auth?.storeId ?? fixtureStoreId;
-  const role = auth?.role ?? (fixtureMode && initialStoreId ? "cashier" : null);
+  const role = auth?.role ?? (fixtureMode ? fixtureRole : null);
 
   return (
     <main>

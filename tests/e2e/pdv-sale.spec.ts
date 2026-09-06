@@ -53,7 +53,7 @@ test("pagamento falho permanece rascunho local", async ({ page }) => {
   if (await openPayment.isVisible()) {
     await openPayment.click();
   }
-  await visible(page, "checkout-card").click();
+  await visible(page, "checkout-credit-card").click();
   await expect(page.getByTestId("sale-draft-banner")).toBeVisible();
   await expect(page.getByTestId("cart-line-BEV-001")).toBeVisible();
   await expect(page.getByTestId("receipt")).toHaveCount(0);
@@ -75,8 +75,9 @@ test("scanner HID adiciona item sem limpar o carrinho", async ({ page }) => {
   await page.getByTestId("product-sku-BEV-002").click();
   await expect(page.getByTestId("cart-line-BEV-002")).toBeVisible();
 
-  await page.locator("body").click();
-  await page.keyboard.type("7891000100011", { delay: 12 });
+  // Keep focus off editable cash/customer fields so the HID assembler is not reset mid-scan.
+  await page.getByTestId("pdv-search-input").click();
+  await page.keyboard.type("7891000100011", { delay: 15 });
   await page.keyboard.press("Enter");
 
   await expect(page.getByTestId("cart-line-BEV-001")).toBeVisible();

@@ -98,6 +98,41 @@ Não há worker long-lived in-process além do HTTP sob demanda.
 - Ordem: arquivos timestamp em `supabase/migrations/`.
 - Rollback de schema: restore/PITR (ver `OPERATIONAL-RECOVERY.md`), não `db reset` em produção.
 
+## Backup / continuity (B26)
+
+```bash
+pnpm check:backup
+```
+
+Verifica contratos, runbook, higiene de secrets e status **honesto** de continuity.
+Não executa `pg_dump`/PITR e não inventa `backup_success`. Detalhes e runbook de 10 passos: `docs/OPERATIONAL-RECOVERY.md`.
+
+## Observabilidade operacional (B27)
+
+| Endpoint | Uso |
+|----------|-----|
+| `GET /health/liveness` | Processo vivo (sempre 200) |
+| `GET /health/readiness` | Funções essenciais / DB probe (200/503) |
+| `GET /api/health` | Snapshot operacional (componentes + alertas avaliados; sem secrets) |
+
+Estados honestos por componente: `healthy` / `degraded` / `unhealthy` / `unknown` / `not_configured` / `external_dependency`.
+Integrações opcionais `not_configured` **não** derrubam liveness. Core `database`/`readiness not_ready` → agregado ≠ `healthy` e HTTP 503.
+Dispatch externo de alertas permanece `not_configured` até existir canal real.
+
+Rate limit de `/api/health` usa `clientRateLimitKey`: só confia em `X-Forwarded-For` quando `TRUST_PROXY=1` (proxy sanitiza o IP). Sem isso, um bucket grosso impede bypass ilimitado por header forjado.
+
+## Auditoria / governança (B28)
+
+| Endpoint | Uso |
+|----------|-----|
+| `GET /api/admin/audit?store_id=` | Lista eventos (manager/admin; escopo da sessão) |
+
+- Escrita append-only em `public.audit_logs` (authenticated sem INSERT/UPDATE/DELETE).
+- `record_audit_event` deriva `org_id`/`user_id`/`actor_role` no servidor; ações genéricas são whitelist.
+- Eventos de domínio (venda, caixa, estoque, etc.) continuam nas RPCs SECURITY DEFINER existentes.
+- `retention_policy = not_defined` (sem exclusão automática destrutiva no app).
+- Respostas/logs de auditoria não incluem secrets/PII (sanitização de metadata).
+
 ## Rollback
 
 | Camada | Procedimento |

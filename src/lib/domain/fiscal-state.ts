@@ -1,3 +1,9 @@
+/**
+ * Persisted fiscal_document_status values (Postgres enum).
+ * Lifecycle aliases (authorized/rejected/contingency/draft) live in domain/fiscal.ts
+ * and must never invent issued without a real provider confirmation.
+ * Contingency is modeled as pending until a live contingency path exists.
+ */
 export const FISCAL_DOCUMENT_STATES = [
   "not_configured",
   "pending",

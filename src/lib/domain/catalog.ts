@@ -15,6 +15,7 @@ export type CatalogCustomer = {
   name: string;
   document: string | null;
   email: string | null;
+  phone?: string | null;
 };
 
 export const DEMO_STORE_CENTRO = "22222222-2222-4222-8222-222222222201";
@@ -74,12 +75,14 @@ export const DEMO_CUSTOMERS: CatalogCustomer[] = [
     name: "Cliente Consumidor",
     document: null,
     email: "consumidor@example.invalid",
+    phone: null,
   },
   {
     id: "55555555-5555-4555-8555-555555555502",
     name: "Maria Silva",
-    document: "TEST-ONLY-DOCUMENT",
+    document: "39053344705",
     email: "maria.silva@example.invalid",
+    phone: "11999990002",
   },
 ];
 

@@ -15,6 +15,9 @@ pnpm typecheck
 echo "==> lint"
 pnpm lint
 
+echo "==> backup/recovery readiness (honest; no fake success)"
+pnpm check:backup
+
 echo "==> unit tests"
 pnpm test
 

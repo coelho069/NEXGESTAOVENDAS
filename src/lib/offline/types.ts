@@ -156,6 +156,13 @@ export type CloseSaleInput = {
   }>;
   discount?: string;
   customerId?: string;
+  customerDocument?: string | null;
+  /** Optional store commercial flags — when present, enforced before local close. */
+  commercialFlags?: {
+    require_customer_on_sale?: boolean;
+    require_open_cash_session?: boolean;
+    require_customer_document?: boolean;
+  };
   payments: Array<{ method: Enums<"payment_method">; amount: string }>;
 };
 

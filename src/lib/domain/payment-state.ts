@@ -37,3 +37,18 @@ export function isPaymentTerminal(status: PaymentState): boolean {
 export function isPaymentOutcomeUnknown(status: PaymentState): boolean {
   return status === "unknown";
 }
+
+/** Semantic "paid" in PIX docs maps to persisted captured. */
+export function isPaymentPaid(status: PaymentState): boolean {
+  return status === "captured";
+}
+
+/**
+ * Expired PIX charges are persisted as failed with failure_code=expired.
+ * The DB enum has no separate expired value (avoid duplicate statuses).
+ */
+export function paymentStatusForExpiredCharge(): PaymentState {
+  return "failed";
+}
+
+export const PIX_EXPIRED_FAILURE_CODE = "expired";

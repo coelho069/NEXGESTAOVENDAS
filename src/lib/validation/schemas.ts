@@ -155,6 +155,164 @@ export const suspendedSaleListQuerySchema = z.object({
 
 export type SuspendedSaleListQuery = z.infer<typeof suspendedSaleListQuerySchema>;
 
+export const saleHistoryListQuerySchema = z
+  .object({
+    store_id: storeIdSchema,
+    limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+    after_created_at: z.string().datetime().optional(),
+    after_id: z.string().uuid().optional(),
+    query: z.string().trim().max(120).optional(),
+    status: z
+      .enum([
+        "draft",
+        "pending_sync",
+        "confirmed",
+        "cancelled",
+        "refunded",
+        "partially_refunded",
+      ])
+      .optional(),
+  })
+  .superRefine((value, context) => {
+    if (Boolean(value.after_created_at) !== Boolean(value.after_id)) {
+      context.addIssue({
+        code: "custom",
+        path: ["after_id"],
+        message: "after_created_at and after_id must be provided together",
+      });
+    }
+  });
+
+export type SaleHistoryListQuery = z.infer<typeof saleHistoryListQuerySchema>;
+
+export const saleHistoryDetailQuerySchema = z.object({
+  store_id: storeIdSchema,
+  sale_id: z.string().uuid(),
+});
+
+export type SaleHistoryDetailQuery = z.infer<typeof saleHistoryDetailQuerySchema>;
+
+export const saleReturnItemInputSchema = z.object({
+  sale_item_id: z.string().uuid(),
+  quantity: z
+    .string()
+    .regex(/^(?:0|[1-9]\d{0,9})(?:\.\d{1,3})?$/, "quantity must be numeric(12,3) string")
+    .refine((value) => Number(value) > 0, "quantity must be positive"),
+});
+
+export const saleReturnInputSchema = z.object({
+  store_id: storeIdSchema,
+  sale_id: z.string().uuid(),
+  terminal_id: z.string().uuid(),
+  cash_session_id: z.string().uuid().optional(),
+  client_mutation_id: z.string().uuid(),
+  operation: z.enum(["cancel", "return"]).default("return"),
+  reason: z.enum([
+    "produto_com_defeito",
+    "cliente_desistiu",
+    "produto_incorreto",
+    "erro_de_venda",
+    "outro",
+  ]),
+  notes: z.string().trim().min(1).max(500).optional(),
+  items: z.array(saleReturnItemInputSchema).min(1).max(500),
+});
+
+export type SaleReturnInput = z.infer<typeof saleReturnInputSchema>;
+
+export const saleCancelInputSchema = z.object({
+  store_id: storeIdSchema,
+  sale_id: z.string().uuid(),
+  terminal_id: z.string().uuid(),
+  cash_session_id: z.string().uuid().optional(),
+  client_mutation_id: z.string().uuid(),
+  reason: z.enum([
+    "produto_com_defeito",
+    "cliente_desistiu",
+    "produto_incorreto",
+    "erro_de_venda",
+    "outro",
+  ]),
+  notes: z.string().trim().min(1).max(500).optional(),
+});
+
+export type SaleCancelInput = z.infer<typeof saleCancelInputSchema>;
+
+export const customerSearchQuerySchema = z.object({
+  store_id: storeIdSchema,
+  query: z.string().trim().max(120).optional().default(""),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  after_name: z.string().trim().min(1).max(120).optional(),
+  after_id: z.string().uuid().optional(),
+}).superRefine((value, context) => {
+  if (Boolean(value.after_name) !== Boolean(value.after_id)) {
+    context.addIssue({
+      code: "custom",
+      path: ["after_id"],
+      message: "after_name and after_id must be provided together",
+    });
+  }
+});
+
+export type CustomerSearchQuery = z.infer<typeof customerSearchQuerySchema>;
+
+export const customerWriteSchema = z.object({
+  store_id: storeIdSchema,
+  customer_id: z.string().uuid().optional(),
+  name: z.string().trim().min(2).max(120),
+  document: z.string().trim().max(32).optional().nullable(),
+  email: z.string().trim().max(254).optional().nullable(),
+  phone: z.string().trim().max(32).optional().nullable(),
+});
+
+export type CustomerWriteInput = z.infer<typeof customerWriteSchema>;
+
+export const customerDetailQuerySchema = z.object({
+  store_id: storeIdSchema,
+  customer_id: z.string().uuid(),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  after_created_at: z.string().datetime({ offset: true }).optional(),
+  after_id: z.string().uuid().optional(),
+}).superRefine((value, context) => {
+  if (Boolean(value.after_created_at) !== Boolean(value.after_id)) {
+    context.addIssue({
+      code: "custom",
+      path: ["after_id"],
+      message: "after_created_at and after_id must be provided together",
+    });
+  }
+});
+
+export type CustomerDetailQuery = z.infer<typeof customerDetailQuerySchema>;
+
+export const storeSettingsQuerySchema = z.object({
+  store_id: storeIdSchema,
+});
+
+export type StoreSettingsQuery = z.infer<typeof storeSettingsQuerySchema>;
+
+export const storeSettingsWriteSchema = z.object({
+  store_id: storeIdSchema,
+  trade_name: z.string().trim().max(120).optional().nullable(),
+  document: z.string().trim().max(32).optional().nullable(),
+  phone: z.string().trim().max(32).optional().nullable(),
+  address_line: z.string().trim().max(200).optional().nullable(),
+  city: z.string().trim().max(80).optional().nullable(),
+  state: z.string().trim().max(2).optional().nullable(),
+  postal_code: z.string().trim().max(16).optional().nullable(),
+  receipt_footer: z.string().trim().max(240).optional().nullable(),
+  auto_print_receipt: z.boolean().optional().default(false),
+  show_operator_on_receipt: z.boolean().optional().default(true),
+  beep_on_scan: z.boolean().optional().default(true),
+  require_customer_on_sale: z.boolean().optional().default(false),
+  require_open_cash_session: z.boolean().optional().default(false),
+  require_customer_document: z.boolean().optional().default(false),
+  print_mode: z.enum(["browser", "escpos", "network", "native"]).optional().default("browser"),
+  paper_width_mm: z.union([z.literal(58), z.literal(80)]).optional().default(80),
+});
+
+export type StoreSettingsWriteSchema = z.infer<typeof storeSettingsWriteSchema>;
+
 export const recoverSuspendedSaleInputSchema = z.object({
   store_id: storeIdSchema,
   terminal_id: z.string().uuid(),

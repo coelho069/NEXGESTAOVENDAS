@@ -1,36 +1,92 @@
-import { Banknote, CreditCard } from "lucide-react";
+import { Banknote, CreditCard, Landmark, QrCode, WalletCards } from "lucide-react";
 import { formatBRL } from "@/lib/money";
 import type { SaleTotals } from "@/lib/domain/sale-ops";
 
 type PaymentActionsProps = {
   disabled: boolean;
+  cashDisabled?: boolean;
+  /** Hint under the PIX button (not_configured / offline). */
+  pixHint?: string;
+  /** Hint under credit / debit / TEF (not_configured / offline). */
+  cardHint?: string;
+  debitHint?: string;
+  tefHint?: string;
   onCash: () => void;
-  onCard: () => void;
+  onCreditCard: () => void;
+  onDebitCard: () => void;
+  onPix: () => void;
+  onTef: () => void;
 };
 
-export function PaymentActions({ disabled, onCash, onCard }: PaymentActionsProps) {
+export function PaymentActions({
+  disabled,
+  cashDisabled,
+  pixHint = "não configurado",
+  cardHint = "não configurado",
+  debitHint = "não configurado",
+  tefHint = "não configurado",
+  onCash,
+  onCreditCard,
+  onDebitCard,
+  onPix,
+  onTef,
+}: PaymentActionsProps) {
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       <button
         type="button"
         data-testid="checkout-cash"
-        disabled={disabled}
+        disabled={cashDisabled ?? disabled}
         onClick={onCash}
         className="flex flex-col items-center gap-2 rounded-2xl border-2 border-emerald-100 bg-emerald-50 p-4 font-semibold text-emerald-800 transition hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Banknote size={24} aria-hidden="true" />
         <span>Dinheiro</span>
+        <small className="font-normal text-emerald-700">disponível</small>
       </button>
       <button
         type="button"
-        data-testid="checkout-card"
+        data-testid="checkout-credit-card"
         disabled={disabled}
-        onClick={onCard}
+        onClick={onCreditCard}
         className="flex flex-col items-center gap-2 rounded-2xl border-2 border-slate-100 bg-white p-4 font-semibold text-slate-700 transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <CreditCard size={24} aria-hidden="true" />
-        <span>Cartão</span>
-        <small className="font-normal text-slate-400">não configurado</small>
+        <span>Crédito</span>
+        <small className="font-normal text-slate-400">{cardHint}</small>
+      </button>
+      <button
+        type="button"
+        data-testid="checkout-debit-card"
+        disabled={disabled}
+        onClick={onDebitCard}
+        className="flex flex-col items-center gap-2 rounded-2xl border-2 border-slate-100 bg-white p-4 font-semibold text-slate-700 transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <WalletCards size={24} aria-hidden="true" />
+        <span>Débito</span>
+        <small className="font-normal text-slate-400">{debitHint}</small>
+      </button>
+      <button
+        type="button"
+        data-testid="checkout-pix"
+        disabled={disabled}
+        onClick={onPix}
+        className="flex flex-col items-center gap-2 rounded-2xl border-2 border-slate-100 bg-white p-4 font-semibold text-slate-700 transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <QrCode size={24} aria-hidden="true" />
+        <span>PIX</span>
+        <small className="font-normal text-slate-400">{pixHint}</small>
+      </button>
+      <button
+        type="button"
+        data-testid="checkout-tef"
+        disabled={disabled}
+        onClick={onTef}
+        className="flex flex-col items-center gap-2 rounded-2xl border-2 border-slate-100 bg-white p-4 font-semibold text-slate-700 transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2"
+      >
+        <Landmark size={24} aria-hidden="true" />
+        <span>TEF</span>
+        <small className="font-normal text-slate-400">{tefHint}</small>
       </button>
     </div>
   );
@@ -48,6 +104,7 @@ type SaleSummaryProps = {
   onOpenPayment: () => void;
   onSuspend: () => void;
   onOpenSuspended: () => void;
+  onOpenSalesHistory: () => void;
 };
 
 export function SaleSummary({
@@ -62,6 +119,7 @@ export function SaleSummary({
   onOpenPayment,
   onSuspend,
   onOpenSuspended,
+  onOpenSalesHistory,
 }: SaleSummaryProps) {
   return (
     <aside
@@ -122,6 +180,14 @@ export function SaleSummary({
           className="rounded-xl border border-indigo-200 px-3 py-2 text-sm font-semibold text-indigo-700 hover:border-indigo-400"
         >
           Vendas suspensas
+        </button>
+        <button
+          type="button"
+          data-testid="open-sales-history"
+          onClick={onOpenSalesHistory}
+          className="col-span-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-indigo-300"
+        >
+          Consultar vendas
         </button>
       </div>
       {!online ? (
