@@ -14,15 +14,19 @@ export type PaymentOperationResult = {
 
 export type PaymentOperationContext = {
   clientMutationId?: string;
+  storeId?: string;
+  providerReference?: string;
 };
+
+export type PaymentOperationResultOrPromise = PaymentOperationResult | Promise<PaymentOperationResult>;
 
 export interface PaymentAdapter {
   readonly method: Enums<"payment_method">;
   process(amount: string): PaymentAdapterResult;
-  authorize(amount: string, context?: PaymentOperationContext): PaymentOperationResult;
-  capture(amount: string, context?: PaymentOperationContext): PaymentOperationResult;
-  cancel(amount: string, context?: PaymentOperationContext): PaymentOperationResult;
-  reconcile(amount: string, context?: PaymentOperationContext): PaymentOperationResult;
+  authorize(amount: string, context?: PaymentOperationContext): PaymentOperationResultOrPromise;
+  capture(amount: string, context?: PaymentOperationContext): PaymentOperationResultOrPromise;
+  cancel(amount: string, context?: PaymentOperationContext): PaymentOperationResultOrPromise;
+  reconcile(amount: string, context?: PaymentOperationContext): PaymentOperationResultOrPromise;
 }
 
 export class CashPaymentAdapter implements PaymentAdapter {
@@ -112,7 +116,14 @@ export class NotConfiguredPaymentAdapter implements PaymentAdapter {
   }
 }
 
+let boundStripeCardAdapter: PaymentAdapter | null = null;
+
+export function bindStripeCardAdapter(adapter: PaymentAdapter | null): void {
+  boundStripeCardAdapter = adapter;
+}
+
 export function getPaymentAdapter(method: Enums<"payment_method">): PaymentAdapter {
   if (method === "cash") return new CashPaymentAdapter();
+  if (method === "card" && boundStripeCardAdapter) return boundStripeCardAdapter;
   return new NotConfiguredPaymentAdapter(method);
 }

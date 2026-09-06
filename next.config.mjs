@@ -44,6 +44,7 @@ const contentSecurityPolicy = [
 const nextConfig = {
   distDir,
   output: "standalone",
+  serverExternalPackages: ["stripe"],
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
   images: {
