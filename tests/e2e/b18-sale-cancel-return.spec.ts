@@ -38,12 +38,7 @@ async function payCashWithTender(page: Page, received: string) {
 async function openLatestSaleDetail(page: Page) {
   const receipt = page.getByTestId("receipt");
   if (await receipt.isVisible().catch(() => false)) {
-    const receiptClose = page.getByTestId("receipt-close");
-    if (await receiptClose.count()) {
-      await receiptClose.click({ force: true });
-    } else {
-      await page.getByLabel("Fechar recibo").click({ force: true });
-    }
+    await page.keyboard.press("Escape");
     await expect(receipt).toHaveCount(0);
   }
   await page.getByTestId("open-sales-history").click();
