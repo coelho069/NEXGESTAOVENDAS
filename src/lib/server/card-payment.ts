@@ -32,12 +32,41 @@ function asJson(value: unknown): Json {
   return value as Json;
 }
 
+/**
+ * CARD_CHECKOUT_ENABLED must stay unset/false until migration
+ * 20260906220000 (`process_card_sale`) is applied AND smoke Log2
+ * (authorize → capture → sale confirmed) PASSES. Explicit opt-in only.
+ */
+function isCardCheckoutEnabled(): boolean {
+  return process.env.CARD_CHECKOUT_ENABLED === "true";
+}
+
+const CARD_CHECKOUT_HOLD_MESSAGE =
+  "Card checkout em hold operacional até opt-in explícito (CARD_CHECKOUT_ENABLED=true).";
+
+function cardCheckoutHoldHealth(): {
+  configured: false;
+  testmode: false;
+  message: string;
+  reason: "card_checkout_hold";
+} {
+  return {
+    configured: false,
+    testmode: false,
+    message: CARD_CHECKOUT_HOLD_MESSAGE,
+    reason: "card_checkout_hold",
+  };
+}
+
 export async function getCardAdapterHealth(): Promise<{
   configured: boolean;
   testmode: boolean;
   message: string;
   reason?: string;
 }> {
+  if (!isCardCheckoutEnabled()) {
+    return cardCheckoutHoldHealth();
+  }
   const health = await probeStripeCardHealth();
   return {
     configured: health.configured,
@@ -52,6 +81,13 @@ export async function executeCardPayment(
   input: CardPaymentInput,
   operatorId: string
 ): Promise<CardPaymentApiResult> {
+  if (!isCardCheckoutEnabled()) {
+    return {
+      status: "not_configured",
+      message: CARD_CHECKOUT_HOLD_MESSAGE,
+      configured: false,
+    };
+  }
   const health = await probeStripeCardHealth();
   if (!health.configured) {
     return {

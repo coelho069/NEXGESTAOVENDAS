@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { PaymentActions } from "@/components/pdv/sale-summary";
 import { getPaymentAdapter } from "@/lib/adapters/payment";
@@ -7,6 +7,30 @@ import {
   isCardPaymentHealthSelectable,
   isCheckoutPaymentSelectable,
 } from "@/lib/adapters/payment-health";
+import { executeCardPayment, getCardAdapterHealth } from "@/lib/server/card-payment";
+import { probeStripeCardHealth } from "@/lib/server/stripe-card";
+import type { CardPaymentInput } from "@/lib/validation/schemas";
+
+vi.mock("@/lib/server/stripe-card", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/server/stripe-card")>();
+  return {
+    ...actual,
+    probeStripeCardHealth: vi.fn(),
+  };
+});
+
+const probeStripeCardHealthMock = vi.mocked(probeStripeCardHealth);
+
+function captureInput(): CardPaymentInput {
+  return {
+    action: "capture",
+    store_id: "11111111-1111-4111-8111-111111111111",
+    amount: "10.00",
+    client_mutation_id: "22222222-2222-4222-8222-222222222222",
+    provider_reference: "pi_test_hold",
+    discount: "0.00",
+  };
+}
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -14,6 +38,69 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
     headers: { "content-type": "application/json", ...init.headers },
   });
 }
+
+describe("card checkout hold flag", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    probeStripeCardHealthMock.mockReset();
+  });
+
+  it("holds health when CARD_CHECKOUT_ENABLED is unset or false", async () => {
+    delete process.env.CARD_CHECKOUT_ENABLED;
+    const unset = await getCardAdapterHealth();
+    expect(unset.configured).toBe(false);
+    expect(unset.testmode).toBe(false);
+    expect(unset.reason).toBe("card_checkout_hold");
+    expect(unset.message).toMatch(/hold/i);
+    expect(probeStripeCardHealthMock).not.toHaveBeenCalled();
+
+    vi.stubEnv("CARD_CHECKOUT_ENABLED", "false");
+    const held = await getCardAdapterHealth();
+    expect(held.configured).toBe(false);
+    expect(held.testmode).toBe(false);
+    expect(held.reason).toBe("card_checkout_hold");
+    expect(
+      isCardPaymentHealthSelectable({
+        ok: true,
+        status: 200,
+        contentType: "application/json",
+        body: { ...held, method: "card" },
+      })
+    ).toBe(false);
+    expect(probeStripeCardHealthMock).not.toHaveBeenCalled();
+  });
+
+  it("blocks executeCardPayment before Stripe when hold is on", async () => {
+    vi.stubEnv("CARD_CHECKOUT_ENABLED", "false");
+    const result = await executeCardPayment(
+      {} as never,
+      captureInput(),
+      "33333333-3333-4333-8333-333333333333"
+    );
+    expect(result).toMatchObject({
+      status: "not_configured",
+      configured: false,
+    });
+    expect(probeStripeCardHealthMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps prior health behavior when CARD_CHECKOUT_ENABLED=true", async () => {
+    vi.stubEnv("CARD_CHECKOUT_ENABLED", "true");
+    probeStripeCardHealthMock.mockResolvedValue({
+      ok: true,
+      configured: true,
+      testmode: true,
+      message: "Stripe testmode ok",
+    });
+    await expect(getCardAdapterHealth()).resolves.toEqual({
+      configured: true,
+      testmode: true,
+      message: "Stripe testmode ok",
+      reason: undefined,
+    });
+    expect(probeStripeCardHealthMock).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("card payment health fail-closed", () => {
   it("rejects 404 HTML and other non-JSON health responses", () => {
