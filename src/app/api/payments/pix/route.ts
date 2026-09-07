@@ -32,7 +32,12 @@ export async function GET(request: Request) {
       configured: health.configured,
       testmode: health.testmode,
       method: "pix",
-      message: health.configured ? health.message : "Adapter PIX não configurado.",
+      reason: health.reason,
+      message: health.configured
+        ? health.message
+        : health.reason === "pix_checkout_hold"
+          ? health.message
+          : "Adapter PIX não configurado.",
     })
   );
 }

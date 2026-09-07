@@ -86,7 +86,7 @@ Saída:
 |--------------------|--------|
 | `cash`             | `configured` (RPCs de dinheiro intocadas) |
 | `card`             | Stripe testmode quando secrets + health ok **e** `CARD_CHECKOUT_ENABLED=true`; senão `not_configured` |
-| `pix`              | Stripe testmode sibling rail (`pix_payment_intents` + `process_pix_sale`) quando secrets + health ok **e** `PIX_CHECKOUT_ENABLED=true`; senão `not_configured` (hold). QR `pending` ≠ venda confirmada. |
+| `pix`              | Stripe testmode sibling rail (`pix_payment_intents` + `process_pix_sale`) quando secrets + health ok **e** `PIX_CHECKOUT_ENABLED=true`; senão `not_configured` (hold). QR `pending` ≠ venda confirmada. Flag **nunca** default `true` — locked smoke em `docs/STRIPE-PIX-SMOKE.md` (gates 1–4) antes de qualquer opt-in. |
 | `voucher`, `other` | `not_configured` |
 | NFC-e/SAT          | `not_configured` |
 

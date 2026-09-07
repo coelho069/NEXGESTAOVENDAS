@@ -20,7 +20,7 @@ import {
 import { confirmFixtureLocalSales } from "@/lib/domain/sale-return-local";
 import { recordCapturedCardSale } from "@/lib/offline/close-card-sale";
 import { recordCapturedPixSale } from "@/lib/offline/close-pix-sale";
-import type { StripePixQr } from "@/lib/domain/stripe-pix";
+import { evaluatePixCheckoutGate, type StripePixQr } from "@/lib/domain/stripe-pix";
 import { closeSale } from "@/lib/offline/close-sale";
 import { endClientSession } from "@/lib/offline/end-session";
 import { withMultiTabLock } from "@/lib/offline/multi-tab-lock";
@@ -705,7 +705,15 @@ async function payPixOnServer(input: {
   amount: string;
 }): Promise<CardCheckoutResult> {
   const localAdapter = getPaymentAdapter("pix");
-  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+  const online = typeof navigator === "undefined" || navigator.onLine !== false;
+  // Server still holds unless PIX_CHECKOUT_ENABLED is the literal "true".
+  const gate = evaluatePixCheckoutGate({
+    flagEnabled: true,
+    healthConfigured: true,
+    healthTestmode: true,
+    online,
+  });
+  if (!gate.selectable) {
     return {
       kind: "draft",
       message:

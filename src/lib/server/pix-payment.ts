@@ -9,6 +9,7 @@ import {
   createStripePixGateway,
 } from "@/lib/server/stripe-pix";
 import {
+  isPixCheckoutEnabledEnv,
   isPixStripeObject,
   pixRefundStatusPendingExternal,
   reconcileStripePixPaymentIntent,
@@ -40,12 +41,11 @@ function asJson(value: unknown): Json {
 }
 
 /**
- * PIX_CHECKOUT_ENABLED must stay unset/false until migration
- * `process_pix_sale` is applied AND smoke Log2
- * (create QR ≠ sale; PI succeeded → confirmed) PASSES. Explicit opt-in only.
+ * PIX_CHECKOUT_ENABLED must stay unset/false until locked smoke
+ * (docs/STRIPE-PIX-SMOKE.md) PASSES. Explicit `"true"` only — never default on.
  */
 function isPixCheckoutEnabled(): boolean {
-  return process.env.PIX_CHECKOUT_ENABLED === "true";
+  return isPixCheckoutEnabledEnv(process.env.PIX_CHECKOUT_ENABLED);
 }
 
 const PIX_CHECKOUT_HOLD_MESSAGE =
@@ -311,7 +311,7 @@ export async function applyPixStripeWebhookEvent(event: {
       providerRef
     );
     return {
-      status: sale.sale_confirmed ? "captured" : applyStatus,
+      status: sale.sale_confirmed ? "captured" : "unknown",
       message: sale.sale_confirmed
         ? `Webhook ${event.type} confirmou a venda PIX.`
         : `Webhook ${event.type} aplicado; venda ainda não confirmada.`,
@@ -323,11 +323,25 @@ export async function applyPixStripeWebhookEvent(event: {
     };
   }
 
+  if (applyStatus === "captured" || applyStatus === "failed") {
+    return {
+      status: "unknown",
+      message:
+        applyStatus === "failed"
+          ? `Webhook PIX ${event.type} falhou; venda não confirmada.`
+          : `Webhook ${event.type} sem intent PIX casado; venda não confirmada.`,
+      configured: true,
+      providerReference: providerRef,
+      sale_confirmed: false,
+    };
+  }
+
   return {
     status: mapped,
     message: `Webhook PIX ${event.type} aplicado.`,
     configured: true,
     providerReference: providerRef,
+    sale_confirmed: false,
   };
 }
 

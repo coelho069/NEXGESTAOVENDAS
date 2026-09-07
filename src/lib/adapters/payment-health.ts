@@ -1,5 +1,6 @@
 import type { Enums } from "@/lib/db/types";
 import { getPaymentAdapter } from "@/lib/adapters/payment";
+import { evaluatePixCheckoutGate } from "@/lib/domain/stripe-pix";
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -49,12 +50,18 @@ export async function fetchPixPaymentSelectable(fetchFn: FetchLike = fetch): Pro
     if ((contentType ?? "").includes("application/json")) {
       body = await response.json();
     }
-    return isPixPaymentHealthSelectable({
+    const healthOk = isPixPaymentHealthSelectable({
       ok: response.ok,
       status: response.status,
       contentType,
       body,
     });
+    return evaluatePixCheckoutGate({
+      flagEnabled: healthOk,
+      healthConfigured: healthOk,
+      healthTestmode: healthOk,
+      online: typeof navigator === "undefined" || navigator.onLine !== false,
+    }).selectable;
   } catch {
     return false;
   }

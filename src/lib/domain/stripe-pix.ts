@@ -13,6 +13,35 @@ export { mustNotInventRefundCash };
 
 export const STRIPE_PIX_CURRENCY = "brl" as const;
 
+export type PixCheckoutGateReason = "hold" | "not_configured" | "livemode" | "offline" | "ok";
+
+export type PixCheckoutGate = {
+  selectable: boolean;
+  reason: PixCheckoutGateReason;
+};
+
+/** Strict opt-in. `"TRUE"`, `"1"`, `"yes"` and unset stay hold. Never default true. */
+export function isPixCheckoutEnabledEnv(value: string | undefined): boolean {
+  return value === "true";
+}
+
+/**
+ * PIX is selectable only with explicit flag + Stripe secrets/health testmode + online.
+ * Flag off is hold; missing secrets is not_configured. Offline never opens PIX.
+ */
+export function evaluatePixCheckoutGate(input: {
+  flagEnabled: boolean;
+  healthConfigured: boolean;
+  healthTestmode: boolean;
+  online: boolean;
+}): PixCheckoutGate {
+  if (!input.flagEnabled) return { selectable: false, reason: "hold" };
+  if (!input.healthConfigured) return { selectable: false, reason: "not_configured" };
+  if (!input.healthTestmode) return { selectable: false, reason: "livemode" };
+  if (!input.online) return { selectable: false, reason: "offline" };
+  return { selectable: true, reason: "ok" };
+}
+
 export type StripePixIntentOperation = "create" | "cancel" | "reconcile";
 
 export type StripePixQr = {
