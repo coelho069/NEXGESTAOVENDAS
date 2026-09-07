@@ -1,5 +1,6 @@
 import { execFileSync, execFile } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -166,6 +167,86 @@ describe("nex-atomic-deploy-check.sh", () => {
     const result = runCheck(root);
     expect(result.status).toBe(0);
     expect(result.stdout).toMatch(/HTML\/RSC static references exist/);
+  });
+
+  it("derives sample-chunk origin from readiness URL and prefers main-app.js", async () => {
+    const root = makeRoot();
+    roots.push(root);
+    writeStandalone(root, {
+      staticFiles: {
+        "css/app.css": "body{}",
+        "chunks/webpack-aaa.js": "/* webpack */",
+        "chunks/main-app-abc.js": "/* main-app */",
+      },
+    });
+
+    const requested: string[] = [];
+    const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+      const url = req.url ?? "";
+      requested.push(url);
+      if (url.startsWith("/health/readiness")) {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ status: "ready" }));
+        return;
+      }
+      if (url.includes("main-app-abc.js")) {
+        res.writeHead(200, { "content-type": "application/javascript" });
+        res.end("/* main-app */");
+        return;
+      }
+      res.writeHead(404);
+      res.end("no");
+    });
+
+    await new Promise<void>((resolveListen) => {
+      server.listen(0, "127.0.0.1", resolveListen);
+    });
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("expected tcp address");
+    }
+    const origin = `http://127.0.0.1:${address.port}`;
+    try {
+      const { stdout, stderr } = await execFileAsync(
+        "bash",
+        [SCRIPT, "--root", root, "--readiness", `${origin}/health/readiness`],
+        { encoding: "utf8" },
+      );
+      expect(stderr).toBe("");
+      expect(stdout).toMatch(/PASSED/);
+      expect(stdout).toMatch(/main-app-abc\.js/);
+      expect(stdout).not.toMatch(/127\.0\.0\.1:3211/);
+      expect(requested.some((url) => url.includes("main-app-abc.js"))).toBe(
+        true,
+      );
+      expect(requested.some((url) => url.includes("app.css"))).toBe(false);
+    } finally {
+      await new Promise<void>((resolveClose) => {
+        server.close(() => resolveClose());
+      });
+    }
+  });
+
+  it("fails when --readiness has no JS chunk to sample", () => {
+    const root = makeRoot();
+    roots.push(root);
+    writeStandalone(root, {
+      staticFiles: {
+        "css/app.css": "body{}",
+      },
+      html: '<link href="/_next/static/css/app.css" rel="stylesheet"/>',
+    });
+
+    const result = runCheck(root, [
+      "--readiness",
+      "http://127.0.0.1:3211/health/readiness",
+    ]);
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout}${result.stderr}`).toMatch(
+      /ATOMIC DEPLOY CHECK FAILED/,
+    );
+    expect(`${result.stdout}${result.stderr}`).toMatch(/chunks\/\*\.js|main-app/);
+    expect(`${result.stdout}${result.stderr}`).not.toMatch(/PASSED/);
   });
 
   it("fails readiness gate when the process is not listening", async () => {

@@ -22,7 +22,10 @@ Options:
   --standalone DIR      Standalone dir (default: <root>/.next/standalone)
   --readiness [URL]     After start: require HTTP 200 from readiness
                         (default URL: http://127.0.0.1:3211/health/readiness)
+                        Docker image listens on 3000 — pass that origin.
   --sample-chunk URL    After start: require HTTP 200 from a /_next/static/ URL
+                        If omitted with --readiness, derive origin from the
+                        readiness URL and sample a chunks/*.js (prefer main-app).
   -h, --help            Show this help
 
 Environment:
@@ -170,8 +173,45 @@ fi
 # --- Optional post-start gates ---
 http_status() {
   local url="$1"
-  curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 2 --max-time 5 "$url" || echo "000"
+  local code
+  code="$(curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 2 --max-time 5 "$url" || true)"
+  if [[ -z "$code" ]]; then
+    printf '%s\n' "000"
+  else
+    printf '%s\n' "$code"
+  fi
 }
+
+# scheme://host[:port] from the readiness URL (Docker :3000, host/ops :3211).
+readiness_origin() {
+  local url="$1"
+  if [[ "$url" =~ ^(https?://[^/?#]+) ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+    return 0
+  fi
+  return 1
+}
+
+# Prefer a main-app JS chunk; never sample CSS/fonts/source maps.
+pick_sample_js_rel() {
+  local found=""
+  found="$(find "$STATIC_DIR" -type f -name '*main-app*.js' ! -name '*.map' | sort | head -n 1 || true)"
+  if [[ -z "$found" ]]; then
+    found="$(find "$STATIC_DIR" -type f -path '*/chunks/*' -name '*.js' ! -name '*.map' | sort | head -n 1 || true)"
+  fi
+  if [[ -z "$found" ]]; then
+    return 1
+  fi
+  local rel="${found#"${STATIC_DIR}/"}"
+  printf '%s\n' "${rel#/}"
+}
+
+derived=""
+if [[ "$CHECK_READINESS" -eq 1 && -z "$SAMPLE_CHUNK_URL" ]]; then
+  origin="$(readiness_origin "$READINESS_URL")" || fail "cannot derive origin from readiness URL: ${READINESS_URL}"
+  sample_rel="$(pick_sample_js_rel)" || fail "no chunks/*.js (prefer main-app) under ${STATIC_DIR} to sample after start. Do not announce green."
+  derived="${origin}/_next/static/${sample_rel}"
+fi
 
 if [[ "$CHECK_READINESS" -eq 1 ]]; then
   code="$(http_status "$READINESS_URL")"
@@ -187,9 +227,7 @@ if [[ -n "$SAMPLE_CHUNK_URL" ]]; then
     fail "sample chunk ${SAMPLE_CHUNK_URL} returned ${code} (want 200). Static may be missing at the edge. Do not announce green."
   fi
   ok "sample chunk 200 ${SAMPLE_CHUNK_URL}"
-elif [[ "$CHECK_READINESS" -eq 1 && "$STATIC_COUNT" -gt 0 ]]; then
-  sample_rel="${STATIC_FILES[0]#${STATIC_DIR}/}"
-  derived="http://127.0.0.1:3211/_next/static/${sample_rel}"
+elif [[ -n "$derived" ]]; then
   code="$(http_status "$derived")"
   if [[ "$code" != "200" ]]; then
     fail "derived sample chunk ${derived} returned ${code} (want 200). Do not announce green."

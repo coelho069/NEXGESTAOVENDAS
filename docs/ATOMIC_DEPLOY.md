@@ -30,23 +30,30 @@ deploy even if the process starts.
    - `.next/standalone/.next/static` with file count **> 0**
    - files referenced by built HTML/RSC **or** `*.css` + `*main-app*` chunk patterns
 5. **Start** the standalone server (`node .next/standalone/server.js`, `PORT` as deployed).
-6. **Readiness + sample chunk 200** (after start), default host port **3211**:
+6. **Readiness + sample chunk 200** (after start). Host/ops default is **3211**.
+   The Docker image listens on **3000** — pass that origin.
 
    ```bash
    bash scripts/nex-atomic-deploy-check.sh \
      --readiness http://127.0.0.1:3211/health/readiness
+   # Docker:
+   bash scripts/nex-atomic-deploy-check.sh \
+     --readiness http://127.0.0.1:3000/health/readiness
    ```
+
+   `--readiness` without `--sample-chunk` derives the sample origin from the
+   readiness URL (not a hardcoded port) and curls a `chunks/*.js` file,
+   preferring `*main-app*.js`. CSS/fonts/source maps are not a valid sample.
 
    Optional explicit chunk:
 
    ```bash
    bash scripts/nex-atomic-deploy-check.sh \
-     --readiness \
+     --readiness http://127.0.0.1:3211/health/readiness \
      --sample-chunk "http://127.0.0.1:3211/_next/static/chunks/<main-app>.js"
    ```
 
-`--readiness` also curls a derived `/_next/static/` file from the standalone
-tree. Any non-200 ⇒ **not green**.
+Any non-200 ⇒ **not green**.
 
 ## Optional nginx hardening
 
