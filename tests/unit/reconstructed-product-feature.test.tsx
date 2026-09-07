@@ -71,6 +71,20 @@ describe("reconstructed product feature", () => {
     expect(useCartStore.getState().lines).toEqual([]);
   });
 
+  it("hides the store picker and keeps the sole authorized store", async () => {
+    render(<ProductSearch scopeKey="single-store" stores={[stores[0]!]} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Agua Mineral 500ml")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId("feature-store")).toBeNull();
+    expect(screen.getByTestId("feature-store-fixed")).toHaveTextContent("Loja Centro");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Adicionar" })[0]!);
+    expect(useCartStore.getState().storeId).toBe(STORE_A);
+  });
+
   it("does not silently move an open cart to another store", async () => {
     render(<ProductSearch scopeKey="store-switch" stores={stores} initialStoreId={STORE_A} />);
 

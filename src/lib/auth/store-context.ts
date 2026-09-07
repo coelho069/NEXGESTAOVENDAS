@@ -62,6 +62,14 @@ export function selectAuthorizedStore(
   return stores.length === 1 ? stores[0] ?? null : null;
 }
 
+export function soleAuthorizedStoreId(stores: readonly { id: string }[]): string | null {
+  return stores.length === 1 ? stores[0]?.id ?? null : null;
+}
+
+export function shouldShowStoreSelect(stores: readonly { id: string }[]): boolean {
+  return stores.length > 1;
+}
+
 export function toStoreOptions(stores: readonly AuthorizedStore[]): StoreOption[] {
   return stores.map(({ id, name }) => ({ id, name }));
 }

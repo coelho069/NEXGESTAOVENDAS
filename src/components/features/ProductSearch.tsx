@@ -4,9 +4,10 @@ import { useCallback, useMemo, useState } from "react";
 import { useProducts } from "@/hooks/useProducts";
 import { parseUnitPrice, cartTotal } from "@/lib/domain/sale";
 import type { ProductRow } from "@/lib/domain/product";
-import type { StoreOption } from "@/lib/auth/store-context";
+import { soleAuthorizedStoreId, type StoreOption } from "@/lib/auth/store-context";
 import { useCartStore } from "@/stores/useCartStore";
 import { Button } from "@/components/ui/button";
+import { StoreSelect } from "@/components/auth/store-select";
 
 type ProductSearchProps = {
   scopeKey?: string;
@@ -24,7 +25,7 @@ export function ProductSearch({
   const [query, setQuery] = useState("");
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(() => {
     if (initialStoreId && stores.some((store) => store.id === initialStoreId)) return initialStoreId;
-    return stores.length === 1 ? stores[0]?.id ?? null : null;
+    return soleAuthorizedStoreId(stores);
   });
   const [contextMessage, setContextMessage] = useState<string | null>(null);
   const addLine = useCartStore((state) => state.addLine);
@@ -128,21 +129,17 @@ export function ProductSearch({
         <label htmlFor="feature-store" className="font-medium text-slate-700">
           Loja
         </label>
-        <select
+        <StoreSelect
           id="feature-store"
-          data-testid="feature-store"
+          testId="feature-store"
           className="rounded-lg border border-slate-300 px-2 py-1"
-          value={activeStoreId ?? ""}
-          onChange={(event) => handleStoreChange(event.target.value)}
+          stores={stores}
+          value={activeStoreId}
+          onChange={(nextStoreId) => {
+            if (nextStoreId) handleStoreChange(nextStoreId);
+          }}
           disabled={stores.length === 0}
-        >
-          <option value="">Selecione...</option>
-          {stores.map((store) => (
-            <option key={store.id} value={store.id}>
-              {store.name}
-            </option>
-          ))}
-        </select>
+        />
         {stores.length === 0 ? (
           <span data-testid="feature-store-denied" className="text-slate-500">
             Nenhuma loja autorizada para esta sessão.

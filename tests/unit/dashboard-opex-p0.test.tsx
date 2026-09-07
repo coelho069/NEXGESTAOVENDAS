@@ -70,6 +70,35 @@ afterEach(() => {
 });
 
 describe("dashboard OPEX P0", () => {
+  it("hides the store filter when the operator has exactly one store", () => {
+    render(
+      <DashboardScreen storeId={STORE_ID} initial={makeResult()} paymentAlerts={defaultAlerts} />
+    );
+
+    expect(screen.queryByTestId("dashboard-store")).toBeNull();
+    expect(screen.getByTestId("dashboard-store-fixed")).toHaveTextContent("Loja Centro");
+    expect(screen.getByTestId("dashboard-store-hidden")).toHaveValue(STORE_ID);
+  });
+
+  it("keeps the store filter when the operator has two or more stores", () => {
+    const secondStore = "22222222-2222-4222-8222-222222222202";
+    render(
+      <DashboardScreen
+        storeId={STORE_ID}
+        initial={makeResult({
+          stores: [
+            { id: STORE_ID, name: "Loja Centro" },
+            { id: secondStore, name: "Loja Shopping" },
+          ],
+        })}
+        paymentAlerts={defaultAlerts}
+      />
+    );
+
+    expect(screen.getByTestId("dashboard-store")).toBeVisible();
+    expect(screen.queryByTestId("dashboard-store-fixed")).toBeNull();
+  });
+
   it("renders excluded sale and payment counts from the RPC payload", () => {
     render(
       <DashboardScreen storeId={STORE_ID} initial={makeResult()} paymentAlerts={defaultAlerts} />
