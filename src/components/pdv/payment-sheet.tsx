@@ -19,10 +19,8 @@ export function PaymentSheet({
   total,
   disabled,
   cardSelectable = false,
-  pixSelectable = false,
   onCash,
   onCard,
-  onPix,
   onClose,
 }: PaymentSheetProps) {
   if (!open) return null;
@@ -55,10 +53,9 @@ export function PaymentSheet({
           <PaymentActions
             disabled={disabled}
             cardSelectable={cardSelectable}
-            pixSelectable={pixSelectable}
+            pixSelectable={false}
             onCash={onCash}
             onCard={onCard}
-            onPix={onPix}
           />
         </div>
       </div>
