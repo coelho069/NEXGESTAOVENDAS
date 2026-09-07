@@ -248,10 +248,32 @@ describe("PDV payment actions", () => {
     expect(pix).toBeDisabled();
     expect(cash).toBeEnabled();
     expect(card).toHaveTextContent("não configurado");
-    expect(pix).toHaveTextContent("não configurado");
+    expect(pix).toHaveTextContent("em breve");
+    expect(pix).toHaveAttribute("aria-label", "PIX — em breve");
     card.click();
     pix.click();
     expect(onCard).not.toHaveBeenCalled();
     expect(onPix).not.toHaveBeenCalled();
+  });
+
+  it("keeps selectable PIX clickable without placeholder copy", () => {
+    const onPix = vi.fn();
+    render(
+      <PaymentActions
+        disabled={false}
+        cardSelectable={true}
+        pixSelectable={true}
+        onCash={() => undefined}
+        onCard={() => undefined}
+        onPix={onPix}
+      />
+    );
+
+    const pix = screen.getByTestId("checkout-pix");
+    expect(pix).toBeEnabled();
+    expect(pix).not.toHaveTextContent("em breve");
+    expect(pix).toHaveAttribute("aria-label", "PIX");
+    pix.click();
+    expect(onPix).toHaveBeenCalledTimes(1);
   });
 });
