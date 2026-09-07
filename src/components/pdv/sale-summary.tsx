@@ -21,6 +21,7 @@ export function PaymentActions({
 }: PaymentActionsProps) {
   const cardDisabled = disabled || !cardSelectable;
   const pixDisabled = disabled || !pixSelectable;
+  const pixPlaceholder = !pixSelectable;
 
   return (
     <div className="grid grid-cols-3 gap-3">
@@ -51,13 +52,19 @@ export function PaymentActions({
         type="button"
         data-testid="checkout-pix"
         disabled={pixDisabled}
-        onClick={onPix}
-        className="flex flex-col items-center gap-2 rounded-2xl border-2 border-slate-100 bg-white p-4 font-semibold text-slate-700 transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
+        aria-label={pixPlaceholder ? "PIX — em breve" : "PIX"}
+        title={pixPlaceholder ? "PIX — em breve" : undefined}
+        onClick={pixPlaceholder ? undefined : onPix}
+        className={
+          pixPlaceholder
+            ? "flex flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-teal-300 bg-teal-50 p-4 font-semibold text-teal-800 disabled:cursor-not-allowed"
+            : "flex flex-col items-center gap-2 rounded-2xl border-2 border-slate-100 bg-white p-4 font-semibold text-slate-700 transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
+        }
       >
         <QrCode size={24} aria-hidden="true" />
         <span>PIX</span>
-        {!pixSelectable ? (
-          <small className="font-normal text-slate-400">não configurado</small>
+        {pixPlaceholder ? (
+          <small className="font-normal text-teal-700">em breve</small>
         ) : null}
       </button>
     </div>

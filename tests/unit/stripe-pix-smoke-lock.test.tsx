@@ -436,7 +436,8 @@ describe("PIX smoke lock — Gate 4 cash + card regression", () => {
     expect(screen.getByTestId("checkout-cash")).toBeEnabled();
     expect(screen.getByTestId("checkout-card")).toBeEnabled();
     expect(screen.getByTestId("checkout-pix")).toBeDisabled();
-    expect(screen.getByTestId("checkout-pix")).toHaveTextContent("não configurado");
+    expect(screen.getByTestId("checkout-pix")).toHaveTextContent("em breve");
+    expect(screen.getByTestId("checkout-pix")).toHaveAttribute("aria-label", "PIX — em breve");
     screen.getByTestId("checkout-pix").click();
     expect(onPix).not.toHaveBeenCalled();
   });
