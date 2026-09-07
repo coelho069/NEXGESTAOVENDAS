@@ -15,6 +15,7 @@ import { SuspendedSalesPanel } from "@/components/pdv/suspended-sales-panel";
 import { SalesHistoryPanel } from "@/components/pdv/sales-history-panel";
 import { SaleReturnDialog } from "@/components/pdv/sale-return-dialog";
 import { CashRegisterPanel } from "@/components/cash/cash-register-panel";
+import { StoreSelect } from "@/components/auth/store-select";
 import { useProducts } from "@/hooks/use-products";
 import { useCustomers } from "@/hooks/use-customers";
 import { useProjectedStock } from "@/hooks/use-projected-stock";
@@ -28,7 +29,7 @@ import { usePdvSale } from "@/hooks/use-pdv-sale";
 import { useCartStore } from "@/stores/cart-store";
 import { useSyncStore } from "@/stores/sync-store";
 import { usePdvUiStore } from "@/stores/pdv-ui-store";
-import type { StoreOption } from "@/lib/auth/store-context";
+import { soleAuthorizedStoreId, type StoreOption } from "@/lib/auth/store-context";
 import type { MemberRole } from "@/lib/domain/rbac";
 import { snapshotToCartLines, type SuspendedCartContext } from "@/lib/domain/suspended-sale";
 
@@ -171,9 +172,14 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
   };
 
   useEffect(() => {
-    if (initialStoreId && storeId !== initialStoreId) {
-      if (!setStoreId(initialStoreId)) {
-        setContextMessage("A loja da URL não pode substituir o carrinho aberto.");
+    const targetStoreId = initialStoreId ?? soleAuthorizedStoreId(stores);
+    if (targetStoreId && storeId !== targetStoreId) {
+      if (!setStoreId(targetStoreId)) {
+        setContextMessage(
+          initialStoreId
+            ? "A loja da URL não pode substituir o carrinho aberto."
+            : "Não é possível trocar de loja com o carrinho aberto."
+        );
       }
       return;
     }
@@ -263,14 +269,14 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             <label className="text-sm font-medium text-slate-700" htmlFor="store">
               Loja
             </label>
-            <select
+            <StoreSelect
               id="store"
-              data-testid="store-select"
+              testId="store-select"
               className="rounded-lg border border-slate-300 px-3 py-2"
-              value={storeId ?? ""}
+              stores={stores}
+              value={storeId}
               disabled={Boolean(sale.checkoutAttemptId) || sale.checkoutInFlight || sale.lines.length > 0}
-              onChange={(event) => {
-                const nextStoreId = event.target.value || null;
+              onChange={(nextStoreId) => {
                 if (nextStoreId && !stores.some((store) => store.id === nextStoreId)) return;
                 if (!setStoreId(nextStoreId)) {
                   setContextMessage("Não é possível trocar de loja com o carrinho aberto.");
@@ -278,14 +284,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
                 }
                 setContextMessage(null);
               }}
-            >
-              <option value="">Selecione...</option>
-              {stores.map((store) => (
-                <option key={store.id} value={store.id}>
-                  {store.name}
-                </option>
-              ))}
-            </select>
+            />
             <span data-testid="role-display" className="text-sm text-slate-500">
               Papel: {roleLabel(displayRole)}
             </span>

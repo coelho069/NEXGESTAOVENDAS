@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildAuthorizedStores,
   selectAuthorizedStore,
+  shouldShowStoreSelect,
+  soleAuthorizedStoreId,
   type MembershipContextRow,
   type StoreContextRow,
 } from "@/lib/auth/store-context";
@@ -51,5 +53,16 @@ describe("authorized store context", () => {
     const authorized = buildAuthorizedStores([memberships[0]!], stores, ORG_A);
     expect(selectAuthorizedStore(authorized)).toMatchObject({ id: STORE_A, role: "manager" });
     expect(selectAuthorizedStore([], STORE_A)).toBeNull();
+    expect(soleAuthorizedStoreId(authorized)).toBe(STORE_A);
+    expect(shouldShowStoreSelect(authorized)).toBe(false);
+  });
+
+  it("offers the store picker only when two or more stores are available", () => {
+    expect(shouldShowStoreSelect([])).toBe(false);
+    expect(soleAuthorizedStoreId([])).toBeNull();
+    expect(shouldShowStoreSelect([{ id: STORE_A }])).toBe(false);
+    expect(soleAuthorizedStoreId([{ id: STORE_A }])).toBe(STORE_A);
+    expect(shouldShowStoreSelect([{ id: STORE_A }, { id: STORE_B }])).toBe(true);
+    expect(soleAuthorizedStoreId([{ id: STORE_A }, { id: STORE_B }])).toBeNull();
   });
 });

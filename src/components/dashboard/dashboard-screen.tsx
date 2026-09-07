@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { formatBRL } from "@/lib/money";
 import { PermissionGate } from "@/components/auth/permission-gate";
+import { StoreSelect } from "@/components/auth/store-select";
 import type { PaymentAdapterAlert } from "@/lib/adapters/payment";
 import type { MemberRole } from "@/lib/domain/rbac";
 import { paymentMethodLabel, saleStatusLabel } from "@/lib/domain/sale-history";
@@ -56,19 +57,13 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
       >
         <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
           Loja
-          <select
+          <StoreSelect
             name="store"
-            data-testid="dashboard-store"
+            testId="dashboard-store"
             className="mt-1.5 block rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-900"
-            defaultValue={storeId ?? ""}
-          >
-            <option value="">Selecione...</option>
-            {initial.stores.map((store) => (
-              <option key={store.id} value={store.id}>
-                {store.name}
-              </option>
-            ))}
-          </select>
+            stores={initial.stores}
+            defaultValue={storeId}
+          />
         </label>
         <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
           De
