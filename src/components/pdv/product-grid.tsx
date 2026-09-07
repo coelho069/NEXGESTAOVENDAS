@@ -29,13 +29,13 @@ export function ProductGrid({ products, onAdd, stock, cartQty }: ProductGridProp
             type="button"
             data-testid={`product-sku-${product.sku}`}
             onClick={() => onAdd(product)}
-            className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:border-indigo-500 hover:shadow-md"
+            className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm outline-none transition-all hover:border-indigo-500 hover:shadow-md focus-visible:ring-2 focus-visible:ring-indigo-200"
           >
             <div className="flex items-start justify-between gap-3">
-              <div className="rounded bg-indigo-50 px-2 py-1 text-xs font-bold uppercase tracking-wider text-indigo-600">
+              <div className="rounded bg-indigo-50 px-2 py-1 text-xs font-semibold uppercase tracking-wider text-indigo-600">
                 {product.sku}
               </div>
-              <div className="text-lg font-bold text-slate-800">{formatBRL(product.unit_price)}</div>
+              <div className="text-lg font-semibold tabular-nums text-slate-800">{formatBRL(product.unit_price)}</div>
             </div>
             <div className="mt-3 font-semibold text-slate-700 transition-colors group-hover:text-indigo-600">
               {product.name}

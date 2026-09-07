@@ -273,18 +273,18 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
   };
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4 lg:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="mx-auto flex max-w-6xl flex-col gap-5 p-4 lg:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Inventário</h1>
-          <p className="text-sm text-slate-500">Quantidade só muda via movimento auditado.</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Inventário</h1>
+          <p className="mt-1 text-sm text-slate-500">Quantidade só muda via movimento auditado.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
             Loja
             <select
               data-testid="inventory-store"
-              className="ml-2 rounded border border-slate-300 px-2 py-1"
+              className="mt-1.5 ml-0 block rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
               value={storeId ?? ""}
               onChange={(event) => {
                 window.location.href = `/inventory?store=${event.target.value}`;
@@ -298,7 +298,10 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
               ))}
             </select>
           </label>
-          <span data-testid="inventory-role" className="text-sm text-slate-500">
+          <span
+            data-testid="inventory-role"
+            className="mb-0.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
+          >
             Papel: {roleLabel(role)}
           </span>
         </div>
@@ -308,25 +311,25 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
         <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">{message}</div>
       ) : null}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
         <table className="w-full text-left text-sm" data-testid="inventory-table">
-          <thead className="bg-slate-50">
+          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-3 py-2">SKU</th>
-              <th className="px-3 py-2">Produto</th>
-              <th className="px-3 py-2">Qtd</th>
-              <th className="px-3 py-2">Preço</th>
-              <th className="px-3 py-2">Custo</th>
+              <th className="px-4 py-2.5 font-semibold">SKU</th>
+              <th className="px-4 py-2.5 font-semibold">Produto</th>
+              <th className="px-4 py-2.5 font-semibold">Qtd</th>
+              <th className="px-4 py-2.5 font-semibold">Preço</th>
+              <th className="px-4 py-2.5 font-semibold">Custo</th>
             </tr>
           </thead>
           <tbody>
             {initial.rows.map((row) => (
               <tr key={row.product_id} className="border-t border-slate-100">
-                <td className="px-3 py-2">{row.sku}</td>
-                <td className="px-3 py-2">{row.name}</td>
-                <td className="px-3 py-2">{row.quantity}</td>
-                <td className="px-3 py-2">{formatBRL(row.unit_price)}</td>
-                <td className="px-3 py-2">{row.cost_price ? formatBRL(row.cost_price) : "—"}</td>
+                <td className="px-4 py-2.5 font-medium text-slate-800">{row.sku}</td>
+                <td className="px-4 py-2.5">{row.name}</td>
+                <td className="px-4 py-2.5 tabular-nums">{row.quantity}</td>
+                <td className="px-4 py-2.5 tabular-nums">{formatBRL(row.unit_price)}</td>
+                <td className="px-4 py-2.5 tabular-nums">{row.cost_price ? formatBRL(row.cost_price) : "—"}</td>
               </tr>
             ))}
           </tbody>

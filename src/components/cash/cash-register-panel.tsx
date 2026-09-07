@@ -26,11 +26,11 @@ export function CashRegisterPanel({
     <section
       aria-labelledby="cash-register-title"
       data-testid="cash-register-panel"
-      className="rounded-xl border border-slate-200 bg-white p-4"
+      className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 id="cash-register-title" className="font-semibold text-slate-900">
+          <h2 id="cash-register-title" className="font-semibold tracking-tight text-slate-900">
             Caixa
           </h2>
           <p className="text-xs text-slate-500">
@@ -67,16 +67,16 @@ export function CashRegisterPanel({
         <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
           <div>
             <span className="block text-xs text-slate-500">Abertura</span>
-            <strong>{formatBRL(session.opening_amount)}</strong>
+            <strong className="tabular-nums">{formatBRL(session.opening_amount)}</strong>
           </div>
           <div>
             <span className="block text-xs text-slate-500">Saldo esperado</span>
-            <strong data-testid="cash-expected">{formatBRL(cash.expectedAmount)}</strong>
+            <strong data-testid="cash-expected" className="tabular-nums">{formatBRL(cash.expectedAmount)}</strong>
           </div>
           {session.status === "closed" ? (
             <div>
               <span className="block text-xs text-slate-500">Diferença</span>
-              <strong data-testid="cash-difference">{formatBRL(session.difference ?? "0.00")}</strong>
+              <strong data-testid="cash-difference" className="tabular-nums">{formatBRL(session.difference ?? "0.00")}</strong>
             </div>
           ) : null}
         </div>
@@ -88,7 +88,7 @@ export function CashRegisterPanel({
             Saldo inicial
             <input
               data-testid="cash-opening-amount"
-              className="mt-1 block w-32 rounded-lg border border-slate-300 px-3 py-2"
+              className="mt-1 block w-32 rounded-lg border border-slate-300 px-3 py-2 tabular-nums outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
               value={openingAmount}
               onChange={(event) => setOpeningAmount(event.target.value)}
               inputMode="decimal"
@@ -125,7 +125,7 @@ export function CashRegisterPanel({
               Valor
               <input
                 data-testid="cash-movement-amount"
-                className="mt-1 block w-28 rounded-lg border border-slate-300 px-3 py-2"
+                className="mt-1 block w-28 rounded-lg border border-slate-300 px-3 py-2 tabular-nums outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
                 value={movementAmount}
                 onChange={(event) => setMovementAmount(event.target.value)}
                 inputMode="decimal"
@@ -164,7 +164,7 @@ export function CashRegisterPanel({
               Conferência para fechar
               <input
                 data-testid="cash-counted-amount"
-                className="mt-1 block w-32 rounded-lg border border-slate-300 px-3 py-2"
+                className="mt-1 block w-32 rounded-lg border border-slate-300 px-3 py-2 tabular-nums outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
                 value={countedAmount}
                 onChange={(event) => setCountedAmount(event.target.value)}
                 inputMode="decimal"
@@ -191,7 +191,7 @@ export function CashRegisterPanel({
             {cash.movements.slice(-5).map((movement) => (
               <li key={movement.cash_movement_id} className="flex justify-between gap-3">
                 <span>{movement.reason}</span>
-                <span className="font-medium">{formatBRL(movement.amount)}</span>
+                <span className="font-medium tabular-nums">{formatBRL(movement.amount)}</span>
               </li>
             ))}
           </ul>
