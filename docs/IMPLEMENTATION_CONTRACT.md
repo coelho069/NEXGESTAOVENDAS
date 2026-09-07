@@ -85,8 +85,9 @@ Saída:
 | Adapter            | Status |
 |--------------------|--------|
 | `cash`             | `configured` (RPCs de dinheiro intocadas) |
-| `card`             | Stripe testmode quando secrets + health ok; senão `not_configured` |
-| `pix`, ...         | `not_configured` |
+| `card`             | Stripe testmode quando secrets + health ok **e** `CARD_CHECKOUT_ENABLED=true`; senão `not_configured` |
+| `pix`              | Stripe testmode sibling rail (`pix_payment_intents` + `process_pix_sale`) quando secrets + health ok **e** `PIX_CHECKOUT_ENABLED=true`; senão `not_configured` (hold). QR `pending` ≠ venda confirmada. |
+| `voucher`, `other` | `not_configured` |
 | NFC-e/SAT          | `not_configured` |
 
 Interface TS em `src/lib/adapters/`.
@@ -106,8 +107,10 @@ Interface TS em `src/lib/adapters/`.
 | GET    | `/api/auth/session`    | opt  | —                         |
 | GET    | `/api/payments/card`   | sim  | health Stripe (card)      |
 | POST   | `/api/payments/card`   | sim  | `cardPaymentInputSchema`  |
-| POST   | `/api/payments/stripe/webhook` | assinatura Stripe | allowlist de eventos |
-| POST   | `/api/payments/reconcile` | sim | `reconcilePaymentInputSchema` + Stripe PI |
+| GET    | `/api/payments/pix`    | sim  | health Stripe (PIX); hold se `PIX_CHECKOUT_ENABLED` ≠ `true` |
+| POST   | `/api/payments/pix`    | sim  | `pixPaymentInputSchema` (`create` / `cancel`; sem capture) |
+| POST   | `/api/payments/stripe/webhook` | assinatura Stripe | allowlist; ramo card vs PIX |
+| POST   | `/api/payments/reconcile` | sim | `reconcilePaymentInputSchema` + Stripe PI (card, depois PIX) |
 
 ## 7. Tipos gerados
 

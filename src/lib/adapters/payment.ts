@@ -1,5 +1,6 @@
 import type { Enums } from "@/lib/db/types";
 import type { PaymentState } from "@/lib/domain/payment-state";
+import type { StripePixQr } from "@/lib/domain/stripe-pix";
 
 export type PaymentAdapterResult = {
   status: Enums<"adapter_status">;
@@ -10,6 +11,7 @@ export type PaymentOperationResult = {
   status: PaymentState | "not_configured";
   message: string;
   providerReference?: string;
+  qr?: StripePixQr | null;
 };
 
 export type PaymentOperationContext = {
@@ -117,14 +119,20 @@ export class NotConfiguredPaymentAdapter implements PaymentAdapter {
 }
 
 let boundStripeCardAdapter: PaymentAdapter | null = null;
+let boundStripePixAdapter: PaymentAdapter | null = null;
 
 export function bindStripeCardAdapter(adapter: PaymentAdapter | null): void {
   boundStripeCardAdapter = adapter;
 }
 
+export function bindStripePixAdapter(adapter: PaymentAdapter | null): void {
+  boundStripePixAdapter = adapter;
+}
+
 export function getPaymentAdapter(method: Enums<"payment_method">): PaymentAdapter {
   if (method === "cash") return new CashPaymentAdapter();
   if (method === "card" && boundStripeCardAdapter) return boundStripeCardAdapter;
+  if (method === "pix" && boundStripePixAdapter) return boundStripePixAdapter;
   return new NotConfiguredPaymentAdapter(method);
 }
 
@@ -138,13 +146,22 @@ export type PaymentAdapterAlert = {
   operationStatus: PaymentState | "not_configured";
 };
 
+function syncAuthorizeStatus(
+  result: PaymentOperationResultOrPromise
+): PaymentState | "not_configured" {
+  if (result instanceof Promise) {
+    return "unknown";
+  }
+  return result.status;
+}
+
 export function getElectronicPaymentAdapterAlerts(): PaymentAdapterAlert[] {
   return ELECTRONIC_PAYMENT_METHODS.map((method) => {
     const adapter = getPaymentAdapter(method);
     return {
       method,
       adapterStatus: adapter.process("0.00").status,
-      operationStatus: adapter.authorize("0.00").status,
+      operationStatus: syncAuthorizeStatus(adapter.authorize("0.00")),
     };
   });
 }

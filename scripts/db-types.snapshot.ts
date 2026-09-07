@@ -301,6 +301,88 @@ export type Database = {
         }
         Relationships: []
       }
+
+      pix_payment_intents: {
+        Row: {
+          amount: number
+          client_mutation_id: string
+          created_at: string
+          currency: string
+          id: string
+          operator_id: string
+          org_id: string
+          payment_id: string | null
+          provider_ref: string
+          sale_id: string | null
+          sale_payload: Json
+          status: string
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          client_mutation_id: string
+          created_at?: string
+          currency?: string
+          id?: string
+          operator_id: string
+          org_id: string
+          payment_id?: string | null
+          provider_ref: string
+          sale_id?: string | null
+          sale_payload?: Json
+          status: string
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          client_mutation_id?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          operator_id?: string
+          org_id?: string
+          payment_id?: string | null
+          provider_ref?: string
+          sale_id?: string | null
+          sale_payload?: Json
+          status?: string
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pix_provider_events: {
+        Row: {
+          created_at: string
+          event_id: string
+          event_type: string
+          org_id: string | null
+          provider_ref: string
+          status: string
+          store_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          event_type: string
+          org_id?: string | null
+          provider_ref: string
+          status: string
+          store_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          event_type?: string
+          org_id?: string | null
+          provider_ref?: string
+          status?: string
+          store_id?: string | null
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           created_at: string
@@ -1472,6 +1554,8 @@ export type Database = {
     Functions: {
       apply_card_provider_event: { Args: { p_payload: Json }; Returns: Json }
       apply_card_provider_status: { Args: { p_payload: Json }; Returns: Json }
+      apply_pix_provider_event: { Args: { p_payload: Json }; Returns: Json }
+      apply_pix_provider_status: { Args: { p_payload: Json }; Returns: Json }
       adjust_inventory: { Args: { p_payload: Json }; Returns: Json }
       append_fiscal_audit: {
         Args: { p_action: string; p_document_id: string; p_payload: Json }
@@ -1493,6 +1577,7 @@ export type Database = {
       claim_fiscal_outbox: { Args: { p_payload?: Json }; Returns: Json }
       close_cash_session: { Args: { p_payload: Json }; Returns: Json }
       complete_card_refund: { Args: { p_payload: Json }; Returns: Json }
+      complete_pix_refund: { Args: { p_payload: Json }; Returns: Json }
       complete_suspended_sale: { Args: { p_payload: Json }; Returns: Json }
       complete_suspended_sale_core: {
         Args: { p_payload: Json; p_with_cash: boolean }
@@ -1510,6 +1595,7 @@ export type Database = {
       fiscal_result_error_code: { Args: { p_payload: Json }; Returns: string }
       cancel_sale: { Args: { p_payload: Json }; Returns: Json }
       get_card_payment_intent: { Args: { p_payload: Json }; Returns: Json }
+      get_pix_payment_intent: { Args: { p_payload: Json }; Returns: Json }
       get_cash_session: { Args: { p_payload: Json }; Returns: Json }
       get_dashboard_metrics: { Args: { p_payload: Json }; Returns: Json }
       get_inventory_page: { Args: { p_payload: Json }; Returns: Json }
@@ -1518,12 +1604,14 @@ export type Database = {
       list_suspended_sales: { Args: { p_payload: Json }; Returns: Json }
       open_cash_session: { Args: { p_payload: Json }; Returns: Json }
       process_card_sale: { Args: { p_payload: Json }; Returns: Json }
+      process_pix_sale: { Args: { p_payload: Json }; Returns: Json }
       process_sale: { Args: { p_payload: Json }; Returns: Json }
       process_sale_return: { Args: { p_payload: Json }; Returns: Json }
       process_sale_core: { Args: { p_payload: Json }; Returns: Json }
       process_sale_with_cash: { Args: { p_payload: Json }; Returns: Json }
       reconcile_payment: { Args: { p_payload: Json }; Returns: Json }
       register_card_payment_intent: { Args: { p_payload: Json }; Returns: Json }
+      register_pix_payment_intent: { Args: { p_payload: Json }; Returns: Json }
       record_cash_movement: { Args: { p_payload: Json }; Returns: Json }
       record_fiscal_result: { Args: { p_payload: Json }; Returns: Json }
       record_payment_provider_event: {

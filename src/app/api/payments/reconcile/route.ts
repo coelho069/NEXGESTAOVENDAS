@@ -8,6 +8,7 @@ import {
 import { clientRateLimitKey, consumeRateLimit } from "@/lib/security/rate-limit";
 import { rateLimitedResponse, validationFailedResponse } from "@/lib/security/safe-error";
 import { reconcileCardAgainstStripe } from "@/lib/server/card-payment";
+import { reconcilePixAgainstStripe } from "@/lib/server/pix-payment";
 import { toMoneyString, money } from "@/lib/money";
 
 export async function POST(request: Request) {
@@ -91,6 +92,44 @@ export async function POST(request: Request) {
         reconciled: card.status === "captured" && card.sale_confirmed === true,
         pending: card.status !== "captured",
         evidence: card.status !== "unknown",
+      });
+    }
+  }
+
+  const pixIntent = await supabase.rpc("get_pix_payment_intent", {
+    p_payload: parsed.data,
+  });
+  if (!pixIntent.error && pixIntent.data && typeof pixIntent.data === "object" && !Array.isArray(pixIntent.data)) {
+    const intent = pixIntent.data;
+    const providerRef = typeof intent.provider_ref === "string" ? intent.provider_ref : "";
+    const amount =
+      typeof intent.amount === "string"
+        ? intent.amount
+        : typeof intent.amount === "number"
+          ? toMoneyString(money(intent.amount))
+          : "";
+    if (providerRef && amount) {
+      const pix = await reconcilePixAgainstStripe({
+        supabase,
+        storeId: parsed.data.store_id,
+        clientMutationId:
+          parsed.data.client_mutation_id ??
+          (typeof intent.client_mutation_id === "string" ? intent.client_mutation_id : undefined),
+        amount,
+        providerReference: providerRef,
+      });
+      return NextResponse.json({
+        status: pix.status,
+        method: "pix",
+        amount,
+        provider_reference: pix.providerReference,
+        sale_id: pix.sale_id,
+        sale_status: pix.sale_status,
+        sale_confirmed: pix.sale_confirmed === true,
+        reconciled: pix.status === "captured" && pix.sale_confirmed === true,
+        pending: pix.status !== "captured",
+        evidence: pix.status !== "unknown",
+        qr: pix.qr ?? null,
       });
     }
   }

@@ -53,10 +53,18 @@ export function usePdvSale(
     setSelectedProductId,
     setOpenPanel,
     setLastReceipt,
+    setPendingPix,
     setDraftReason,
     bumpInventory,
   } = usePdvUiStore();
-  const { paySale, reconcilePayment, checkoutAttemptId, checkoutInFlight } = useCheckout();
+  const {
+    paySale,
+    completePendingPix,
+    cancelPendingPix,
+    reconcilePayment,
+    checkoutAttemptId,
+    checkoutInFlight,
+  } = useCheckout();
   const [message, setMessage] = useState<string | null>(null);
   const [discountDraft, setDiscountDraft] = useState(discount);
   const [discountError, setDiscountError] = useState<string | null>(null);
@@ -176,6 +184,22 @@ export function usePdvSale(
           report(result.message);
           return;
         }
+        if ("pendingPix" in result && result.pendingPix) {
+          setDraftReason(null);
+          setPendingPix({
+            clientMutationId: result.clientMutationId,
+            providerReference: result.providerReference,
+            amount: result.amount,
+            qr: result.qr,
+          });
+          setOpenPanel("pix-qr");
+          report("QR PIX gerado. A venda confirma só após o pagamento.");
+          return;
+        }
+        if (!("receipt" in result) || !result.receipt) {
+          report("Pagamento sem recibo.");
+          return;
+        }
         setDraftReason(null);
         setLastReceipt(result.receipt);
         bumpInventory();
@@ -194,11 +218,87 @@ export function usePdvSale(
       role,
       setDraftReason,
       setLastReceipt,
+      setPendingPix,
       setOpenPanel,
       storeName,
       terminalId,
     ]
   );
+
+  const confirmPendingPix = useCallback(
+    async (input: { saleId: string; providerReference: string }) => {
+      const pending = usePdvUiStore.getState().pendingPix;
+      const cart = useCartStore.getState();
+      if (!pending || !cart.storeId) {
+        throw new Error("PIX pendente sem identidade");
+      }
+      const totals = calculateTotals({
+        lines: cart.lines,
+        discount: cart.discount,
+        customerId: cart.customerId,
+      });
+      const completed = await completePendingPix({
+        storeId: cart.storeId,
+        clientMutationId: pending.clientMutationId,
+        role,
+        lines: cart.lines,
+        discount: cart.discount,
+        customerId: cart.customerId ?? undefined,
+        amount: pending.amount,
+        saleId: input.saleId,
+        providerReference: input.providerReference,
+      });
+      const createdAt = new Date().toISOString();
+      const receiptLines = cart.lines;
+      const customerName = cart.customerName;
+      cart.clear();
+      setPendingPix(null);
+      setLastReceipt({
+        saleId: completed.result.saleId,
+        clientMutationId: pending.clientMutationId,
+        storeName,
+        createdAt,
+        customerName,
+        lines: receiptLines,
+        subtotal: totals.subtotal,
+        discount: totals.discount,
+        total: totals.total,
+        payments: [{ method: "pix", amount: pending.amount, status: "captured" }],
+        syncStatus: "synced",
+        saleStatus: "confirmed",
+        fiscalStatus: "pending",
+      });
+      bumpInventory();
+      setOpenPanel("receipt");
+      report(null);
+    },
+    [
+      bumpInventory,
+      completePendingPix,
+      report,
+      role,
+      setLastReceipt,
+      setOpenPanel,
+      setPendingPix,
+      storeName,
+    ]
+  );
+
+  const cancelPendingPixCheckout = useCallback(async () => {
+    const pending = usePdvUiStore.getState().pendingPix;
+    const cart = useCartStore.getState();
+    if (pending && cart.storeId) {
+      await cancelPendingPix({
+        storeId: cart.storeId,
+        amount: pending.amount,
+        clientMutationId: pending.clientMutationId,
+        providerReference: pending.providerReference,
+      });
+    }
+    setPendingPix(null);
+    setOpenPanel("payment");
+    report("PIX cancelado. Carrinho preservado.");
+  }, [cancelPendingPix, report, setOpenPanel, setPendingPix]);
 
   const reconcileLastPayment = useCallback(async () => {
     const receipt = usePdvUiStore.getState().lastReceipt;
@@ -252,6 +352,8 @@ export function usePdvSale(
     applyDiscountValue,
     associateCustomer,
     pay,
+    confirmPendingPix,
+    cancelPendingPixCheckout,
     reconcileLastPayment,
     reconcilePaymentByMutation,
     checkoutAttemptId,

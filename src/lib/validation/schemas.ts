@@ -117,6 +117,45 @@ export const cardPaymentInputSchema = z
 
 export type CardPaymentInput = z.infer<typeof cardPaymentInputSchema>;
 
+export const pixPaymentActionSchema = z.enum(["create", "cancel"]);
+
+export const pixPaymentInputSchema = z
+  .object({
+    action: pixPaymentActionSchema,
+    store_id: storeIdSchema,
+    amount: z.string().regex(moneyPattern, "amount must be numeric(12,2) string"),
+    client_mutation_id: z.string().uuid(),
+    provider_reference: z
+      .string()
+      .regex(/^pi_[A-Za-z0-9]+$/, "provider_reference must be a PaymentIntent id")
+      .optional(),
+    customer_id: z.string().uuid().optional(),
+    discount: z
+      .string()
+      .regex(moneyPattern, "discount must be numeric(12,2) string")
+      .optional()
+      .default("0.00"),
+    items: z.array(saleItemInputSchema).min(1).max(500).optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.action === "cancel" && !value.provider_reference) {
+      context.addIssue({
+        code: "custom",
+        path: ["provider_reference"],
+        message: "provider_reference is required for cancel",
+      });
+    }
+    if (value.action === "create" && (!value.items || value.items.length === 0)) {
+      context.addIssue({
+        code: "custom",
+        path: ["items"],
+        message: "items are required to create a PIX sale",
+      });
+    }
+  });
+
+export type PixPaymentInput = z.infer<typeof pixPaymentInputSchema>;
+
 const fiscalDocumentReferenceSchema = z
   .object({
     store_id: storeIdSchema,

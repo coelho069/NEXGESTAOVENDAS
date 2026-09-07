@@ -19,6 +19,8 @@ import {
 } from "@/lib/domain/sale-ops";
 import { confirmFixtureLocalSales } from "@/lib/domain/sale-return-local";
 import { recordCapturedCardSale } from "@/lib/offline/close-card-sale";
+import { recordCapturedPixSale } from "@/lib/offline/close-pix-sale";
+import type { StripePixQr } from "@/lib/domain/stripe-pix";
 import { closeSale } from "@/lib/offline/close-sale";
 import { endClientSession } from "@/lib/offline/end-session";
 import { withMultiTabLock } from "@/lib/offline/multi-tab-lock";
@@ -143,6 +145,15 @@ export function useCheckout() {
     }): Promise<
       | { ok: true; draft: false; receipt: ReceiptModel; saleId: string; offline: boolean }
       | { ok: false; draft: true; message: string; receipt: null }
+      | {
+          ok: true;
+          draft: false;
+          pendingPix: true;
+          qr: StripePixQr | null;
+          providerReference: string;
+          clientMutationId: string;
+          amount: string;
+        }
     > => {
       if (!(await isCheckoutPaymentSelectable(input.method))) {
         return {
@@ -196,6 +207,18 @@ export function useCheckout() {
               amount: totals.total,
             });
           }
+          if (input.method === "pix") {
+            return payPixOnServer({
+              db,
+              storeId: cart.storeId!,
+              clientMutationId,
+              role: input.role,
+              lines: cart.lines,
+              discount: cart.discount,
+              customerId: cart.customerId ?? undefined,
+              amount: totals.total,
+            });
+          }
 
           const adapter = getPaymentAdapter(input.method);
           const decision = resolvePaymentAttempt(adapter.process(totals.total));
@@ -224,6 +247,18 @@ export function useCheckout() {
             checkout.kind === "unknown" ? clientMutationId : null
           );
           return { ok: false, draft: true, message: checkout.message, receipt: null };
+        }
+        if (checkout.kind === "pix_pending") {
+          useCartStore.getState().setCheckoutAttemptId(clientMutationId);
+          return {
+            ok: true,
+            draft: false,
+            pendingPix: true,
+            qr: checkout.qr,
+            providerReference: checkout.providerReference,
+            clientMutationId,
+            amount: totals.total,
+          };
         }
         const { payment, result } = checkout;
         setQuotaExceeded(false);
@@ -352,6 +387,60 @@ export function useCheckout() {
     [beginCheckout, clear, endCheckout, flushPending, refreshSyncUi, setQuotaExceeded]
   );
 
+  const completePendingPix = useCallback(
+    async (input: {
+      storeId: string;
+      clientMutationId: string;
+      role: MemberRole;
+      lines: CloseSaleInput["lines"];
+      discount: string;
+      customerId?: string;
+      amount: string;
+      saleId: string;
+      providerReference: string;
+    }) => {
+      const payment = unifyCheckoutPayment("pix", input.amount);
+      const db = getPdvLocalDbForUser(useSessionStore.getState().userId);
+      const result = await recordCapturedPixSale(db, {
+        storeId: input.storeId,
+        clientMutationId: input.clientMutationId,
+        role: input.role,
+        lines: input.lines,
+        discount: input.discount,
+        customerId: input.customerId,
+        payments: [payment],
+        serverSaleId: input.saleId,
+        providerReference: input.providerReference,
+      });
+      return { payment, result };
+    },
+    []
+  );
+
+  const cancelPendingPix = useCallback(
+    async (input: { storeId: string; amount: string; clientMutationId: string; providerReference: string }) => {
+      try {
+        await fetch("/api/payments/pix", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            action: "cancel",
+            store_id: input.storeId,
+            amount: input.amount,
+            client_mutation_id: input.clientMutationId,
+            provider_reference: input.providerReference,
+          }),
+        });
+      } catch {
+        return;
+      } finally {
+        useCartStore.getState().setCheckoutAttemptId(null);
+      }
+    },
+    []
+  );
+
   const reconcilePayment = useCallback(
     async (input: { storeId: string; clientMutationId: string }) => {
       const response = await fetch("/api/payments/reconcile", {
@@ -409,6 +498,8 @@ export function useCheckout() {
   return {
     checkoutCash,
     paySale,
+    completePendingPix,
+    cancelPendingPix,
     reconcilePayment,
     flushPending,
     refreshSyncUi,
@@ -420,7 +511,12 @@ export function useCheckout() {
 type CardCheckoutResult =
   | { kind: "draft"; message: string }
   | { kind: "unknown"; message: string }
-  | { kind: "captured"; payment: { method: Enums<"payment_method">; amount: string }; result: CloseSaleResult };
+  | { kind: "captured"; payment: { method: Enums<"payment_method">; amount: string }; result: CloseSaleResult }
+  | {
+      kind: "pix_pending";
+      qr: StripePixQr | null;
+      providerReference: string;
+    };
 
 async function readJsonBody(response: Response): Promise<Record<string, unknown>> {
   try {
@@ -582,5 +678,112 @@ async function payCardOnServer(input: {
       typeof captureBody.message === "string"
         ? captureBody.message
         : "Falha no cartão. Use dinheiro ou tente novamente.",
+  };
+}
+
+function parsePixQr(value: unknown): StripePixQr | null {
+  if (!value || typeof value !== "object") return null;
+  const qr = value as Record<string, unknown>;
+  if (typeof qr.data !== "string" || qr.data.length === 0) return null;
+  return {
+    data: qr.data,
+    imageUrlPng: typeof qr.imageUrlPng === "string" ? qr.imageUrlPng : undefined,
+    imageUrlSvg: typeof qr.imageUrlSvg === "string" ? qr.imageUrlSvg : undefined,
+    expiresAt: typeof qr.expiresAt === "number" ? qr.expiresAt : undefined,
+    hostedInstructionsUrl: typeof qr.hostedInstructionsUrl === "string" ? qr.hostedInstructionsUrl : undefined,
+  };
+}
+
+async function payPixOnServer(input: {
+  db: PdvLocalDatabase;
+  storeId: string;
+  clientMutationId: string;
+  role: MemberRole;
+  lines: CloseSaleInput["lines"];
+  discount: string;
+  customerId?: string;
+  amount: string;
+}): Promise<CardCheckoutResult> {
+  const localAdapter = getPaymentAdapter("pix");
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return {
+      kind: "draft",
+      message:
+        resolvePaymentAttempt(localAdapter.process(input.amount)).kind === "keep_draft"
+          ? "Pagamento não configurado. Venda permanece como rascunho local."
+          : "PIX exige conexão. Use dinheiro ou tente novamente.",
+    };
+  }
+
+  const items = input.lines.map((line) => ({
+    product_id: line.productId,
+    quantity: line.quantity,
+    unit_price: line.unitPrice,
+    discount: line.discount,
+  }));
+
+  let createResponse: Response;
+  try {
+    createResponse = await fetch("/api/payments/pix", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        action: "create",
+        store_id: input.storeId,
+        amount: input.amount,
+        client_mutation_id: input.clientMutationId,
+        customer_id: input.customerId,
+        discount: input.discount,
+        items,
+      }),
+    });
+  } catch {
+    return {
+      kind: "draft",
+      message: "Pagamento não configurado. Venda permanece como rascunho local.",
+    };
+  }
+  const createBody = await readJsonBody(createResponse);
+  const createStatus = typeof createBody.status === "string" ? createBody.status : "";
+
+  if (!createResponse.ok || createStatus === "not_configured" || createBody.configured === false) {
+    return {
+      kind: "draft",
+      message:
+        typeof createBody.message === "string"
+          ? createBody.message
+          : "Pagamento não configurado. Venda permanece como rascunho local.",
+    };
+  }
+  if (createStatus === "unknown") {
+    return {
+      kind: "unknown",
+      message:
+        typeof createBody.message === "string"
+          ? createBody.message
+          : "Pagamento PIX sem resposta confirmada. Reconcilie; não confirme a venda.",
+    };
+  }
+  if (createBody.sale_confirmed === true) {
+    return {
+      kind: "draft",
+      message: "Create PIX não pode confirmar a venda. Reconcilie após succeeded.",
+    };
+  }
+  if (createStatus !== "pending" || typeof createBody.provider_reference !== "string") {
+    return {
+      kind: "draft",
+      message:
+        typeof createBody.message === "string"
+          ? createBody.message
+          : "Falha no PIX. Use dinheiro ou tente novamente.",
+    };
+  }
+
+  return {
+    kind: "pix_pending",
+    qr: parsePixQr(createBody.qr),
+    providerReference: createBody.provider_reference,
   };
 }

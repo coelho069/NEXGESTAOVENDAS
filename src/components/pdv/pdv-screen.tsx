@@ -6,6 +6,7 @@ import { ProductSearch, focusPdvSearch } from "@/components/pdv/product-search";
 import { CartPanel } from "@/components/pdv/cart-panel";
 import { SaleSummary } from "@/components/pdv/sale-summary";
 import { PaymentSheet } from "@/components/pdv/payment-sheet";
+import { PixQrSheet } from "@/components/pdv/pix-qr-sheet";
 import { CustomerDialog } from "@/components/pdv/customer-dialog";
 import { DiscountDialog } from "@/components/pdv/discount-dialog";
 import { ReceiptDialog } from "@/components/pdv/receipt-dialog";
@@ -24,6 +25,7 @@ import { useCashSession } from "@/hooks/use-cash-session";
 import { useHidScanner } from "@/hooks/use-hid-scanner";
 import { usePdvShortcuts } from "@/hooks/use-pdv-shortcuts";
 import { useCardPaymentHealth } from "@/hooks/use-card-payment-health";
+import { usePixPaymentHealth } from "@/hooks/use-pix-payment-health";
 import { usePdvSale } from "@/hooks/use-pdv-sale";
 import { useCartStore } from "@/stores/cart-store";
 import { useSyncStore } from "@/stores/sync-store";
@@ -52,12 +54,14 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
   } = useCartStore();
   const cash = useCashSession(storeId);
   const cardSelectable = useCardPaymentHealth();
+  const pixSelectable = usePixPaymentHealth();
   const { products, loading, error, fromCatalog } = useProducts({ storeId });
   const { online, pendingCount, failedCount, syncing, conflicts, quotaExceeded, sessionEnded } = useSyncStore();
   const {
     openPanel,
     setOpenPanel,
     lastReceipt,
+    pendingPix,
     draftReason,
     inventoryEpoch,
     bumpInventory,
@@ -418,9 +422,19 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             total={sale.totals.total}
             disabled={checkoutDisabled}
             cardSelectable={cardSelectable}
+            pixSelectable={pixSelectable}
             onCash={() => void sale.pay("cash")}
             onCard={() => void sale.pay("card")}
+            onPix={() => void sale.pay("pix")}
             onClose={() => setOpenPanel("none")}
+          />
+          <PixQrSheet
+            open={openPanel === "pix-qr"}
+            pending={pendingPix}
+            storeId={storeId}
+            onClose={() => setOpenPanel("none")}
+            onCancel={() => sale.cancelPendingPixCheckout()}
+            onConfirmed={(input) => sale.confirmPendingPix(input)}
           />
           <CustomerDialog
             open={openPanel === "customer"}
