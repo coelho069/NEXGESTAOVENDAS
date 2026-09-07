@@ -1,13 +1,22 @@
-# Stripe PIX — checklist de fumaça (testmode)
+# Stripe PIX — locked smoke acceptance
 
-PIX entra atrás do `PaymentAdapter` como **rail irmão** do cartão (`create` / `cancel` / `reconcile`).
-Dinheiro, caixa e `CARD_CHECKOUT_ENABLED` **não mudam**. Sem livemode, TEF ou Connect.
+PIX is a **sibling rail** of card (`create` / `cancel` / `reconcile`). Cash, caixa,
+and `CARD_CHECKOUT_ENABLED` stay untouched. No livemode, TEF, or Connect.
 
-`pending` (QR) **não** confirma a venda. Venda só em PI `succeeded` + `process_pix_sale`.
+**`PIX_CHECKOUT_ENABLED` must stay unset/false until every gate below is green.**
+Never default the flag to `true` in `.env.example`, CI, Docker, or deploy.
+Opt-in is the literal string `true` only (`"TRUE"`, `"1"`, `"yes"` stay hold).
 
-## Pré-condições
+Automated lock: `tests/unit/stripe-pix-smoke-lock.test.tsx` (plus hold/health
+unit tests). Do not flip the flag because a single log looked fine.
 
-1. Secrets **server-only** no ambiente (nunca `NEXT_PUBLIC_*`):
+`pending` (QR) **is not** a confirmed sale. Sale confirms only on PI `succeeded`
++ `process_pix_sale`. Fail / amount / provider mismatch → `unknown`, never
+`confirmed`.
+
+## Pré-condições (ainda com o flag off)
+
+1. Secrets **server-only** (nunca `NEXT_PUBLIC_*`):
 
    ```
    STRIPE_SECRET_KEY=sk_test_...
@@ -15,79 +24,111 @@ Dinheiro, caixa e `CARD_CHECKOUT_ENABLED` **não mudam**. Sem livemode, TEF ou C
    ```
 
 2. Migration `20260907220000_stripe_pix_payment.sql` aplicada.
-3. `SUPABASE_SERVICE_ROLE_KEY` disponível no servidor (webhook + `process_pix_sale`).
+3. `SUPABASE_SERVICE_ROLE_KEY` no servidor (webhook + `process_pix_sale`).
 4. Operador autenticado com membership na loja.
-5. `PIX_CHECKOUT_ENABLED` permanece **unset/false** até os logs abaixo passarem.
 
-## Log1 — health hold
+## Gate 1 — Health hold / `not_configured`; online only with secrets+flag
 
 ```
 GET /api/payments/pix
 ```
 
-Com `PIX_CHECKOUT_ENABLED` unset ou `false`:
+With `PIX_CHECKOUT_ENABLED` unset or not exactly `true`:
 
-- `{ configured: false, testmode: false, method: "pix" }`
-- PDV: botão PIX desabilitado (`não configurado`)
-- Stripe **não** é chamado
-- Cash e cartão permanecem no comportamento anterior (`CARD_CHECKOUT_ENABLED` intacto)
+- `{ configured: false, testmode: false, method: "pix", reason: "pix_checkout_hold" }`
+- Stripe is **not** probed
+- PDV: PIX button disabled (`não configurado`)
 
-Só depois do smoke: `PIX_CHECKOUT_ENABLED=true` + probe ok → `{ configured: true, testmode: true }`.
+With flag `true` but missing secrets or failed probe:
 
-## Log2 — create ≠ sale; succeeded = confirmed
+- `{ configured: false, testmode: false }` / `not_configured`
+- PIX stays disabled
+
+Selectable only when **all** of these are true:
+
+1. `PIX_CHECKOUT_ENABLED=true`
+2. Stripe secrets present and health probe ok (`configured` + `testmode`)
+3. Browser **online** (offline PIX is draft / disabled — never a local confirmed sale)
+
+## Gate 2 — Create → `pending` ≠ sale confirmed
 
 ```
 POST /api/payments/pix
 { "action": "create", "store_id", "amount": "10.00", "client_mutation_id", "items": [...] }
 ```
 
-Esperado:
+Expected (even with flag on and secrets):
 
 - `status=pending`
 - `sale_confirmed=false`
 - `provider_reference=pi_...`
-- `qr.data` / `qr.imageUrlPng` presentes (next_action PIX)
-- venda **não** `confirmed`
-- pagamento **não** `captured`
+- `qr.data` / `qr.imageUrlPng` from `next_action`
+- sale **not** `confirmed`
+- payment **not** `captured`
+- `process_pix_sale` **not** called on create
 
-Create Stripe usa `payment_method_data.type=pix` (não `payment_method_types`) e **sem** `capture_method=manual`.
+Create Stripe uses `payment_method_data.type=pix` (not `payment_method_types`)
+and **no** `capture_method=manual`.
 
-Depois do PI `succeeded` (webhook ou `POST /api/payments/reconcile`):
+## Gate 3 — `succeeded` / webhook → `process_pix_sale`; fail / mismatch → `unknown`
 
-- `process_pix_sale` → venda `confirmed`
-- pagamento `method=pix`, `status=captured`
+Same endpoint as card: `POST /api/payments/stripe/webhook`
 
-HTTP 200 **sem** PI `succeeded` → `status=unknown`, venda **não** confirmada.
+1. No `Stripe-Signature` → **400** `stripe_webhook_unsigned`
+2. Invalid signature → **400**
+3. PI PIX (`payment_method_types` includes `pix` or row in `pix_payment_intents`)
+   → PIX RPCs
+4. Card PI → card RPCs **unchanged**
+5. Idempotency by `event.id` (`pix_provider_events`)
 
-## Log3 — webhook + reconcile
+On `payment_intent.succeeded` with a matching PIX intent:
 
-Mesmo endpoint do cartão: `POST /api/payments/stripe/webhook`
+- `apply_pix_provider_event` then `process_pix_sale`
+- sale `confirmed`, payment `method=pix` / `status=captured`
+- `sale_confirmed=true`
 
-1. Sem `Stripe-Signature` → **400** `stripe_webhook_unsigned`
-2. Assinatura inválida → **400**
-3. PI PIX (`payment_method_types` inclui `pix` ou intent em `pix_payment_intents`) → RPCs PIX
-4. PI cartão → RPCs card **inalteradas**
-5. Idempotência por `event.id` (`pix_provider_events`)
-6. Reconcile:
+On fail or mismatch (do **not** confirm):
 
-   ```
-   POST /api/payments/reconcile
-   { "store_id", "client_mutation_id" }
-   ```
+- `payment_intent.payment_failed` → `status=unknown`, no `process_pix_sale`
+- amount / currency / `provider_ref` mismatch on reconcile → `unknown`
+- `succeeded` without a matching PIX intent → `unknown`
+- `process_pix_sale` error / amount mismatch → `unknown`
+- HTTP 200 without PI `succeeded` → `unknown`
 
-   Tenta card; se não houver intent card, tenta PIX. `captured` local só com PI `succeeded`.
+Reconcile:
+
+```
+POST /api/payments/reconcile
+{ "store_id", "client_mutation_id" }
+```
+
+Tries card first; if no card intent, tries PIX. Local `captured` only with PI
+`succeeded` and a confirmed `process_pix_sale`.
+
+## Gate 4 — Cash + card regression intact
+
+With PIX hold (flag off):
+
+- Cash checkout still `configured` / button enabled
+- Card still gated only by `CARD_CHECKOUT_ENABLED` + card health (unchanged)
+- Card webhook / `card_payment_intents` / `process_card_sale` not rewritten
+- PIX button remains disabled
+
+Do not change cash RPCs, Dexie/sync, or card hold semantics to ship PIX.
 
 ## Estorno PIX (B18)
 
-Devolução de venda PIX grava `payment_refund_status=pending_external`.
-Webhook/reconcile de refund pode concluir para `completed`.
-**Nunca** criar `refund_cash` para PIX.
+PIX refund writes `payment_refund_status=pending_external`.
+Webhook/reconcile of refund may complete to `completed`.
+**Never** invent `refund_cash` for PIX.
 
 ## Deploy
 
-Seguir o checklist atômico em `docs/ATOMIC_DEPLOY.md` (#9).
-Não ligar `PIX_CHECKOUT_ENABLED=true` no mesmo corte do deploy da migration — hold até Log2 passar.
+Follow `docs/ATOMIC_DEPLOY.md` (#9). Deploy migration + app with
+`PIX_CHECKOUT_ENABLED` **unset/false**. Flip the flag only after Gates 1–4
+are green in testmode. Never bake `PIX_CHECKOUT_ENABLED=true` into defaults.
 
 ## Fora deste checklist
 
-Cartão (rail separado), TEF, Connect, cutover livemode, alteração das RPCs de dinheiro.
+Livemode Stripe keys, TEF, Connect, cash RPC changes, card rail changes,
+landing/SaaS claims.
