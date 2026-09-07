@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { PaymentActions } from "@/components/pdv/sale-summary";
 import { getPaymentAdapter } from "@/lib/adapters/payment";
 import {
@@ -227,6 +227,10 @@ describe("card payment health fail-closed", () => {
 });
 
 describe("PDV payment actions", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it("disables card and PIX and keeps cash available when health is unknown", () => {
     const onCard = vi.fn();
     const onPix = vi.fn();
@@ -249,9 +253,31 @@ describe("PDV payment actions", () => {
     expect(cash).toBeEnabled();
     expect(card).toHaveTextContent("não configurado");
     expect(pix).toHaveTextContent("não configurado");
+    expect(pix).toHaveAttribute("aria-label", "PIX — não configurado");
     card.click();
     pix.click();
     expect(onCard).not.toHaveBeenCalled();
+    expect(onPix).not.toHaveBeenCalled();
+  });
+
+  it("keeps PIX as a disabled placeholder even if pixSelectable is passed true", () => {
+    const onPix = vi.fn();
+    render(
+      <PaymentActions
+        disabled={false}
+        cardSelectable={true}
+        pixSelectable={true}
+        onCash={() => undefined}
+        onCard={() => undefined}
+        onPix={onPix}
+      />
+    );
+
+    const pix = screen.getByTestId("checkout-pix");
+    expect(pix).toBeDisabled();
+    expect(pix).toHaveTextContent("não configurado");
+    expect(pix).toHaveAttribute("aria-label", "PIX — não configurado");
+    pix.click();
     expect(onPix).not.toHaveBeenCalled();
   });
 });

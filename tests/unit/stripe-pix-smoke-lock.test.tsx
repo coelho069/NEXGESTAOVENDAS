@@ -146,6 +146,25 @@ describe("PIX smoke lock — flag never defaults true", () => {
     expect(server).not.toMatch(/PIX_CHECKOUT_ENABLED\s*\?\?\s*["']true["']/);
     expect(server).not.toMatch(/PIX_CHECKOUT_ENABLED\s*\|\|\s*["']true["']/);
   });
+
+  it("hard-disables PDV PIX so the placeholder cannot start Stripe or a sale", () => {
+    const pdvScreen = readFileSync(join(process.cwd(), "src/components/pdv/pdv-screen.tsx"), "utf8");
+    const paymentSheet = readFileSync(join(process.cwd(), "src/components/pdv/payment-sheet.tsx"), "utf8");
+    const paymentActions = readFileSync(join(process.cwd(), "src/components/pdv/sale-summary.tsx"), "utf8");
+
+    expect(pdvScreen).not.toContain("usePixPaymentHealth");
+    expect(pdvScreen).not.toMatch(/sale\.pay\(\s*["']pix["']\s*\)/);
+    expect(pdvScreen).toContain("pixSelectable={false}");
+    expect(pdvScreen).not.toMatch(/onPix=\{/);
+
+    expect(paymentSheet).toContain("pixSelectable={false}");
+    expect(paymentSheet).not.toMatch(/onPix=\{/);
+
+    expect(paymentActions).toContain('data-testid="checkout-pix"');
+    expect(paymentActions).toContain("não configurado");
+    expect(paymentActions).not.toMatch(/onClick=\{[^}]*onPix/);
+    expect(paymentActions).not.toMatch(/stripe/i);
+  });
 });
 
 describe("PIX smoke lock — Gate 1 health hold / online only", () => {
@@ -437,6 +456,7 @@ describe("PIX smoke lock — Gate 4 cash + card regression", () => {
     expect(screen.getByTestId("checkout-card")).toBeEnabled();
     expect(screen.getByTestId("checkout-pix")).toBeDisabled();
     expect(screen.getByTestId("checkout-pix")).toHaveTextContent("não configurado");
+    expect(screen.getByTestId("checkout-pix")).toHaveAttribute("aria-label", "PIX — não configurado");
     screen.getByTestId("checkout-pix").click();
     expect(onPix).not.toHaveBeenCalled();
   });
