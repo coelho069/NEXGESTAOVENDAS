@@ -175,6 +175,7 @@ describe("nex-atomic-deploy-check.sh", () => {
     writeStandalone(root, {
       staticFiles: {
         "css/app.css": "body{}",
+        "main-app-stale.js": "/* stale outside chunks */",
         "chunks/webpack-aaa.js": "/* webpack */",
         "chunks/main-app-abc.js": "/* main-app */",
       },
@@ -220,11 +221,39 @@ describe("nex-atomic-deploy-check.sh", () => {
         true,
       );
       expect(requested.some((url) => url.includes("app.css"))).toBe(false);
+      expect(requested.some((url) => url.includes("main-app-stale.js"))).toBe(
+        false,
+      );
+      expect(requested.some((url) => url.includes("/chunks/main-app-abc.js"))).toBe(
+        true,
+      );
     } finally {
       await new Promise<void>((resolveClose) => {
         server.close(() => resolveClose());
       });
     }
+  });
+
+  it("does not treat a stale main-app.js outside chunks/ as a sample", () => {
+    const root = makeRoot();
+    roots.push(root);
+    writeStandalone(root, {
+      staticFiles: {
+        "css/app.css": "body{}",
+        "main-app-stale.js": "/* stale */",
+      },
+    });
+
+    const result = runCheck(root, [
+      "--readiness",
+      "http://127.0.0.1:3211/health/readiness",
+    ]);
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout}${result.stderr}`).toMatch(
+      /ATOMIC DEPLOY CHECK FAILED/,
+    );
+    expect(`${result.stdout}${result.stderr}`).toMatch(/chunks\/\*\.js|main-app/);
+    expect(`${result.stdout}${result.stderr}`).not.toMatch(/PASSED/);
   });
 
   it("fails when --readiness has no JS chunk to sample", () => {

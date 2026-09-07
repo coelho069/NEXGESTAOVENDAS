@@ -192,10 +192,11 @@ readiness_origin() {
   return 1
 }
 
-# Prefer a main-app JS chunk; never sample CSS/fonts/source maps.
+# Prefer a main-app JS chunk under chunks/; never sample CSS/fonts/source maps
+# or a stale *main-app*.js sitting outside chunks/.
 pick_sample_js_rel() {
   local found=""
-  found="$(find "$STATIC_DIR" -type f -name '*main-app*.js' ! -name '*.map' | sort | head -n 1 || true)"
+  found="$(find "$STATIC_DIR" -type f -path '*/chunks/*' -name '*main-app*.js' ! -name '*.map' | sort | head -n 1 || true)"
   if [[ -z "$found" ]]; then
     found="$(find "$STATIC_DIR" -type f -path '*/chunks/*' -name '*.js' ! -name '*.map' | sort | head -n 1 || true)"
   fi
