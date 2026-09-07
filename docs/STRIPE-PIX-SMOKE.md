@@ -1,5 +1,14 @@
 # Stripe PIX — locked smoke acceptance
 
+## This cut (merge / deploy now)
+
+Ship the sibling migration + app with **`PIX_CHECKOUT_ENABLED` unset/false**.
+The PIX button stays dead (`não configurado`). **Do not flip the flag** on
+this deploy. Cash and `CARD_CHECKOUT_ENABLED` stay as they are.
+
+Deploy with checklist **#9**: `docs/ATOMIC_DEPLOY.md`
+(stop → build → copy static → check script → start → readiness + sample chunk).
+
 PIX is a **sibling rail** of card (`create` / `cancel` / `reconcile`). Cash, caixa,
 and `CARD_CHECKOUT_ENABLED` stay untouched. No livemode, TEF, or Connect.
 
