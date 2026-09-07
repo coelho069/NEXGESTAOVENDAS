@@ -40,6 +40,8 @@ test("deploy docs cover DR rollback and multi-instance limits", () => {
   const deploy = readFileSync(resolve(process.cwd(), "docs/PRODUCTION-DEPLOY.md"), "utf8");
   const recovery = readFileSync(resolve(process.cwd(), "docs/OPERATIONAL-RECOVERY.md"), "utf8");
   expect(deploy.toLowerCase()).toContain("fail-closed");
+  expect(deploy).toContain("nex-atomic-deploy-check.sh");
+  expect(deploy).toContain("ATOMIC_DEPLOY.md");
   expect(deploy).toContain("SAFE MULTI-INSTANCE");
   expect(recovery).toContain("RPO");
   expect(recovery).toContain("RTO");

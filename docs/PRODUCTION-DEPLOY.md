@@ -71,7 +71,30 @@ A imagem:
 - roda como usuário não-root `nextjs` (uid 1001)
 - expõe healthcheck em `/health/liveness`
 - usa `output: "standalone"`
+- copia `.next/static` para a árvore standalone (obrigatório; Next não inclui)
 - `CMD node server.js` (Next trata SIGTERM/SIGINT)
+
+### Deploy atômico standalone (fail-closed)
+
+Checklist permanente: **stop → build → copy static into standalone →
+`scripts/nex-atomic-deploy-check.sh` → start → readiness + sample chunk 200**.
+
+Não anunciar green se `.next/standalone/.next/static` estiver ausente ou
+sem chunks (padrão **#5/#8**: `server.js` existe, CSS/JS 404). Ver
+`docs/ATOMIC_DEPLOY.md`.
+
+```bash
+mkdir -p .next/standalone/.next
+rm -rf .next/standalone/.next/static
+cp -a .next/static .next/standalone/.next/static
+bash scripts/nex-atomic-deploy-check.sh
+# after start on :3211
+bash scripts/nex-atomic-deploy-check.sh --readiness
+```
+
+Nginx **pode** servir `/_next/static/` do disco (`alias`) se isso já for
+usado em produção — não remover; é hardening opcional (ver
+`deploy/nginx.conf.example`).
 
 ## Proxy / TLS (referência)
 
