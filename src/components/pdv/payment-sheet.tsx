@@ -7,8 +7,10 @@ type PaymentSheetProps = {
   total: string;
   disabled: boolean;
   cardSelectable?: boolean;
+  pixSelectable?: boolean;
   onCash: () => void;
   onCard: () => void;
+  onPix?: () => void;
   onClose: () => void;
 };
 
@@ -17,8 +19,10 @@ export function PaymentSheet({
   total,
   disabled,
   cardSelectable = false,
+  pixSelectable = false,
   onCash,
   onCard,
+  onPix,
   onClose,
 }: PaymentSheetProps) {
   if (!open) return null;
@@ -51,8 +55,10 @@ export function PaymentSheet({
           <PaymentActions
             disabled={disabled}
             cardSelectable={cardSelectable}
+            pixSelectable={pixSelectable}
             onCash={onCash}
             onCard={onCard}
+            onPix={onPix}
           />
         </div>
       </div>

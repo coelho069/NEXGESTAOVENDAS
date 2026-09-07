@@ -35,6 +35,31 @@ export function isCardPaymentHealthSelectable(input: {
   return true;
 }
 
+export const isPixPaymentHealthSelectable = isCardPaymentHealthSelectable;
+
+export async function fetchPixPaymentSelectable(fetchFn: FetchLike = fetch): Promise<boolean> {
+  try {
+    const response = await fetchFn("/api/payments/pix", {
+      method: "GET",
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+    const contentType = response.headers.get("content-type");
+    let body: unknown = null;
+    if ((contentType ?? "").includes("application/json")) {
+      body = await response.json();
+    }
+    return isPixPaymentHealthSelectable({
+      ok: response.ok,
+      status: response.status,
+      contentType,
+      body,
+    });
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchCardPaymentSelectable(fetchFn: FetchLike = fetch): Promise<boolean> {
   try {
     const response = await fetchFn("/api/payments/card", {
@@ -68,6 +93,7 @@ export async function isCheckoutPaymentSelectable(
     case "card":
       return fetchCardPaymentSelectable(fetchFn);
     case "pix":
+      return fetchPixPaymentSelectable(fetchFn);
     case "voucher":
     case "other":
       return getPaymentAdapter(method).process("0.00").status === "configured";

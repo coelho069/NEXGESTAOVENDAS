@@ -1,24 +1,29 @@
-import { Banknote, CreditCard } from "lucide-react";
+import { Banknote, CreditCard, QrCode } from "lucide-react";
 import { formatBRL } from "@/lib/money";
 import type { SaleTotals } from "@/lib/domain/sale-ops";
 
 type PaymentActionsProps = {
   disabled: boolean;
   cardSelectable?: boolean;
+  pixSelectable?: boolean;
   onCash: () => void;
   onCard: () => void;
+  onPix?: () => void;
 };
 
 export function PaymentActions({
   disabled,
   cardSelectable = false,
+  pixSelectable = false,
   onCash,
   onCard,
+  onPix,
 }: PaymentActionsProps) {
   const cardDisabled = disabled || !cardSelectable;
+  const pixDisabled = disabled || !pixSelectable;
 
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-3 gap-3">
       <button
         type="button"
         data-testid="checkout-cash"
@@ -39,6 +44,19 @@ export function PaymentActions({
         <CreditCard size={24} aria-hidden="true" />
         <span>Cartão</span>
         {!cardSelectable ? (
+          <small className="font-normal text-slate-400">não configurado</small>
+        ) : null}
+      </button>
+      <button
+        type="button"
+        data-testid="checkout-pix"
+        disabled={pixDisabled}
+        onClick={onPix}
+        className="flex flex-col items-center gap-2 rounded-2xl border-2 border-slate-100 bg-white p-4 font-semibold text-slate-700 transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <QrCode size={24} aria-hidden="true" />
+        <span>PIX</span>
+        {!pixSelectable ? (
           <small className="font-normal text-slate-400">não configurado</small>
         ) : null}
       </button>

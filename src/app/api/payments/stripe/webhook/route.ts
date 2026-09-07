@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getStripeCardEnv, verifyStripeWebhookSignature } from "@/lib/server/stripe-card";
-import { applyStripeWebhookEvent } from "@/lib/server/card-payment";
+import { applyStripeWebhookEventBranched } from "@/lib/server/pix-payment";
 import { isStripeWebhookEventAllowed } from "@/lib/domain/stripe-card";
 import { clientRateLimitKey, consumeRateLimit } from "@/lib/security/rate-limit";
 import { rateLimitedResponse } from "@/lib/security/safe-error";
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await applyStripeWebhookEvent(event);
+  const result = await applyStripeWebhookEventBranched(event);
   observeApiResult(obs, "ok", {
     eventId: event.id,
     type: event.type,

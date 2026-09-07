@@ -4,7 +4,9 @@ import { PaymentActions } from "@/components/pdv/sale-summary";
 import { getPaymentAdapter } from "@/lib/adapters/payment";
 import {
   fetchCardPaymentSelectable,
+  fetchPixPaymentSelectable,
   isCardPaymentHealthSelectable,
+  isPixPaymentHealthSelectable,
   isCheckoutPaymentSelectable,
 } from "@/lib/adapters/payment-health";
 import { executeCardPayment, getCardAdapterHealth } from "@/lib/server/card-payment";
@@ -175,11 +177,40 @@ describe("card payment health fail-closed", () => {
     ).resolves.toBe(false);
   });
 
+  it("fails closed for PIX health unless configured testmode JSON", () => {
+    expect(
+      isPixPaymentHealthSelectable({
+        ok: true,
+        status: 200,
+        contentType: "application/json",
+        body: { configured: false, testmode: false, method: "pix" },
+      })
+    ).toBe(false);
+    expect(
+      isPixPaymentHealthSelectable({
+        ok: true,
+        status: 200,
+        contentType: "application/json",
+        body: { configured: true, testmode: true, method: "pix" },
+      })
+    ).toBe(true);
+  });
+
   it("keeps cash selectable and electronic methods not_configured without health", async () => {
     expect(getPaymentAdapter("card").process("0.00").status).toBe("not_configured");
     expect(getPaymentAdapter("pix").process("0.00").status).toBe("not_configured");
     await expect(isCheckoutPaymentSelectable("cash")).resolves.toBe(true);
     await expect(isCheckoutPaymentSelectable("pix")).resolves.toBe(false);
+    await expect(
+      isCheckoutPaymentSelectable("pix", async () =>
+        jsonResponse({ configured: false, testmode: false, method: "pix" })
+      )
+    ).resolves.toBe(false);
+    await expect(
+      fetchPixPaymentSelectable(async () =>
+        jsonResponse({ configured: true, testmode: false, method: "pix" })
+      )
+    ).resolves.toBe(false);
     await expect(isCheckoutPaymentSelectable("voucher")).resolves.toBe(false);
     await expect(isCheckoutPaymentSelectable("other")).resolves.toBe(false);
     await expect(
@@ -196,18 +227,31 @@ describe("card payment health fail-closed", () => {
 });
 
 describe("PDV payment actions", () => {
-  it("disables card and keeps cash available when health is unknown", () => {
+  it("disables card and PIX and keeps cash available when health is unknown", () => {
     const onCard = vi.fn();
+    const onPix = vi.fn();
     render(
-      <PaymentActions disabled={false} cardSelectable={false} onCash={() => undefined} onCard={onCard} />
+      <PaymentActions
+        disabled={false}
+        cardSelectable={false}
+        pixSelectable={false}
+        onCash={() => undefined}
+        onCard={onCard}
+        onPix={onPix}
+      />
     );
 
     const card = screen.getByTestId("checkout-card");
+    const pix = screen.getByTestId("checkout-pix");
     const cash = screen.getByTestId("checkout-cash");
     expect(card).toBeDisabled();
+    expect(pix).toBeDisabled();
     expect(cash).toBeEnabled();
     expect(card).toHaveTextContent("não configurado");
+    expect(pix).toHaveTextContent("não configurado");
     card.click();
+    pix.click();
     expect(onCard).not.toHaveBeenCalled();
+    expect(onPix).not.toHaveBeenCalled();
   });
 });
