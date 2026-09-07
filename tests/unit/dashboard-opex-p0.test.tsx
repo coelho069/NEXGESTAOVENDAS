@@ -84,6 +84,9 @@ describe("dashboard OPEX P0", () => {
     expect(excluded).toHaveTextContent("3");
     expect(excluded).toHaveTextContent("Pagamento unknown");
     expect(screen.getByTestId("dashboard-revenue")).toHaveTextContent("25,00");
+    expect(screen.getByTestId("dashboard-average-ticket")).toHaveTextContent("12,50");
+    expect(screen.getByTestId("dashboard-revenue").querySelector(".text-2xl")).not.toBeNull();
+    expect(screen.getByTestId("dashboard-alerts")).toBeVisible();
   });
 
   it("lists current-page SKUs with on_hand <= 0 and links to inventory with store", () => {
