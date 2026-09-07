@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 import { DashboardScreen } from "@/components/dashboard/dashboard-screen";
 import {
   getElectronicPaymentAdapterAlerts,
@@ -64,6 +64,10 @@ function makeResult(overrides: Partial<DashboardLoadResult> = {}): DashboardLoad
 }
 
 const defaultAlerts = getElectronicPaymentAdapterAlerts();
+
+afterEach(() => {
+  cleanup();
+});
 
 describe("dashboard OPEX P0", () => {
   it("renders excluded sale and payment counts from the RPC payload", () => {
