@@ -23,6 +23,7 @@ import { useSalesHistory } from "@/hooks/use-sales-history";
 import { useCashSession } from "@/hooks/use-cash-session";
 import { useHidScanner } from "@/hooks/use-hid-scanner";
 import { usePdvShortcuts } from "@/hooks/use-pdv-shortcuts";
+import { useCardPaymentHealth } from "@/hooks/use-card-payment-health";
 import { usePdvSale } from "@/hooks/use-pdv-sale";
 import { useCartStore } from "@/stores/cart-store";
 import { useSyncStore } from "@/stores/sync-store";
@@ -50,6 +51,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     setSuspendedContext,
   } = useCartStore();
   const cash = useCashSession(storeId);
+  const cardSelectable = useCardPaymentHealth();
   const { products, loading, error, fromCatalog } = useProducts({ storeId });
   const { online, pendingCount, failedCount, syncing, conflicts, quotaExceeded, sessionEnded } = useSyncStore();
   const {
@@ -415,6 +417,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             open={openPanel === "payment"}
             total={sale.totals.total}
             disabled={checkoutDisabled}
+            cardSelectable={cardSelectable}
             onCash={() => void sale.pay("cash")}
             onCard={() => void sale.pay("card")}
             onClose={() => setOpenPanel("none")}

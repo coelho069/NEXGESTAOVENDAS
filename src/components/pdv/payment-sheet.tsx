@@ -6,12 +6,21 @@ type PaymentSheetProps = {
   open: boolean;
   total: string;
   disabled: boolean;
+  cardSelectable?: boolean;
   onCash: () => void;
   onCard: () => void;
   onClose: () => void;
 };
 
-export function PaymentSheet({ open, total, disabled, onCash, onCard, onClose }: PaymentSheetProps) {
+export function PaymentSheet({
+  open,
+  total,
+  disabled,
+  cardSelectable = false,
+  onCash,
+  onCard,
+  onClose,
+}: PaymentSheetProps) {
   if (!open) return null;
 
   return (
@@ -39,7 +48,12 @@ export function PaymentSheet({ open, total, disabled, onCash, onCard, onClose }:
             <span className="font-medium text-indigo-700">Total a pagar:</span>
             <span className="text-2xl font-black text-indigo-900">{formatBRL(total)}</span>
           </div>
-          <PaymentActions disabled={disabled} onCash={onCash} onCard={onCard} />
+          <PaymentActions
+            disabled={disabled}
+            cardSelectable={cardSelectable}
+            onCash={onCash}
+            onCard={onCard}
+          />
         </div>
       </div>
     </div>

@@ -4,11 +4,19 @@ import type { SaleTotals } from "@/lib/domain/sale-ops";
 
 type PaymentActionsProps = {
   disabled: boolean;
+  cardSelectable?: boolean;
   onCash: () => void;
   onCard: () => void;
 };
 
-export function PaymentActions({ disabled, onCash, onCard }: PaymentActionsProps) {
+export function PaymentActions({
+  disabled,
+  cardSelectable = false,
+  onCash,
+  onCard,
+}: PaymentActionsProps) {
+  const cardDisabled = disabled || !cardSelectable;
+
   return (
     <div className="grid grid-cols-2 gap-3">
       <button
@@ -24,13 +32,15 @@ export function PaymentActions({ disabled, onCash, onCard }: PaymentActionsProps
       <button
         type="button"
         data-testid="checkout-card"
-        disabled={disabled}
+        disabled={cardDisabled}
         onClick={onCard}
         className="flex flex-col items-center gap-2 rounded-2xl border-2 border-slate-100 bg-white p-4 font-semibold text-slate-700 transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <CreditCard size={24} aria-hidden="true" />
         <span>Cartão</span>
-        <small className="font-normal text-slate-400">não configurado</small>
+        {!cardSelectable ? (
+          <small className="font-normal text-slate-400">não configurado</small>
+        ) : null}
       </button>
     </div>
   );
