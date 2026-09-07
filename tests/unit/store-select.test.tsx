@@ -1,11 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { StoreSelect } from "@/components/auth/store-select";
 
 const STORE_A = { id: "22222222-2222-4222-8222-222222222201", name: "Loja Centro" };
 const STORE_B = { id: "22222222-2222-4222-8222-222222222202", name: "Loja Shopping" };
 
 describe("StoreSelect", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it("hides the dropdown and pins the store when membership has exactly one store", () => {
     render(
       <form>
