@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { PaymentActions } from "@/components/pdv/sale-summary";
 import { getPaymentAdapter } from "@/lib/adapters/payment";
 import {
@@ -227,6 +227,10 @@ describe("card payment health fail-closed", () => {
 });
 
 describe("PDV payment actions", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it("disables card and PIX and keeps cash available when health is unknown", () => {
     const onCard = vi.fn();
     const onPix = vi.fn();
