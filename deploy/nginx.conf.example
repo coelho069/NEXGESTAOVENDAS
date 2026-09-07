@@ -32,6 +32,18 @@ server {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
   }
 
+  # Optional hardening: serve hashed /_next/static/ from disk.
+  # If production already uses this alias, do not remove it.
+  # Point alias at the standalone static tree after the copy step
+  # (see docs/ATOMIC_DEPLOY.md). This is defense in depth — the
+  # check script must still pass before announcing green.
+  # location /_next/static/ {
+  #   alias /var/www/nexgestaovendas/.next/standalone/.next/static/;
+  #   access_log off;
+  #   expires 365d;
+  #   add_header Cache-Control "public, max-age=31536000, immutable";
+  # }
+
   location / {
     proxy_pass http://nex_app;
     proxy_http_version 1.1;
