@@ -116,3 +116,24 @@ export function getPaymentAdapter(method: Enums<"payment_method">): PaymentAdapt
   if (method === "cash") return new CashPaymentAdapter();
   return new NotConfiguredPaymentAdapter(method);
 }
+
+export const ELECTRONIC_PAYMENT_METHODS = ["card", "pix", "voucher", "other"] as const;
+
+export type ElectronicPaymentMethod = (typeof ELECTRONIC_PAYMENT_METHODS)[number];
+
+export type PaymentAdapterAlert = {
+  method: ElectronicPaymentMethod;
+  adapterStatus: Enums<"adapter_status">;
+  operationStatus: PaymentState | "not_configured";
+};
+
+export function getElectronicPaymentAdapterAlerts(): PaymentAdapterAlert[] {
+  return ELECTRONIC_PAYMENT_METHODS.map((method) => {
+    const adapter = getPaymentAdapter(method);
+    return {
+      method,
+      adapterStatus: adapter.process("0.00").status,
+      operationStatus: adapter.authorize("0.00").status,
+    };
+  });
+}
