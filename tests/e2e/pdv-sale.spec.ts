@@ -58,7 +58,7 @@ test("pagamento falho permanece rascunho local", async ({ page }) => {
   await expect(card).toBeDisabled();
   await expect(card).toContainText("não configurado");
   await expect(pix).toBeDisabled();
-  await expect(pix).toContainText("em breve");
+  await expect(pix).toContainText("não configurado");
   await expect(visible(page, "checkout-cash")).toBeEnabled();
   await expect(page.getByTestId("cart-line-BEV-001")).toBeVisible();
   await expect(page.getByTestId("receipt")).toHaveCount(0);

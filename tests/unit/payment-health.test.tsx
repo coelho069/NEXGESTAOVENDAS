@@ -252,15 +252,15 @@ describe("PDV payment actions", () => {
     expect(pix).toBeDisabled();
     expect(cash).toBeEnabled();
     expect(card).toHaveTextContent("não configurado");
-    expect(pix).toHaveTextContent("em breve");
-    expect(pix).toHaveAttribute("aria-label", "PIX — em breve");
+    expect(pix).toHaveTextContent("não configurado");
+    expect(pix).toHaveAttribute("aria-label", "PIX — não configurado");
     card.click();
     pix.click();
     expect(onCard).not.toHaveBeenCalled();
     expect(onPix).not.toHaveBeenCalled();
   });
 
-  it("keeps selectable PIX clickable without placeholder copy", () => {
+  it("keeps PIX as a disabled placeholder even if pixSelectable is passed true", () => {
     const onPix = vi.fn();
     render(
       <PaymentActions
@@ -274,10 +274,10 @@ describe("PDV payment actions", () => {
     );
 
     const pix = screen.getByTestId("checkout-pix");
-    expect(pix).toBeEnabled();
-    expect(pix).not.toHaveTextContent("em breve");
-    expect(pix).toHaveAttribute("aria-label", "PIX");
+    expect(pix).toBeDisabled();
+    expect(pix).toHaveTextContent("não configurado");
+    expect(pix).toHaveAttribute("aria-label", "PIX — não configurado");
     pix.click();
-    expect(onPix).toHaveBeenCalledTimes(1);
+    expect(onPix).not.toHaveBeenCalled();
   });
 });

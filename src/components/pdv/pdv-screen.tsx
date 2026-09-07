@@ -26,7 +26,6 @@ import { useCashSession } from "@/hooks/use-cash-session";
 import { useHidScanner } from "@/hooks/use-hid-scanner";
 import { usePdvShortcuts } from "@/hooks/use-pdv-shortcuts";
 import { useCardPaymentHealth } from "@/hooks/use-card-payment-health";
-import { usePixPaymentHealth } from "@/hooks/use-pix-payment-health";
 import { usePdvSale } from "@/hooks/use-pdv-sale";
 import { useCartStore } from "@/stores/cart-store";
 import { useSyncStore } from "@/stores/sync-store";
@@ -55,7 +54,6 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
   } = useCartStore();
   const cash = useCashSession(storeId);
   const cardSelectable = useCardPaymentHealth();
-  const pixSelectable = usePixPaymentHealth();
   const { products, loading, error, fromCatalog } = useProducts({ storeId });
   const { online, pendingCount, failedCount, syncing, conflicts, quotaExceeded, sessionEnded } = useSyncStore();
   const {
@@ -421,10 +419,9 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             total={sale.totals.total}
             disabled={checkoutDisabled}
             cardSelectable={cardSelectable}
-            pixSelectable={pixSelectable}
+            pixSelectable={false}
             onCash={() => void sale.pay("cash")}
             onCard={() => void sale.pay("card")}
-            onPix={() => void sale.pay("pix")}
             onClose={() => setOpenPanel("none")}
           />
           <PixQrSheet

@@ -62,7 +62,7 @@ test("adapter card/PIX não configurado mantém o carrinho como rascunho", async
   await expect(card).toBeDisabled();
   await expect(card).toContainText("não configurado");
   await expect(pix).toBeDisabled();
-  await expect(pix).toContainText("em breve");
+  await expect(pix).toContainText("não configurado");
   await expect(page.getByTestId("checkout-cash")).toBeEnabled();
   await expect(page.getByTestId("cart-line-BEV-001")).toBeVisible();
   await expect(page.getByTestId("receipt")).toHaveCount(0);
