@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { formatBRL } from "@/lib/money";
 import { PermissionGate } from "@/components/auth/permission-gate";
+import { StoreSelect } from "@/components/auth/store-select";
 import { parseInventoryCsv, type CsvIssue } from "@/lib/domain/inventory";
 import { canManageInventory, type MemberRole } from "@/lib/domain/rbac";
 import type { InventoryLoadResult } from "@/lib/server/inventory-query";
@@ -282,21 +283,17 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
         <div className="flex flex-wrap items-center gap-3">
           <label className="text-sm">
             Loja
-            <select
-              data-testid="inventory-store"
+            <StoreSelect
+              testId="inventory-store"
               className="ml-2 rounded border border-slate-300 px-2 py-1"
-              value={storeId ?? ""}
-              onChange={(event) => {
-                window.location.href = `/inventory?store=${event.target.value}`;
+              stores={initial.stores}
+              value={storeId}
+              onChange={(nextStoreId) => {
+                if (nextStoreId) {
+                  window.location.href = `/inventory?store=${nextStoreId}`;
+                }
               }}
-            >
-              <option value="">Selecione...</option>
-              {initial.stores.map((store) => (
-                <option key={store.id} value={store.id}>
-                  {store.name}
-                </option>
-              ))}
-            </select>
+            />
           </label>
           <span data-testid="inventory-role" className="text-sm text-slate-500">
             Papel: {roleLabel(role)}
