@@ -420,7 +420,7 @@ export function useCheckout() {
   const cancelPendingPix = useCallback(
     async (input: { storeId: string; amount: string; clientMutationId: string; providerReference: string }) => {
       try {
-        await fetch("/api/payments/pix", {
+        const response = await fetch("/api/payments/pix", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -432,10 +432,15 @@ export function useCheckout() {
             provider_reference: input.providerReference,
           }),
         });
-      } catch {
-        return;
-      } finally {
+        const body = await readJsonBody(response);
+        const status = typeof body.status === "string" ? body.status : "";
+        if (!response.ok || status !== "cancelled") {
+          return { cancelled: false as const, unknown: true as const };
+        }
         useCartStore.getState().setCheckoutAttemptId(null);
+        return { cancelled: true as const, unknown: false as const };
+      } catch {
+        return { cancelled: false as const, unknown: true as const };
       }
     },
     []
