@@ -3,15 +3,18 @@
 import type { ReactNode } from "react";
 import { formatBRL } from "@/lib/money";
 import { PermissionGate } from "@/components/auth/permission-gate";
+import type { PaymentAdapterAlert } from "@/lib/adapters/payment";
 import type { MemberRole } from "@/lib/domain/rbac";
+import { paymentMethodLabel, saleStatusLabel } from "@/lib/domain/sale-history";
 import type { DashboardLoadResult } from "@/lib/server/dashboard-query";
 
 type DashboardScreenProps = {
   storeId: string | null;
   initial: DashboardLoadResult;
+  paymentAlerts: PaymentAdapterAlert[];
 };
 
-export function DashboardScreen({ storeId, initial }: DashboardScreenProps) {
+export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardScreenProps) {
   const summary = initial.payload.summary;
   const nextHref = storeId && initial.payload.next_cursor
     ? `/dashboard?store=${storeId}&from=${initial.payload.from}&to=${initial.payload.to}&cursor=${encodeURIComponent(initial.payload.next_cursor)}`
@@ -19,6 +22,15 @@ export function DashboardScreen({ storeId, initial }: DashboardScreenProps) {
   const exportHref = storeId && !initial.degraded
     ? `/api/dashboard/export?store_id=${encodeURIComponent(storeId)}&from=${initial.payload.from}&to=${initial.payload.to}&limit=100`
     : null;
+  const inventoryHref = storeId ? `/inventory?store=${encodeURIComponent(storeId)}` : "/inventory";
+  const excludedSalesEntries = sortedCountEntries(summary.excludedSales);
+  const excludedPaymentsEntries = sortedCountEntries(summary.excludedPayments);
+  const excludedSalesTotal = sumCounts(summary.excludedSales);
+  const excludedPaymentsTotal = sumCounts(summary.excludedPayments);
+  const criticalRows = initial.payload.rows.filter((row) => row.on_hand <= 0);
+  const notConfiguredAlerts = paymentAlerts.filter((alert) => isNotConfiguredAlert(alert));
+  const unknownAlerts = paymentAlerts.filter((alert) => isUnknownAlert(alert));
+  const unknownFromPayload = hasUnknownPayloadStatus(summary.excludedSales, summary.excludedPayments);
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4 lg:p-6">
@@ -93,6 +105,13 @@ export function DashboardScreen({ storeId, initial }: DashboardScreenProps) {
       ) : null}
 
       <PermissionGate role={initial.role} allow={["admin", "manager"]}>
+        <AlertStrip
+          notConfiguredAlerts={notConfiguredAlerts}
+          unknownAlerts={unknownAlerts}
+          unknownFromPayload={unknownFromPayload}
+          excludedSalesTotal={excludedSalesTotal}
+          excludedPaymentsTotal={excludedPaymentsTotal}
+        />
         {initial.degraded ? (
           <div
             data-testid="dashboard-online-only"
@@ -137,6 +156,67 @@ export function DashboardScreen({ storeId, initial }: DashboardScreenProps) {
                 <SummaryLine label="Linhas negativas" value={String(summary.inventory.negativeQuantityRows)} />
                 <SummaryLine label="Base de margem" value={summary.cogsAvailable ? "Snapshot histórico" : "N/D"} />
               </SummaryCard>
+            </div>
+
+            <div className="grid gap-3 lg:grid-cols-2">
+              <SummaryCard title="Canceladas / estornadas" testId="dashboard-excluded">
+                <p className="text-xs text-slate-500">Fora do faturamento confirmado no período</p>
+                <SummaryLine label="Vendas excluídas" value={String(excludedSalesTotal)} />
+                {excludedSalesEntries.length === 0 ? (
+                  <p className="text-sm text-slate-500">Nenhuma venda excluída no período.</p>
+                ) : (
+                  excludedSalesEntries.map(([status, count]) => (
+                    <SummaryLine key={`sale-${status}`} label={excludedSaleStatusLabel(status)} value={String(count)} />
+                  ))
+                )}
+                <SummaryLine label="Pagamentos excluídos" value={String(excludedPaymentsTotal)} />
+                {excludedPaymentsEntries.length === 0 ? (
+                  <p className="text-sm text-slate-500">Nenhum pagamento excluído no período.</p>
+                ) : (
+                  excludedPaymentsEntries.map(([status, count]) => (
+                    <SummaryLine
+                      key={`payment-${status}`}
+                      label={excludedPaymentStatusLabel(status)}
+                      value={String(count)}
+                    />
+                  ))
+                )}
+              </SummaryCard>
+
+              <section
+                data-testid="dashboard-critical-stock"
+                className="rounded-xl border border-slate-200 bg-white p-4"
+              >
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Estoque crítico</h2>
+                <div className="mt-2 space-y-1">
+                  <SummaryLine
+                    label="Linhas negativas (loja)"
+                    value={String(summary.inventory.negativeQuantityRows)}
+                  />
+                  {criticalRows.length === 0 ? (
+                    <p className="text-sm text-slate-500">Nenhum SKU da página atual com saldo ≤ 0.</p>
+                  ) : (
+                    <ul className="space-y-1 text-sm">
+                      {criticalRows.map((row) => (
+                        <li key={row.product_id} className="flex items-center justify-between gap-3">
+                          <span className="text-slate-600">
+                            {row.sku}
+                            {row.product_name ? ` · ${row.product_name}` : ""}
+                          </span>
+                          <strong>{formatQuantity(row.on_hand)}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <a
+                    data-testid="dashboard-inventory-link"
+                    href={inventoryHref}
+                    className="mt-2 inline-block text-sm font-medium text-emerald-700"
+                  >
+                    Abrir inventário
+                  </a>
+                </div>
+              </section>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -257,4 +337,111 @@ function SummaryLine({ label, value }: { label: string; value: string }) {
       <strong>{value}</strong>
     </div>
   );
+}
+
+function AlertStrip({
+  notConfiguredAlerts,
+  unknownAlerts,
+  unknownFromPayload,
+  excludedSalesTotal,
+  excludedPaymentsTotal,
+}: {
+  notConfiguredAlerts: PaymentAdapterAlert[];
+  unknownAlerts: PaymentAdapterAlert[];
+  unknownFromPayload: boolean;
+  excludedSalesTotal: number;
+  excludedPaymentsTotal: number;
+}) {
+  const lines: string[] = [];
+  if (notConfiguredAlerts.length > 0) {
+    const methods = notConfiguredAlerts.map((alert) => paymentMethodLabel(alert.method)).join(", ");
+    lines.push(`${methods}: not_configured. Apenas dinheiro é processado no MVP.`);
+  }
+  if (unknownAlerts.length > 0) {
+    const methods = unknownAlerts.map((alert) => paymentMethodLabel(alert.method)).join(", ");
+    lines.push(`${methods}: status unknown no adapter.`);
+  }
+  if (unknownFromPayload) {
+    lines.push("Há vendas ou pagamentos com status unknown no período.");
+  }
+  if (excludedSalesTotal > 0 || excludedPaymentsTotal > 0) {
+    lines.push(
+      `${excludedSalesTotal} venda(s) e ${excludedPaymentsTotal} pagamento(s) ficaram de fora do faturamento confirmado.`
+    );
+  }
+  if (lines.length === 0) return null;
+
+  return (
+    <div
+      role="status"
+      data-testid="dashboard-alerts"
+      className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+    >
+      {lines.map((line) => (
+        <p key={line}>{line}</p>
+      ))}
+    </div>
+  );
+}
+
+function sortedCountEntries(record: Record<string, number>): Array<[string, number]> {
+  return Object.entries(record).sort(([left], [right]) => left.localeCompare(right));
+}
+
+function sumCounts(record: Record<string, number>): number {
+  return Object.values(record).reduce((total, count) => total + count, 0);
+}
+
+function isNotConfiguredAlert(alert: PaymentAdapterAlert): boolean {
+  return alert.adapterStatus === "not_configured" || alert.operationStatus === "not_configured";
+}
+
+function isUnknownAlert(alert: PaymentAdapterAlert): boolean {
+  return alert.operationStatus === "unknown";
+}
+
+function hasUnknownPayloadStatus(
+  excludedSales: Record<string, number>,
+  excludedPayments: Record<string, number>
+): boolean {
+  return [...Object.entries(excludedSales), ...Object.entries(excludedPayments)].some(
+    ([status, count]) => count > 0 && (status === "unknown" || status === "payment_unknown")
+  );
+}
+
+function excludedSaleStatusLabel(status: string): string {
+  if (status.startsWith("payment_")) {
+    const paymentStatus = status.slice("payment_".length);
+    return `Confirmada · pagamento ${paymentStatusLabel(paymentStatus)}`;
+  }
+  return saleStatusLabel(status);
+}
+
+function excludedPaymentStatusLabel(status: string): string {
+  return `Pagamento ${paymentStatusLabel(status)}`;
+}
+
+function paymentStatusLabel(status: string): string {
+  switch (status) {
+    case "pending":
+      return "pendente";
+    case "authorized":
+      return "autorizado";
+    case "captured":
+      return "capturado";
+    case "failed":
+      return "falhou";
+    case "unknown":
+      return "unknown";
+    case "cancelled":
+      return "cancelado";
+    case "refunded":
+      return "estornado";
+    case "missing":
+      return "ausente";
+    case "not_configured":
+      return "not_configured";
+    default:
+      return status;
+  }
 }
