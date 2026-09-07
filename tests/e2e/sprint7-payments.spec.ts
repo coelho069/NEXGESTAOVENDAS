@@ -57,8 +57,10 @@ test("pagamento cash finaliza uma vez mesmo com retry de clique", async ({ page 
 
 test("adapter card não configurado mantém o carrinho como rascunho", async ({ page }) => {
   await openCart(page);
-  await page.getByTestId("checkout-card").click();
-  await expect(page.getByTestId("sale-draft-banner")).toContainText("não configurado");
+  const card = page.getByTestId("checkout-card");
+  await expect(card).toBeDisabled();
+  await expect(card).toContainText("não configurado");
+  await expect(page.getByTestId("checkout-cash")).toBeEnabled();
   await expect(page.getByTestId("cart-line-BEV-001")).toBeVisible();
   await expect(page.getByTestId("receipt")).toHaveCount(0);
 });

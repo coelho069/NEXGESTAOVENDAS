@@ -4,6 +4,7 @@ import { useCallback, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Enums } from "@/lib/db/types";
 import { getPaymentAdapter } from "@/lib/adapters/payment";
+import { isCheckoutPaymentSelectable } from "@/lib/adapters/payment-health";
 import { inventoryQuantityToNumber } from "@/lib/domain/quantity";
 import type { CatalogProduct } from "@/lib/domain/catalog";
 import { resolvePaymentAttempt, unifyCheckoutPayment } from "@/lib/domain/payment-attempt";
@@ -143,6 +144,15 @@ export function useCheckout() {
       | { ok: true; draft: false; receipt: ReceiptModel; saleId: string; offline: boolean }
       | { ok: false; draft: true; message: string; receipt: null }
     > => {
+      if (!(await isCheckoutPaymentSelectable(input.method))) {
+        return {
+          ok: false,
+          draft: true,
+          message: "Pagamento não configurado. Venda permanece como rascunho local.",
+          receipt: null,
+        };
+      }
+
       const clientMutationId = beginCheckout();
       const cart = useCartStore.getState();
       try {
