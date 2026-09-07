@@ -169,6 +169,32 @@ describe("dashboard OPEX P0", () => {
     expect(screen.queryByTestId("dashboard-alerts")).toBeNull();
   });
 
+  it("styles filter and page CTAs as intentional buttons", () => {
+    render(
+      <DashboardScreen
+        storeId={STORE_ID}
+        initial={makeResult({
+          payload: {
+            ...makeResult().payload,
+            next_cursor: "SKU-NEXT",
+          },
+        })}
+        paymentAlerts={defaultAlerts}
+      />
+    );
+
+    expect(screen.getByTestId("dashboard-filter")).toHaveClass("bg-emerald-600", "hover:bg-emerald-700");
+    expect(screen.getByTestId("dashboard-export")).toHaveClass("bg-emerald-600");
+    expect(screen.getByTestId("dashboard-export")).toHaveAttribute(
+      "href",
+      `/api/dashboard/export?store_id=${STORE_ID}&from=2026-09-01&to=2026-09-02&limit=100`
+    );
+    expect(screen.getByTestId("dashboard-next")).toHaveClass("border-slate-300", "hover:bg-slate-50");
+    expect(screen.getByTestId("dashboard-inventory-link")).toHaveClass("border-slate-300");
+    expect(screen.getByRole("heading", { name: "Resumo" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Detalhe por SKU" })).toBeVisible();
+  });
+
   it("does not invent excluded counts when the payload is empty", () => {
     render(
       <DashboardScreen
