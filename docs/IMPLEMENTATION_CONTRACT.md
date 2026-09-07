@@ -82,11 +82,12 @@ Saída:
 
 ## 4. Pagamentos e fiscal (adapters)
 
-| Adapter            | Sprint 1 status    |
-|--------------------|--------------------|
-| `cash`             | `configured`       |
-| `card`, `pix`, ... | `not_configured`   |
-| NFC-e/SAT          | `not_configured`   |
+| Adapter            | Status |
+|--------------------|--------|
+| `cash`             | `configured` (RPCs de dinheiro intocadas) |
+| `card`             | Stripe testmode quando secrets + health ok; senão `not_configured` |
+| `pix`, ...         | `not_configured` |
+| NFC-e/SAT          | `not_configured` |
 
 Interface TS em `src/lib/adapters/`.
 
@@ -103,6 +104,10 @@ Interface TS em `src/lib/adapters/`.
 |--------|------------------------|------|---------------------------|
 | POST   | `/api/sales/process`   | sim  | `processSaleInputSchema`  |
 | GET    | `/api/auth/session`    | opt  | —                         |
+| GET    | `/api/payments/card`   | sim  | health Stripe (card)      |
+| POST   | `/api/payments/card`   | sim  | `cardPaymentInputSchema`  |
+| POST   | `/api/payments/stripe/webhook` | assinatura Stripe | allowlist de eventos |
+| POST   | `/api/payments/reconcile` | sim | `reconcilePaymentInputSchema` + Stripe PI |
 
 ## 7. Tipos gerados
 

@@ -17,11 +17,13 @@ import {
   type StockMap,
 } from "@/lib/domain/sale-ops";
 import { confirmFixtureLocalSales } from "@/lib/domain/sale-return-local";
+import { recordCapturedCardSale } from "@/lib/offline/close-card-sale";
 import { closeSale } from "@/lib/offline/close-sale";
 import { endClientSession } from "@/lib/offline/end-session";
 import { withMultiTabLock } from "@/lib/offline/multi-tab-lock";
 import { getOutboxCommand } from "@/lib/offline/outbox";
-import { getPdvLocalDbForUser } from "@/lib/offline/pdv-local-db";
+import { getPdvLocalDbForUser, type PdvLocalDatabase } from "@/lib/offline/pdv-local-db";
+import type { CloseSaleInput, CloseSaleResult } from "@/lib/offline/types";
 import { isQuotaExceededError } from "@/lib/offline/quota";
 import { pdvFixturesEnabled } from "@/lib/pdv/fixtures";
 import {
@@ -172,6 +174,19 @@ export function useCheckout() {
 
         const totals = calculateTotals(saleState);
         const checkout = await withCheckoutLock(cart.storeId, async () => {
+          if (input.method === "card") {
+            return payCardOnServer({
+              db,
+              storeId: cart.storeId!,
+              clientMutationId,
+              role: input.role,
+              lines: cart.lines,
+              discount: cart.discount,
+              customerId: cart.customerId ?? undefined,
+              amount: totals.total,
+            });
+          }
+
           const adapter = getPaymentAdapter(input.method);
           const decision = resolvePaymentAttempt(adapter.process(totals.total));
           if (decision.kind === "keep_draft") {
@@ -194,8 +209,10 @@ export function useCheckout() {
           });
           return { kind: "captured" as const, payment, result };
         });
-        if (checkout.kind === "draft") {
-          useCartStore.getState().setCheckoutAttemptId(null);
+        if (checkout.kind === "draft" || checkout.kind === "unknown") {
+          useCartStore.getState().setCheckoutAttemptId(
+            checkout.kind === "unknown" ? clientMutationId : null
+          );
           return { ok: false, draft: true, message: checkout.message, receipt: null };
         }
         const { payment, result } = checkout;
@@ -387,5 +404,173 @@ export function useCheckout() {
     refreshSyncUi,
     checkoutAttemptId,
     checkoutInFlight,
+  };
+}
+
+type CardCheckoutResult =
+  | { kind: "draft"; message: string }
+  | { kind: "unknown"; message: string }
+  | { kind: "captured"; payment: { method: Enums<"payment_method">; amount: string }; result: CloseSaleResult };
+
+async function readJsonBody(response: Response): Promise<Record<string, unknown>> {
+  try {
+    const json: unknown = await response.json();
+    if (json && typeof json === "object") {
+      return json as Record<string, unknown>;
+    }
+  } catch {
+    return {};
+  }
+  return {};
+}
+
+async function payCardOnServer(input: {
+  db: PdvLocalDatabase;
+  storeId: string;
+  clientMutationId: string;
+  role: MemberRole;
+  lines: CloseSaleInput["lines"];
+  discount: string;
+  customerId?: string;
+  amount: string;
+}): Promise<CardCheckoutResult> {
+  const localAdapter = getPaymentAdapter("card");
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return {
+      kind: "draft",
+      message: resolvePaymentAttempt(localAdapter.process(input.amount)).kind === "keep_draft"
+        ? "Pagamento não configurado. Venda permanece como rascunho local."
+        : "Cartão exige conexão. Use dinheiro ou tente novamente.",
+    };
+  }
+
+  const items = input.lines.map((line) => ({
+    product_id: line.productId,
+    quantity: line.quantity,
+    unit_price: line.unitPrice,
+    discount: line.discount,
+  }));
+
+  let authorizeResponse: Response;
+  try {
+    authorizeResponse = await fetch("/api/payments/card", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        action: "authorize",
+        store_id: input.storeId,
+        amount: input.amount,
+        client_mutation_id: input.clientMutationId,
+        customer_id: input.customerId,
+        discount: input.discount,
+        items,
+      }),
+    });
+  } catch {
+    return {
+      kind: "draft",
+      message: "Pagamento não configurado. Venda permanece como rascunho local.",
+    };
+  }
+  const authorizeBody = await readJsonBody(authorizeResponse);
+  const authorizeStatus = typeof authorizeBody.status === "string" ? authorizeBody.status : "";
+
+  if (
+    !authorizeResponse.ok ||
+    authorizeStatus === "not_configured" ||
+    authorizeBody.configured === false
+  ) {
+    return {
+      kind: "draft",
+      message:
+        typeof authorizeBody.message === "string"
+          ? authorizeBody.message
+          : "Pagamento não configurado. Venda permanece como rascunho local.",
+    };
+  }
+  if (authorizeStatus === "unknown") {
+    return {
+      kind: "unknown",
+      message:
+        typeof authorizeBody.message === "string"
+          ? authorizeBody.message
+          : "Pagamento card sem resposta confirmada. Reconcilie; não confirme a venda.",
+    };
+  }
+  if (authorizeStatus !== "authorized" || typeof authorizeBody.provider_reference !== "string") {
+    return {
+      kind: "draft",
+      message:
+        typeof authorizeBody.message === "string"
+          ? authorizeBody.message
+          : "Falha no cartão. Use dinheiro ou tente novamente.",
+    };
+  }
+
+  let captureResponse: Response;
+  try {
+    captureResponse = await fetch("/api/payments/card", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        action: "capture",
+        store_id: input.storeId,
+        amount: input.amount,
+        client_mutation_id: input.clientMutationId,
+        provider_reference: authorizeBody.provider_reference,
+        customer_id: input.customerId,
+        discount: input.discount,
+        items,
+      }),
+    });
+  } catch {
+    return {
+      kind: "unknown",
+      message: "Stripe não confirmou o PaymentIntent. Pagamento permanece unknown.",
+    };
+  }
+  const captureBody = await readJsonBody(captureResponse);
+  const captureStatus = typeof captureBody.status === "string" ? captureBody.status : "";
+  const saleConfirmed = captureBody.sale_confirmed === true;
+  const saleId = typeof captureBody.sale_id === "string" ? captureBody.sale_id : "";
+  const providerReference =
+    typeof captureBody.provider_reference === "string"
+      ? captureBody.provider_reference
+      : authorizeBody.provider_reference;
+
+  if (captureResponse.ok && captureStatus === "captured" && saleConfirmed && saleId) {
+    const payment = unifyCheckoutPayment("card", input.amount);
+    const result = await recordCapturedCardSale(input.db, {
+      storeId: input.storeId,
+      clientMutationId: input.clientMutationId,
+      role: input.role,
+      lines: input.lines,
+      discount: input.discount,
+      customerId: input.customerId,
+      payments: [payment],
+      serverSaleId: saleId,
+      providerReference,
+    });
+    return { kind: "captured", payment, result };
+  }
+
+  if (captureStatus === "unknown" || (captureResponse.ok && captureStatus !== "captured")) {
+    return {
+      kind: "unknown",
+      message:
+        typeof captureBody.message === "string"
+          ? captureBody.message
+          : "Resposta HTTP sem PaymentIntent succeeded. Status unknown; venda não confirmada.",
+    };
+  }
+
+  return {
+    kind: "draft",
+    message:
+      typeof captureBody.message === "string"
+        ? captureBody.message
+        : "Falha no cartão. Use dinheiro ou tente novamente.",
   };
 }
