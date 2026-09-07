@@ -1,5 +1,6 @@
 import { DashboardScreen } from "@/components/dashboard/dashboard-screen";
 import { AppNav } from "@/components/layout/app-nav";
+import { getElectronicPaymentAdapterAlerts } from "@/lib/adapters/payment";
 import { loadDashboard } from "@/lib/server/dashboard-query";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +23,11 @@ export default async function DashboardPage({
       <div className="border-b border-slate-200 bg-white px-4 py-3">
         <AppNav role={initial.role} storeId={initial.storeId} />
       </div>
-      <DashboardScreen storeId={initial.storeId} initial={initial} />
+      <DashboardScreen
+        storeId={initial.storeId}
+        initial={initial}
+        paymentAlerts={getElectronicPaymentAdapterAlerts()}
+      />
     </main>
   );
 }

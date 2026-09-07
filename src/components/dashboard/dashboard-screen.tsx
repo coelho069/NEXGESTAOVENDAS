@@ -3,15 +3,18 @@
 import type { ReactNode } from "react";
 import { formatBRL } from "@/lib/money";
 import { PermissionGate } from "@/components/auth/permission-gate";
+import type { PaymentAdapterAlert } from "@/lib/adapters/payment";
 import type { MemberRole } from "@/lib/domain/rbac";
+import { paymentMethodLabel, saleStatusLabel } from "@/lib/domain/sale-history";
 import type { DashboardLoadResult } from "@/lib/server/dashboard-query";
 
 type DashboardScreenProps = {
   storeId: string | null;
   initial: DashboardLoadResult;
+  paymentAlerts: PaymentAdapterAlert[];
 };
 
-export function DashboardScreen({ storeId, initial }: DashboardScreenProps) {
+export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardScreenProps) {
   const summary = initial.payload.summary;
   const nextHref = storeId && initial.payload.next_cursor
     ? `/dashboard?store=${storeId}&from=${initial.payload.from}&to=${initial.payload.to}&cursor=${encodeURIComponent(initial.payload.next_cursor)}`
@@ -19,28 +22,44 @@ export function DashboardScreen({ storeId, initial }: DashboardScreenProps) {
   const exportHref = storeId && !initial.degraded
     ? `/api/dashboard/export?store_id=${encodeURIComponent(storeId)}&from=${initial.payload.from}&to=${initial.payload.to}&limit=100`
     : null;
+  const inventoryHref = storeId ? `/inventory?store=${encodeURIComponent(storeId)}` : "/inventory";
+  const excludedSalesEntries = sortedCountEntries(summary.excludedSales);
+  const excludedPaymentsEntries = sortedCountEntries(summary.excludedPayments);
+  const excludedSalesTotal = sumCounts(summary.excludedSales);
+  const excludedPaymentsTotal = sumCounts(summary.excludedPayments);
+  const criticalRows = initial.payload.rows.filter((row) => row.on_hand <= 0);
+  const notConfiguredAlerts = paymentAlerts.filter((alert) => isNotConfiguredAlert(alert));
+  const unknownAlerts = paymentAlerts.filter((alert) => isUnknownAlert(alert));
+  const unknownFromPayload = hasUnknownPayloadStatus(summary.excludedSales, summary.excludedPayments);
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4 lg:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="mx-auto flex max-w-6xl flex-col gap-6 p-4 lg:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-sm text-slate-500">
-            {initial.payload.from} → {initial.payload.to} (fim exclusivo) · timezone America/Sao_Paulo
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Dashboard</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {initial.payload.from} → {initial.payload.to} (fim exclusivo) · America/Sao_Paulo
           </p>
         </div>
-        <span data-testid="dashboard-role" className="text-sm text-slate-500">
+        <span
+          data-testid="dashboard-role"
+          className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
+        >
           Papel: {roleLabel(initial.role)}
         </span>
       </div>
 
-      <form method="get" action="/dashboard" className="flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white p-3">
-        <label className="text-sm">
+      <form
+        method="get"
+        action="/dashboard"
+        className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
+      >
+        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
           Loja
           <select
             name="store"
             data-testid="dashboard-store"
-            className="mt-1 block rounded border border-slate-300 px-2 py-1"
+            className="mt-1.5 block rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-900"
             defaultValue={storeId ?? ""}
           >
             <option value="">Selecione...</option>
@@ -51,30 +70,30 @@ export function DashboardScreen({ storeId, initial }: DashboardScreenProps) {
             ))}
           </select>
         </label>
-        <label className="text-sm">
+        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
           De
           <input
             type="date"
             name="from"
             data-testid="dashboard-from"
             defaultValue={initial.payload.from}
-            className="mt-1 block rounded border border-slate-300 px-2 py-1"
+            className="mt-1.5 block rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-900"
           />
         </label>
-        <label className="text-sm">
+        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
           Até
           <input
             type="date"
             name="to"
             data-testid="dashboard-to"
             defaultValue={initial.payload.to}
-            className="mt-1 block rounded border border-slate-300 px-2 py-1"
+            className="mt-1.5 block rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-900"
           />
         </label>
         <button
           type="submit"
           data-testid="dashboard-filter"
-          className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
+          className="rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white"
         >
           Filtrar
         </button>
@@ -93,6 +112,13 @@ export function DashboardScreen({ storeId, initial }: DashboardScreenProps) {
       ) : null}
 
       <PermissionGate role={initial.role} allow={["admin", "manager"]}>
+        <AlertStrip
+          notConfiguredAlerts={notConfiguredAlerts}
+          unknownAlerts={unknownAlerts}
+          unknownFromPayload={unknownFromPayload}
+          excludedSalesTotal={excludedSalesTotal}
+          excludedPaymentsTotal={excludedPaymentsTotal}
+        />
         {initial.degraded ? (
           <div
             data-testid="dashboard-online-only"
@@ -103,23 +129,50 @@ export function DashboardScreen({ storeId, initial }: DashboardScreenProps) {
           </div>
         ) : (
           <>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-testid="dashboard-metrics">
-              <Metric dataTestId="dashboard-revenue" label="Faturamento confirmado" value={formatBRL(summary.revenue)} />
-              <Metric dataTestId="dashboard-sales-count" label="Vendas confirmadas" value={String(summary.salesCount)} />
-              <Metric dataTestId="dashboard-average-ticket" label="Ticket médio" value={formatOptionalBRL(summary.averageTicket)} />
-              <Metric dataTestId="dashboard-discounts" label="Descontos persistidos" value={formatBRL(summary.totalDiscounts)} />
-              <Metric label="COGS histórico" value={formatOptionalBRL(summary.cogs)} />
-              <Metric label="Margem bruta" value={formatOptionalPercent(summary.marginPercent)} />
-              <Metric label="Unidades vendidas" value={formatQuantity(summary.unitsSold)} />
-              <Metric label="Sell-through vs. saldo atual" value={formatOptionalPercent(summary.sellThrough)} />
+            <div data-testid="dashboard-metrics" className="flex flex-col gap-5">
+              <section className="space-y-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Resumo</h2>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Metric
+                    dataTestId="dashboard-revenue"
+                    label="Faturamento confirmado"
+                    value={formatBRL(summary.revenue)}
+                    emphasis
+                  />
+                  <Metric
+                    dataTestId="dashboard-average-ticket"
+                    label="Ticket médio"
+                    value={formatOptionalBRL(summary.averageTicket)}
+                    emphasis
+                  />
+                  <Metric
+                    dataTestId="dashboard-sales-count"
+                    label="Vendas confirmadas"
+                    value={String(summary.salesCount)}
+                    emphasis
+                  />
+                </div>
+              </section>
+              <section className="space-y-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Rentabilidade e volume
+                </h2>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Metric dataTestId="dashboard-discounts" label="Descontos persistidos" value={formatBRL(summary.totalDiscounts)} />
+                  <Metric label="COGS histórico" value={formatOptionalBRL(summary.cogs)} />
+                  <Metric label="Margem bruta" value={formatOptionalPercent(summary.marginPercent)} />
+                  <Metric label="Unidades vendidas" value={formatQuantity(summary.unitsSold)} />
+                  <Metric label="Sell-through vs. saldo atual" value={formatOptionalPercent(summary.sellThrough)} />
+                </div>
+              </section>
             </div>
 
-            <div className="grid gap-3 lg:grid-cols-3">
+            <div className="grid gap-4 lg:grid-cols-3">
               <SummaryCard title="Pagamentos capturados" testId="dashboard-payments">
                 {Object.entries(summary.paymentsByMethod).map(([method, amount]) => (
                   <SummaryLine
                     key={method}
-                    label={`${method} (${summary.paymentCountsByMethod[method as keyof typeof summary.paymentCountsByMethod] ?? 0})`}
+                    label={`${paymentMethodLabel(method)} (${summary.paymentCountsByMethod[method as keyof typeof summary.paymentCountsByMethod] ?? 0})`}
                     value={formatBRL(amount)}
                   />
                 ))}
@@ -139,7 +192,65 @@ export function DashboardScreen({ storeId, initial }: DashboardScreenProps) {
               </SummaryCard>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 text-sm">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <SummaryCard
+                title="Canceladas / estornadas"
+                testId="dashboard-excluded"
+                hint="Fora do faturamento confirmado no período"
+              >
+                <SummaryLine label="Vendas excluídas" value={String(excludedSalesTotal)} />
+                {excludedSalesEntries.length === 0 ? (
+                  <p className="text-sm text-slate-500">Nenhuma venda excluída no período.</p>
+                ) : (
+                  excludedSalesEntries.map(([status, count]) => (
+                    <SummaryLine key={`sale-${status}`} label={excludedSaleStatusLabel(status)} value={String(count)} />
+                  ))
+                )}
+                <SummaryLine label="Pagamentos excluídos" value={String(excludedPaymentsTotal)} />
+                {excludedPaymentsEntries.length === 0 ? (
+                  <p className="text-sm text-slate-500">Nenhum pagamento excluído no período.</p>
+                ) : (
+                  excludedPaymentsEntries.map(([status, count]) => (
+                    <SummaryLine
+                      key={`payment-${status}`}
+                      label={excludedPaymentStatusLabel(status)}
+                      value={String(count)}
+                    />
+                  ))
+                )}
+              </SummaryCard>
+
+              <SummaryCard
+                title="Estoque crítico"
+                testId="dashboard-critical-stock"
+                hint="SKUs da página atual com saldo ≤ 0"
+              >
+                <SummaryLine
+                  label="Linhas negativas (loja)"
+                  value={String(summary.inventory.negativeQuantityRows)}
+                />
+                {criticalRows.length === 0 ? (
+                  <p className="text-sm text-slate-500">Nenhum SKU da página atual com saldo ≤ 0.</p>
+                ) : (
+                  criticalRows.map((row) => (
+                    <SummaryLine
+                      key={row.product_id}
+                      label={row.product_name ? `${row.sku} · ${row.product_name}` : row.sku}
+                      value={formatQuantity(row.on_hand)}
+                    />
+                  ))
+                )}
+                <a
+                  data-testid="dashboard-inventory-link"
+                  href={inventoryHref}
+                  className="inline-block pt-1 text-sm font-medium text-emerald-700"
+                >
+                  Abrir inventário
+                </a>
+              </SummaryCard>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 text-sm">
               {exportHref ? (
                 <a
                   data-testid="dashboard-export"
@@ -158,32 +269,32 @@ export function DashboardScreen({ storeId, initial }: DashboardScreenProps) {
 
             <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
               <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                   <tr>
-                    <th className="px-3 py-2">SKU</th>
-                    <th className="px-3 py-2">Faturamento</th>
-                    <th className="px-3 py-2">Descontos</th>
-                    <th className="px-3 py-2">COGS</th>
-                    <th className="px-3 py-2">Lucro</th>
-                    <th className="px-3 py-2">Sell-through</th>
+                    <th className="px-4 py-2.5 font-semibold">SKU</th>
+                    <th className="px-4 py-2.5 font-semibold">Faturamento</th>
+                    <th className="px-4 py-2.5 font-semibold">Descontos</th>
+                    <th className="px-4 py-2.5 font-semibold">COGS</th>
+                    <th className="px-4 py-2.5 font-semibold">Lucro</th>
+                    <th className="px-4 py-2.5 font-semibold">Sell-through</th>
                   </tr>
                 </thead>
                 <tbody>
                   {initial.payload.rows.length === 0 ? (
                     <tr>
-                      <td className="px-3 py-4 text-slate-500" colSpan={6}>
+                      <td className="px-4 py-5 text-slate-500" colSpan={6}>
                         Sem vendas no período.
                       </td>
                     </tr>
                   ) : (
                     initial.payload.rows.map((row) => (
                       <tr key={row.product_id} className="border-t border-slate-100">
-                        <td className="px-3 py-2">{row.sku}</td>
-                        <td className="px-3 py-2">{formatBRL(row.revenue)}</td>
-                        <td className="px-3 py-2">{formatBRL(row.discounts)}</td>
-                        <td className="px-3 py-2">{formatOptionalBRL(row.cogs)}</td>
-                        <td className="px-3 py-2">{formatOptionalBRL(row.gross_profit)}</td>
-                        <td className="px-3 py-2">{formatOptionalPercent(row.sell_through)}</td>
+                        <td className="px-4 py-2.5 font-medium text-slate-800">{row.sku}</td>
+                        <td className="px-4 py-2.5 tabular-nums">{formatBRL(row.revenue)}</td>
+                        <td className="px-4 py-2.5 tabular-nums">{formatBRL(row.discounts)}</td>
+                        <td className="px-4 py-2.5 tabular-nums">{formatOptionalBRL(row.cogs)}</td>
+                        <td className="px-4 py-2.5 tabular-nums">{formatOptionalBRL(row.gross_profit)}</td>
+                        <td className="px-4 py-2.5 tabular-nums">{formatOptionalPercent(row.sell_through)}</td>
                       </tr>
                     ))
                   )}
@@ -220,15 +331,25 @@ function Metric({
   dataTestId,
   label,
   value,
+  emphasis = false,
 }: {
   dataTestId?: string;
   label: string;
   value: string;
+  emphasis?: boolean;
 }) {
   return (
-    <div data-testid={dataTestId} className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-1 text-xl font-bold">{value}</div>
+    <div data-testid={dataTestId} className="rounded-xl border border-slate-200 bg-white px-5 py-4">
+      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
+      <div
+        className={
+          emphasis
+            ? "mt-2 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums"
+            : "mt-1.5 text-lg font-semibold text-slate-800 tabular-nums"
+        }
+      >
+        {value}
+      </div>
     </div>
   );
 }
@@ -236,25 +357,140 @@ function Metric({
 function SummaryCard({
   title,
   testId,
+  hint,
   children,
 }: {
   title: string;
   testId: string;
+  hint?: string;
   children: ReactNode;
 }) {
   return (
-    <section data-testid={testId} className="rounded-xl border border-slate-200 bg-white p-4">
+    <section data-testid={testId} className="rounded-xl border border-slate-200 bg-white px-5 py-4">
       <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
-      <div className="mt-2 space-y-1">{children}</div>
+      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
+      <div className="mt-3 space-y-2">{children}</div>
     </section>
   );
 }
 
 function SummaryLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 text-sm">
+    <div className="flex items-baseline justify-between gap-3 text-sm">
       <span className="text-slate-600">{label}</span>
-      <strong>{value}</strong>
+      <strong className="tabular-nums text-slate-900">{value}</strong>
     </div>
   );
+}
+
+function AlertStrip({
+  notConfiguredAlerts,
+  unknownAlerts,
+  unknownFromPayload,
+  excludedSalesTotal,
+  excludedPaymentsTotal,
+}: {
+  notConfiguredAlerts: PaymentAdapterAlert[];
+  unknownAlerts: PaymentAdapterAlert[];
+  unknownFromPayload: boolean;
+  excludedSalesTotal: number;
+  excludedPaymentsTotal: number;
+}) {
+  const lines: string[] = [];
+  if (notConfiguredAlerts.length > 0) {
+    const methods = notConfiguredAlerts.map((alert) => paymentMethodLabel(alert.method)).join(", ");
+    lines.push(`${methods}: not_configured. Apenas dinheiro é processado no MVP.`);
+  }
+  if (unknownAlerts.length > 0) {
+    const methods = unknownAlerts.map((alert) => paymentMethodLabel(alert.method)).join(", ");
+    lines.push(`${methods}: status unknown no adapter.`);
+  }
+  if (unknownFromPayload) {
+    lines.push("Há vendas ou pagamentos com status unknown no período.");
+  }
+  if (excludedSalesTotal > 0 || excludedPaymentsTotal > 0) {
+    lines.push(
+      `${excludedSalesTotal} venda(s) e ${excludedPaymentsTotal} pagamento(s) ficaram de fora do faturamento confirmado.`
+    );
+  }
+  if (lines.length === 0) return null;
+
+  return (
+    <div
+      role="status"
+      data-testid="dashboard-alerts"
+      className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+    >
+      <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Alertas</p>
+      <div className="mt-1.5 space-y-1">
+        {lines.map((line, index) => (
+          <p key={line} className={index === 0 ? "font-medium" : undefined}>
+            {line}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function sortedCountEntries(record: Record<string, number>): Array<[string, number]> {
+  return Object.entries(record).sort(([left], [right]) => left.localeCompare(right));
+}
+
+function sumCounts(record: Record<string, number>): number {
+  return Object.values(record).reduce((total, count) => total + count, 0);
+}
+
+function isNotConfiguredAlert(alert: PaymentAdapterAlert): boolean {
+  return alert.adapterStatus === "not_configured" || alert.operationStatus === "not_configured";
+}
+
+function isUnknownAlert(alert: PaymentAdapterAlert): boolean {
+  return alert.operationStatus === "unknown";
+}
+
+function hasUnknownPayloadStatus(
+  excludedSales: Record<string, number>,
+  excludedPayments: Record<string, number>
+): boolean {
+  return [...Object.entries(excludedSales), ...Object.entries(excludedPayments)].some(
+    ([status, count]) => count > 0 && (status === "unknown" || status === "payment_unknown")
+  );
+}
+
+function excludedSaleStatusLabel(status: string): string {
+  if (status.startsWith("payment_")) {
+    const paymentStatus = status.slice("payment_".length);
+    return `Confirmada · pagamento ${paymentStatusLabel(paymentStatus)}`;
+  }
+  return saleStatusLabel(status);
+}
+
+function excludedPaymentStatusLabel(status: string): string {
+  return `Pagamento ${paymentStatusLabel(status)}`;
+}
+
+function paymentStatusLabel(status: string): string {
+  switch (status) {
+    case "pending":
+      return "pendente";
+    case "authorized":
+      return "autorizado";
+    case "captured":
+      return "capturado";
+    case "failed":
+      return "falhou";
+    case "unknown":
+      return "unknown";
+    case "cancelled":
+      return "cancelado";
+    case "refunded":
+      return "estornado";
+    case "missing":
+      return "ausente";
+    case "not_configured":
+      return "not_configured";
+    default:
+      return status;
+  }
 }
