@@ -24,7 +24,7 @@ export function PaymentSheet({ open, total, disabled, onCash, onCard, onClose }:
       />
       <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-100 p-6">
-          <h2 className="text-xl font-bold text-slate-900">Forma de pagamento</h2>
+          <h2 className="text-xl font-semibold tracking-tight text-slate-900">Forma de pagamento</h2>
           <button
             type="button"
             className="text-slate-400 transition hover:text-slate-700"
@@ -37,7 +37,7 @@ export function PaymentSheet({ open, total, disabled, onCash, onCard, onClose }:
         <div className="space-y-5 p-6">
           <div className="flex items-center justify-between rounded-2xl bg-indigo-50 p-4">
             <span className="font-medium text-indigo-700">Total a pagar:</span>
-            <span className="text-2xl font-black text-indigo-900">{formatBRL(total)}</span>
+            <span className="text-2xl font-semibold tracking-tight tabular-nums text-indigo-900">{formatBRL(total)}</span>
           </div>
           <PaymentActions disabled={disabled} onCash={onCash} onCard={onCard} />
         </div>

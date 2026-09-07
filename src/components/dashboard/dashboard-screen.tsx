@@ -52,14 +52,14 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
       <form
         method="get"
         action="/dashboard"
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
+        className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5"
       >
         <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
           Loja
           <select
             name="store"
             data-testid="dashboard-store"
-            className="mt-1.5 block rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-900"
+            className="mt-1.5 block rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
             defaultValue={storeId ?? ""}
           >
             <option value="">Selecione...</option>
@@ -77,7 +77,7 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
             name="from"
             data-testid="dashboard-from"
             defaultValue={initial.payload.from}
-            className="mt-1.5 block rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-900"
+            className="mt-1.5 block rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
           />
         </label>
         <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -87,13 +87,13 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
             name="to"
             data-testid="dashboard-to"
             defaultValue={initial.payload.to}
-            className="mt-1.5 block rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-900"
+            className="mt-1.5 block rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
           />
         </label>
         <button
           type="submit"
           data-testid="dashboard-filter"
-          className="rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white"
+          className="rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white outline-none transition hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-slate-400"
         >
           Filtrar
         </button>
@@ -267,7 +267,7 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
               ) : null}
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                   <tr>
@@ -339,7 +339,7 @@ function Metric({
   emphasis?: boolean;
 }) {
   return (
-    <div data-testid={dataTestId} className="rounded-xl border border-slate-200 bg-white px-5 py-4">
+    <div data-testid={dataTestId} className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
       <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
       <div
         className={
@@ -366,7 +366,7 @@ function SummaryCard({
   children: ReactNode;
 }) {
   return (
-    <section data-testid={testId} className="rounded-xl border border-slate-200 bg-white px-5 py-4">
+    <section data-testid={testId} className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
       <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
       {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
       <div className="mt-3 space-y-2">{children}</div>

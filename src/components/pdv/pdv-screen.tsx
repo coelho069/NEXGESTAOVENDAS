@@ -237,15 +237,15 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     <div className="flex min-h-screen bg-slate-50 text-slate-900">
       <PdvSidebar storeId={storeId} onOpenSalesHistory={openSalesHistory} />
       <div className="min-w-0 flex-1 overflow-hidden">
-        <div className="mx-auto flex min-h-screen max-w-[1600px] flex-col gap-4 p-4 lg:p-6">
+        <div className="mx-auto flex min-h-screen max-w-[1600px] flex-col gap-5 p-4 lg:p-6">
           <header className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 font-bold text-white lg:hidden">
-                P
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white lg:hidden">
+                N
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">Vendas</h1>
-                <p className="text-sm text-slate-500">PDV local-first · scanner HID e recibo</p>
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Vendas</h1>
+                <p className="mt-0.5 text-sm text-slate-500">Caixa · scanner HID · recibo</p>
               </div>
             </div>
             <SyncStatusBadge
@@ -257,38 +257,41 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             />
           </header>
 
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
-            <label className="text-sm font-medium text-slate-700" htmlFor="store">
+          <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <label className="text-xs font-medium uppercase tracking-wide text-slate-500" htmlFor="store">
               Loja
+              <select
+                id="store"
+                data-testid="store-select"
+                className="mt-1.5 block rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                value={storeId ?? ""}
+                disabled={Boolean(sale.checkoutAttemptId) || sale.checkoutInFlight || sale.lines.length > 0}
+                onChange={(event) => {
+                  const nextStoreId = event.target.value || null;
+                  if (nextStoreId && !stores.some((store) => store.id === nextStoreId)) return;
+                  if (!setStoreId(nextStoreId)) {
+                    setContextMessage("Não é possível trocar de loja com o carrinho aberto.");
+                    return;
+                  }
+                  setContextMessage(null);
+                }}
+              >
+                <option value="">Selecione...</option>
+                {stores.map((store) => (
+                  <option key={store.id} value={store.id}>
+                    {store.name}
+                  </option>
+                ))}
+              </select>
             </label>
-            <select
-              id="store"
-              data-testid="store-select"
-              className="rounded-lg border border-slate-300 px-3 py-2"
-              value={storeId ?? ""}
-              disabled={Boolean(sale.checkoutAttemptId) || sale.checkoutInFlight || sale.lines.length > 0}
-              onChange={(event) => {
-                const nextStoreId = event.target.value || null;
-                if (nextStoreId && !stores.some((store) => store.id === nextStoreId)) return;
-                if (!setStoreId(nextStoreId)) {
-                  setContextMessage("Não é possível trocar de loja com o carrinho aberto.");
-                  return;
-                }
-                setContextMessage(null);
-              }}
+            <span
+              data-testid="role-display"
+              className="mb-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
             >
-              <option value="">Selecione...</option>
-              {stores.map((store) => (
-                <option key={store.id} value={store.id}>
-                  {store.name}
-                </option>
-              ))}
-            </select>
-            <span data-testid="role-display" className="text-sm text-slate-500">
               Papel: {roleLabel(displayRole)}
             </span>
             {fromCatalog ? (
-              <span className="text-xs text-slate-500">Catálogo local</span>
+              <span className="mb-1 text-xs text-slate-500">Catálogo local</span>
             ) : null}
           </div>
 

@@ -36,7 +36,7 @@ export function ProductSearch({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Produtos</h2>
+          <h2 className="text-lg font-semibold tracking-tight text-slate-900">Produtos</h2>
           <p className="text-xs text-slate-500">F2 / Ctrl+K · scanner HID adiciona sem limpar o carrinho</p>
         </div>
         <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-500">Catálogo</span>

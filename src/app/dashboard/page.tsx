@@ -20,7 +20,7 @@ export default async function DashboardPage({
 
   return (
     <main>
-      <div className="border-b border-slate-200 bg-white px-4 py-3">
+      <div className="border-b border-slate-200 bg-white px-4 py-3 lg:px-6">
         <AppNav role={initial.role} storeId={initial.storeId} />
       </div>
       <DashboardScreen

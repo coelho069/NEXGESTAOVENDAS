@@ -43,15 +43,15 @@ export function PdvSidebar({
   onOpenSalesHistory?: () => void;
 }) {
   return (
-    <aside className="hidden w-64 shrink-0 flex-col gap-8 border-r border-slate-200 bg-white p-4 lg:flex">
-      <Link href={storeHref("/pdv", storeId)} className="flex items-center gap-2 px-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 font-bold text-white">
-          P
+    <aside className="hidden w-64 shrink-0 flex-col gap-8 border-r border-slate-200 bg-white px-4 py-5 lg:flex">
+      <Link href={storeHref("/pdv", storeId)} className="flex items-center gap-2.5 px-2">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">
+          N
         </span>
-        <span className="text-xl font-bold tracking-tight text-slate-900">NexPDV</span>
+        <span className="text-lg font-semibold tracking-tight text-slate-900">NexPDV</span>
       </Link>
 
-      <nav aria-label="Navegação principal" className="flex flex-1 flex-col gap-2">
+      <nav aria-label="Navegação principal" className="flex flex-1 flex-col gap-1">
         {navItems.map(({ href, icon: Icon, label }) => (
           <Link
             key={href}

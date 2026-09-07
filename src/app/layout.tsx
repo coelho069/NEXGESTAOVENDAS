@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import { SyncProvider } from "@/components/providers/sync-provider";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin", "latin-ext"], display: "swap" });
 
 export const metadata: Metadata = {
   title: "Nex Gestão Vendas — PDV",
