@@ -88,9 +88,14 @@ mkdir -p .next/standalone/.next
 rm -rf .next/standalone/.next/static
 cp -a .next/static .next/standalone/.next/static
 bash scripts/nex-atomic-deploy-check.sh
-# after start on :3211
+# after start — host/ops default :3211; Docker image :3000
 bash scripts/nex-atomic-deploy-check.sh --readiness
+# Docker:
+bash scripts/nex-atomic-deploy-check.sh --readiness http://127.0.0.1:3000/health/readiness
 ```
+
+`--readiness` deriva a origem do sample chunk da URL de readiness
+(não fixa :3211) e exige um `chunks/*.js` (preferência `main-app`).
 
 Nginx **pode** servir `/_next/static/` do disco (`alias`) se isso já for
 usado em produção — não remover; é hardening opcional (ver
