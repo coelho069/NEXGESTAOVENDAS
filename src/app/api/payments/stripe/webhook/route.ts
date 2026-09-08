@@ -60,6 +60,20 @@ export async function POST(request: Request) {
   }
 
   const result = await applyStripeWebhookEventBranched(event);
+  if (result.retry) {
+    observeApiResult(obs, "server_error", {
+      eventId: event.id,
+      type: event.type,
+      status: result.status,
+      retry: true,
+    });
+    return obs.withHeaders(
+      NextResponse.json(
+        { error: "stripe_webhook_apply_failed", event_id: event.id, type: event.type },
+        { status: 500 }
+      )
+    );
+  }
   observeApiResult(obs, "ok", {
     eventId: event.id,
     type: event.type,

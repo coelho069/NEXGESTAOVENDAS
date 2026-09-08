@@ -13,6 +13,7 @@ import {
 import {
   evaluatePixCheckoutGate,
   isPixCheckoutEnabledEnv,
+  pixWebhookObjectMatchesLocalIntent,
   reconcileStripePixPaymentIntent,
 } from "@/lib/domain/stripe-pix";
 import { executeCardPayment, getCardAdapterHealth } from "@/lib/server/card-payment";
@@ -21,8 +22,13 @@ import {
   applyStripeWebhookEventBranched,
   executePixPayment,
   getPixAdapterHealth,
+  reconcilePixAgainstStripe,
 } from "@/lib/server/pix-payment";
-import { probeStripePixHealth, resolvePixPaymentAdapter } from "@/lib/server/stripe-pix";
+import {
+  createStripePixGateway,
+  probeStripePixHealth,
+  resolvePixPaymentAdapter,
+} from "@/lib/server/stripe-pix";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { PixPaymentInput } from "@/lib/validation/schemas";
 
@@ -32,6 +38,7 @@ vi.mock("@/lib/server/stripe-pix", async (importOriginal) => {
     ...actual,
     probeStripePixHealth: vi.fn(),
     resolvePixPaymentAdapter: vi.fn(),
+    createStripePixGateway: vi.fn(),
   };
 });
 
@@ -41,6 +48,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 const probeStripePixHealthMock = vi.mocked(probeStripePixHealth);
 const resolvePixPaymentAdapterMock = vi.mocked(resolvePixPaymentAdapter);
+const createStripePixGatewayMock = vi.mocked(createStripePixGateway);
 const createAdminClientMock = vi.mocked(createAdminClient);
 
 const STORE = "11111111-1111-4111-8111-111111111111";
@@ -96,8 +104,19 @@ function fakeGateway(overrides: Partial<StripePixGateway> = {}): StripePixGatewa
   };
 }
 
+function webhookPixObject(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "pi_pix_123",
+    payment_method_types: ["pix"],
+    amount: 1000,
+    currency: "brl",
+    ...overrides,
+  };
+}
+
 function mockAdminRpc(
-  impl: (name: string, args?: unknown) => { data: unknown; error: unknown }
+  impl: (name: string, args?: unknown) => { data: unknown; error: unknown },
+  localIntent: { data: unknown; error: unknown } = { data: { amount: "10.00", currency: "brl" }, error: null }
 ) {
   const rpc = vi.fn(async (name: string, args?: unknown) => impl(name, args));
   createAdminClientMock.mockReturnValue({
@@ -105,7 +124,7 @@ function mockAdminRpc(
     from: () => ({
       select: () => ({
         eq: () => ({
-          maybeSingle: async () => ({ data: null, error: null }),
+          maybeSingle: async () => localIntent,
         }),
       }),
     }),
@@ -301,11 +320,33 @@ describe("PIX smoke lock — Gate 2 create pending ≠ sale confirmed", () => {
     expect(rpcNames).toContain("register_pix_payment_intent");
     expect(rpcNames).not.toContain("process_pix_sale");
   });
+
+  it("returns unknown when register_pix_payment_intent fails after Stripe create", async () => {
+    vi.stubEnv("PIX_CHECKOUT_ENABLED", "true");
+    probeStripePixHealthMock.mockResolvedValue({
+      ok: true,
+      configured: true,
+      testmode: true,
+      message: "Stripe testmode ok",
+    });
+    resolvePixPaymentAdapterMock.mockResolvedValue(new StripePixPaymentAdapter(fakeGateway()));
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { message: "register_failed" } });
+
+    const result = await executePixPayment({ rpc } as never, createInput(), OPERATOR);
+
+    expect(result.status).toBe("unknown");
+    expect(result.sale_confirmed).toBe(false);
+    expect(result.qr).toBeUndefined();
+  });
 });
 
 describe("PIX smoke lock — Gate 3 webhook confirm / fail / mismatch", () => {
   afterEach(() => {
     createAdminClientMock.mockReset();
+    createStripePixGatewayMock.mockReset();
+    probeStripePixHealthMock.mockReset();
+    resolvePixPaymentAdapterMock.mockReset();
+    vi.unstubAllEnvs();
   });
 
   it("confirms the sale only after succeeded + process_pix_sale", async () => {
@@ -322,7 +363,7 @@ describe("PIX smoke lock — Gate 3 webhook confirm / fail / mismatch", () => {
     const result = await applyPixStripeWebhookEvent({
       id: "evt_pix_ok",
       type: "payment_intent.succeeded",
-      data: { object: { id: "pi_pix_123", payment_method_types: ["pix"] } },
+      data: { object: webhookPixObject() },
     });
 
     expect(result.status).toBe("captured");
@@ -343,7 +384,7 @@ describe("PIX smoke lock — Gate 3 webhook confirm / fail / mismatch", () => {
     const result = await applyPixStripeWebhookEvent({
       id: "evt_pix_fail",
       type: "payment_intent.payment_failed",
-      data: { object: { id: "pi_pix_123", payment_method_types: ["pix"] } },
+      data: { object: webhookPixObject() },
     });
 
     expect(result.status).toBe("unknown");
@@ -352,15 +393,56 @@ describe("PIX smoke lock — Gate 3 webhook confirm / fail / mismatch", () => {
   });
 
   it("keeps succeeded without a matching PIX intent as unknown", async () => {
-    const rpc = mockAdminRpc(() => ({ data: { status: "captured" }, error: null }));
+    const rpc = mockAdminRpc(() => ({ data: { status: "captured" }, error: null }), {
+      data: null,
+      error: null,
+    });
 
     const result = await applyPixStripeWebhookEvent({
       id: "evt_pix_orphan",
       type: "payment_intent.succeeded",
-      data: { object: { id: "pi_unknown", payment_method_types: ["pix"] } },
+      data: { object: webhookPixObject({ id: "pi_unknown" }) },
     });
 
     expect(result.status).toBe("unknown");
+    expect(result.sale_confirmed).toBe(false);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("keeps webhook amount mismatch as unknown before process_pix_sale", async () => {
+    const rpc = mockAdminRpc(() => ({
+      data: { store_id: STORE, client_mutation_id: MUTATION },
+      error: null,
+    }));
+
+    const result = await applyPixStripeWebhookEvent({
+      id: "evt_pix_amount",
+      type: "payment_intent.succeeded",
+      data: { object: webhookPixObject({ amount: 2500 }) },
+    });
+
+    expect(result.status).toBe("unknown");
+    expect(result.sale_confirmed).toBe(false);
+    expect(rpc).not.toHaveBeenCalled();
+    expect(
+      pixWebhookObjectMatchesLocalIntent({
+        object: webhookPixObject({ amount: 2500 }),
+        expectedProviderRef: "pi_pix_123",
+        localAmount: "10.00",
+      })
+    ).toBe(false);
+  });
+
+  it("asks Stripe to retry when apply_pix_provider_event fails", async () => {
+    const rpc = mockAdminRpc(() => ({ data: null, error: { message: "db_down" } }));
+
+    const result = await applyPixStripeWebhookEvent({
+      id: "evt_pix_retry",
+      type: "payment_intent.succeeded",
+      data: { object: webhookPixObject() },
+    });
+
+    expect(result.retry).toBe(true);
     expect(result.sale_confirmed).toBe(false);
     expect(rpc.mock.calls.map((call) => call[0])).toEqual(["apply_pix_provider_event"]);
   });
@@ -376,7 +458,7 @@ describe("PIX smoke lock — Gate 3 webhook confirm / fail / mismatch", () => {
     const result = await applyPixStripeWebhookEvent({
       id: "evt_pix_mismatch",
       type: "payment_intent.succeeded",
-      data: { object: { id: "pi_pix_123", payment_method_types: ["pix"] } },
+      data: { object: webhookPixObject() },
     });
 
     expect(result.status).toBe("unknown");
@@ -399,6 +481,42 @@ describe("PIX smoke lock — Gate 3 webhook confirm / fail / mismatch", () => {
     });
     expect(provider.status).toBe("unknown");
     expect(provider.mismatch).toBe(true);
+  });
+
+  it("returns unknown when Stripe retrieve throws during reconcile", async () => {
+    probeStripePixHealthMock.mockResolvedValue({
+      ok: true,
+      configured: true,
+      testmode: true,
+      message: "ok",
+    });
+    resolvePixPaymentAdapterMock.mockResolvedValue(
+      new StripePixPaymentAdapter(
+        fakeGateway({
+          retrieve: async () => {
+            throw new Error("timeout");
+          },
+        })
+      )
+    );
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_pix");
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_pix");
+    createStripePixGatewayMock.mockReturnValue({
+      retrieve: async () => {
+        throw new Error("timeout");
+      },
+    } as never);
+
+    const result = await reconcilePixAgainstStripe({
+      supabase: { rpc: vi.fn() } as never,
+      storeId: STORE,
+      clientMutationId: MUTATION,
+      amount: "10.00",
+      providerReference: "pi_pix_123",
+    });
+
+    expect(result.status).toBe("unknown");
+    expect(result.sale_confirmed).toBe(false);
   });
 });
 
@@ -462,7 +580,7 @@ describe("PIX smoke lock — Gate 4 cash + card regression", () => {
   });
 
   it("routes card PaymentIntents to card RPCs, not process_pix_sale", async () => {
-    const rpc = mockAdminRpc(() => ({ data: {}, error: null }));
+    const rpc = mockAdminRpc(() => ({ data: {}, error: null }), { data: null, error: null });
 
     await applyStripeWebhookEventBranched({
       id: "evt_card_ok",

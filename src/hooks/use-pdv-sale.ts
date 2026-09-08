@@ -288,12 +288,20 @@ export function usePdvSale(
     const pending = usePdvUiStore.getState().pendingPix;
     const cart = useCartStore.getState();
     if (pending && cart.storeId) {
-      await cancelPendingPix({
+      const result = await cancelPendingPix({
         storeId: cart.storeId,
         amount: pending.amount,
         clientMutationId: pending.clientMutationId,
         providerReference: pending.providerReference,
       });
+      if (!result.cancelled) {
+        report(
+          result.unknown
+            ? "Cancelamento PIX sem confirmação. QR permanece; reconcilie."
+            : "PIX não cancelado. QR permanece."
+        );
+        return;
+      }
     }
     setPendingPix(null);
     setOpenPanel("payment");

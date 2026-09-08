@@ -11,8 +11,11 @@ import {
 import {
   isPixCheckoutEnabledEnv,
   isPixStripeObject,
+  localPixAmountToBrl,
   pixRefundStatusPendingExternal,
+  pixWebhookObjectMatchesLocalIntent,
   reconcileStripePixPaymentIntent,
+  type StripePixIntentSnapshot,
   type StripePixQr,
 } from "@/lib/domain/stripe-pix";
 import {
@@ -34,6 +37,7 @@ export type PixPaymentApiResult = PaymentOperationResult & {
   qr?: StripePixQr | null;
   replay?: boolean;
   ignored?: boolean;
+  retry?: boolean;
 };
 
 function asJson(value: unknown): Json {
@@ -118,7 +122,16 @@ export async function executePixPayment(
         return { ...result, configured: false, sale_confirmed: false };
       }
       if (result.providerReference && result.status !== "unknown") {
-        await registerPixIntent(supabase, input, operatorId, result);
+        const registered = await registerPixIntent(supabase, input, operatorId, result);
+        if (!registered) {
+          return {
+            status: "unknown",
+            message: "PaymentIntent PIX criado, mas a intenção local não persistiu. Não confirme a venda.",
+            configured: true,
+            sale_confirmed: false,
+            providerReference: result.providerReference,
+          };
+        }
       }
       return {
         ...result,
@@ -167,9 +180,20 @@ export async function reconcilePixAgainstStripe(input: {
   const env = getStripeCardEnv();
   if (env.configured) {
     const stripe = createStripeClient(env.secretKey, env.timeoutMs);
-    const snapshot = await createStripePixGateway(stripe).retrieve({
-      providerReference: input.providerReference,
-    });
+    let snapshot: StripePixIntentSnapshot | null = null;
+    try {
+      snapshot = await createStripePixGateway(stripe).retrieve({
+        providerReference: input.providerReference,
+      });
+    } catch {
+      return {
+        status: "unknown",
+        message: "Falha ao consultar PaymentIntent PIX. Reconcilie novamente; não confirme a venda.",
+        configured: true,
+        sale_confirmed: false,
+        providerReference: input.providerReference,
+      };
+    }
     const decision = reconcileStripePixPaymentIntent({
       expectedProviderRef: input.providerReference,
       expectedAmount: input.amount,
@@ -286,6 +310,37 @@ export async function applyPixStripeWebhookEvent(event: {
           ? "cancelled"
           : "unknown";
 
+  if (applyStatus === "captured") {
+    const local = await loadRegisteredPixIntent(admin, providerRef);
+    if (local === "error") {
+      return {
+        status: "unknown",
+        message: "Falha ao ler intenção PIX local; Stripe deve retentar.",
+        configured: true,
+        sale_confirmed: false,
+        retry: true,
+        providerReference: providerRef,
+      };
+    }
+    if (
+      !local ||
+      !pixWebhookObjectMatchesLocalIntent({
+        object,
+        expectedProviderRef: providerRef,
+        localAmount: local.amount,
+        localCurrency: local.currency,
+      })
+    ) {
+      return {
+        status: "unknown",
+        message: "Webhook PIX com id/valor/moeda incompatível; venda não confirmada.",
+        configured: true,
+        sale_confirmed: false,
+        providerReference: providerRef,
+      };
+    }
+  }
+
   const applied = await admin.rpc("apply_pix_provider_event", {
     p_payload: asJson({
       event_id: event.id,
@@ -294,8 +349,19 @@ export async function applyPixStripeWebhookEvent(event: {
       status: applyStatus,
     }),
   });
+  if (applied.error) {
+    return {
+      status: "unknown",
+      message: "Falha ao aplicar evento PIX; Stripe deve retentar.",
+      configured: true,
+      sale_confirmed: false,
+      retry: true,
+      providerReference: providerRef,
+    };
+  }
+
   const appliedRow =
-    !applied.error && applied.data && typeof applied.data === "object" && !Array.isArray(applied.data)
+    applied.data && typeof applied.data === "object" && !Array.isArray(applied.data)
       ? applied.data
       : null;
   const storeId = appliedRow && typeof appliedRow.store_id === "string" ? appliedRow.store_id : "";
@@ -375,12 +441,12 @@ async function registerPixIntent(
   input: PixPaymentInput,
   operatorId: string,
   result: PaymentOperationResult
-): Promise<void> {
+): Promise<boolean> {
   const status =
     result.status === "pending" || result.status === "failed" || result.status === "cancelled"
       ? result.status
       : "unknown";
-  await supabase.rpc("register_pix_payment_intent", {
+  const { error } = await supabase.rpc("register_pix_payment_intent", {
     p_payload: asJson({
       store_id: input.store_id,
       client_mutation_id: input.client_mutation_id,
@@ -399,6 +465,23 @@ async function registerPixIntent(
       },
     }),
   });
+  return !error;
+}
+
+async function loadRegisteredPixIntent(
+  admin: DbClient,
+  providerRef: string
+): Promise<{ amount: string; currency: string } | null | "error"> {
+  const { data, error } = await admin
+    .from("pix_payment_intents")
+    .select("amount, currency")
+    .eq("provider_ref", providerRef)
+    .maybeSingle();
+  if (error) return "error";
+  const amount = localPixAmountToBrl(data?.amount);
+  const currency = typeof data?.currency === "string" && data.currency.length > 0 ? data.currency : "brl";
+  if (!amount) return null;
+  return { amount, currency };
 }
 
 async function applyPixProviderStatus(

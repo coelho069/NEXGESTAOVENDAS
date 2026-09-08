@@ -1,5 +1,6 @@
 import type { PaymentState } from "@/lib/domain/payment-state";
 import {
+  amountsMatchBrl,
   classifySilentHttpSuccess,
   mustNotInventRefundCash,
   reconcileStripePaymentIntent,
@@ -8,6 +9,7 @@ import {
   type StripeIntentOperation,
   type StripeReconcileDecision,
 } from "@/lib/domain/stripe-card";
+import { money, toMoneyString } from "@/lib/money";
 
 export { mustNotInventRefundCash };
 
@@ -140,6 +142,45 @@ export function extractPixQr(nextAction: unknown): StripePixQr | null {
     hostedInstructionsUrl:
       typeof qr.hosted_instructions_url === "string" ? qr.hosted_instructions_url : undefined,
   };
+}
+
+export function localPixAmountToBrl(value: unknown): string | null {
+  if (typeof value === "string" && value.length > 0) {
+    try {
+      return toMoneyString(money(value));
+    } catch {
+      return null;
+    }
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    try {
+      return toMoneyString(money(value));
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+export function pixWebhookObjectMatchesLocalIntent(input: {
+  object: Record<string, unknown>;
+  expectedProviderRef: string;
+  localAmount: string;
+  localCurrency?: string;
+}): boolean {
+  if (typeof input.object.id === "string" && input.object.id !== input.expectedProviderRef) {
+    return false;
+  }
+  if (!isPixStripeObject(input.object)) {
+    return false;
+  }
+  const amount = input.object.amount;
+  const currency =
+    typeof input.object.currency === "string" ? input.object.currency : input.localCurrency ?? STRIPE_PIX_CURRENCY;
+  if (typeof amount !== "number") {
+    return false;
+  }
+  return amountsMatchBrl(input.localAmount, amount, currency);
 }
 
 export function isPixStripeObject(object: Record<string, unknown>): boolean {
