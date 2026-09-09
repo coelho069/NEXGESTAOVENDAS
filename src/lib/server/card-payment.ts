@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/db/types";
 import type { PaymentOperationResult } from "@/lib/adapters/payment";
+import { rpcFailureLogFields } from "@/lib/domain/sale-process-error";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   createStripeCardGateway,
@@ -16,7 +17,10 @@ import {
   webhookEventToPaymentState,
   type StripeWebhookEventType,
 } from "@/lib/domain/stripe-card";
+import { rootLogger } from "@/lib/observability/logger";
 import type { CardPaymentInput } from "@/lib/validation/schemas";
+
+const cardLog = rootLogger.child({ component: "card-payment" });
 
 type DbClient = SupabaseClient<Database>;
 
@@ -33,9 +37,10 @@ function asJson(value: unknown): Json {
 }
 
 /**
- * CARD_CHECKOUT_ENABLED must stay unset/false until migration
- * 20260906220000 (`process_card_sale`) is applied AND smoke Log2
- * (authorize → capture → sale confirmed) PASSES. Explicit opt-in only.
+ * CARD_CHECKOUT_ENABLED must stay unset/false until this integrity PR is
+ * merged AND smoke Log2 (authorize ≠ confirmed → capture → process_card_sale
+ * confirmed) PASSES. Explicit opt-in only. Capture without sale confirmation
+ * is a separate bug from cash and stays fail-closed.
  */
 function isCardCheckoutEnabled(): boolean {
   return process.env.CARD_CHECKOUT_ENABLED === "true";
@@ -43,6 +48,9 @@ function isCardCheckoutEnabled(): boolean {
 
 const CARD_CHECKOUT_HOLD_MESSAGE =
   "Card checkout em hold operacional até opt-in explícito (CARD_CHECKOUT_ENABLED=true).";
+
+const CARD_CONFIRMATION_UNAVAILABLE_MESSAGE =
+  "Card checkout indisponível: capture não pode confirmar venda sem service role (apply_card_provider_status).";
 
 function cardCheckoutHoldHealth(): {
   configured: false;
@@ -58,6 +66,24 @@ function cardCheckoutHoldHealth(): {
   };
 }
 
+function cardConfirmationUnavailableHealth(): {
+  configured: false;
+  testmode: false;
+  message: string;
+  reason: "card_confirmation_unavailable";
+} {
+  return {
+    configured: false,
+    testmode: false,
+    message: CARD_CONFIRMATION_UNAVAILABLE_MESSAGE,
+    reason: "card_confirmation_unavailable",
+  };
+}
+
+function canApplyCardProviderStatus(): boolean {
+  return Boolean(createAdminClient());
+}
+
 export async function getCardAdapterHealth(): Promise<{
   configured: boolean;
   testmode: boolean;
@@ -66,6 +92,9 @@ export async function getCardAdapterHealth(): Promise<{
 }> {
   if (!isCardCheckoutEnabled()) {
     return cardCheckoutHoldHealth();
+  }
+  if (!canApplyCardProviderStatus()) {
+    return cardConfirmationUnavailableHealth();
   }
   const health = await probeStripeCardHealth();
   return {
@@ -88,6 +117,14 @@ export async function executeCardPayment(
       configured: false,
     };
   }
+  if (!canApplyCardProviderStatus()) {
+    return {
+      status: "not_configured",
+      message: CARD_CONFIRMATION_UNAVAILABLE_MESSAGE,
+      configured: false,
+      sale_confirmed: false,
+    };
+  }
   const health = await probeStripeCardHealth();
   if (!health.configured) {
     return {
@@ -108,25 +145,61 @@ export async function executeCardPayment(
     case "authorize": {
       const result = await adapter.authorize(input.amount, context);
       if (result.status === "not_configured") {
-        return { ...result, configured: false };
+        return { ...result, configured: false, sale_confirmed: false };
       }
       if (result.providerReference && result.status !== "unknown") {
-        await registerCardIntent(supabase, input, operatorId, result);
+        const registered = await registerCardIntent(supabase, input, operatorId, result);
+        if (!registered) {
+          return {
+            status: "unknown",
+            message: "Autorização Stripe sem intent registrado. Venda não confirmada.",
+            providerReference: result.providerReference,
+            configured: true,
+            sale_confirmed: false,
+          };
+        }
       }
       return { ...result, configured: true, sale_confirmed: false };
     }
     case "capture": {
+      if (!canApplyCardProviderStatus()) {
+        return {
+          status: "not_configured",
+          message: CARD_CONFIRMATION_UNAVAILABLE_MESSAGE,
+          configured: false,
+          sale_confirmed: false,
+        };
+      }
       const result = await adapter.capture(input.amount, context);
       if (result.status === "not_configured") {
-        return { ...result, configured: false };
+        return { ...result, configured: false, sale_confirmed: false };
       }
       if (result.status !== "captured" || !result.providerReference) {
         if (result.providerReference) {
           await applyProviderStatus(result.providerReference, result.status === "failed" ? "failed" : "unknown");
         }
-        return { ...result, configured: true, sale_confirmed: false };
+        return {
+          ...result,
+          configured: true,
+          sale_confirmed: false,
+          status: result.status === "captured" ? "unknown" : result.status,
+        };
       }
-      await applyProviderStatus(result.providerReference, "captured");
+      const applied = await applyProviderStatus(result.providerReference, "captured");
+      if (!applied) {
+        cardLog.error("card_provider_status_not_applied", {
+          providerReference: result.providerReference,
+          clientMutationId: input.client_mutation_id,
+          storeId: input.store_id,
+        });
+        return {
+          status: "unknown",
+          message: "Stripe retornou succeeded sem status local captured. Venda não confirmada.",
+          providerReference: result.providerReference,
+          configured: true,
+          sale_confirmed: false,
+        };
+      }
       const sale = await confirmCardSale(supabase, input, result.providerReference);
       return {
         ...result,
@@ -137,7 +210,7 @@ export async function executeCardPayment(
         status: sale.sale_confirmed ? "captured" : "unknown",
         message: sale.sale_confirmed
           ? result.message
-          : "HTTP/Stripe captured sem venda confirmada. Reconcilie antes de confirmar.",
+          : "Capture sem venda confirmada. Não trate como capturado; reconcilie.",
       };
     }
     case "cancel": {
@@ -318,12 +391,12 @@ async function registerCardIntent(
   input: CardPaymentInput,
   operatorId: string,
   result: PaymentOperationResult
-): Promise<void> {
+): Promise<boolean> {
   const status =
     result.status === "authorized" || result.status === "pending" || result.status === "failed"
       ? result.status
       : "unknown";
-  await supabase.rpc("register_card_payment_intent", {
+  const { error } = await supabase.rpc("register_card_payment_intent", {
     p_payload: asJson({
       store_id: input.store_id,
       client_mutation_id: input.client_mutation_id,
@@ -342,20 +415,41 @@ async function registerCardIntent(
       },
     }),
   });
+  if (error) {
+    cardLog.error("register_card_payment_intent_failed", {
+      ...rpcFailureLogFields(error),
+      clientMutationId: input.client_mutation_id,
+      storeId: input.store_id,
+    });
+    return false;
+  }
+  return true;
 }
 
 async function applyProviderStatus(
   providerRef: string,
   status: "authorized" | "captured" | "failed" | "unknown" | "cancelled" | "refunded"
-): Promise<void> {
+): Promise<boolean> {
   const admin = createAdminClient();
-  if (!admin) return;
-  await admin.rpc("apply_card_provider_status", {
+  if (!admin) {
+    cardLog.error("card_provider_status_unavailable", { providerReference: providerRef, status });
+    return false;
+  }
+  const { error } = await admin.rpc("apply_card_provider_status", {
     p_payload: asJson({
       provider_ref: providerRef,
       status,
     }),
   });
+  if (error) {
+    cardLog.error("apply_card_provider_status_failed", {
+      ...rpcFailureLogFields(error),
+      providerReference: providerRef,
+      status,
+    });
+    return false;
+  }
+  return true;
 }
 
 async function confirmCardSale(
@@ -382,6 +476,12 @@ async function confirmCardSale(
     }),
   });
   if (error || !data || typeof data !== "object" || Array.isArray(data)) {
+    cardLog.error("process_card_sale_failed", {
+      ...(error ? rpcFailureLogFields(error) : { rpcMessage: "empty_or_invalid_process_card_sale" }),
+      clientMutationId: input.client_mutation_id,
+      storeId: input.store_id,
+      providerReference: providerRef,
+    });
     return { sale_confirmed: false };
   }
   const saleId = typeof data.sale_id === "string" ? data.sale_id : undefined;

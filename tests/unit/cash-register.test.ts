@@ -3,6 +3,7 @@ import {
   calculateCashDifference,
   calculateExpectedCash,
   canTransitionCashSession,
+  resolveOpenCashSaleContext,
 } from "@/lib/domain/cash";
 import type { AuthedContext } from "@/lib/auth/session";
 
@@ -54,6 +55,35 @@ describe("cash ledger domain", () => {
     expect(canTransitionCashSession("open", "open")).toBe(false);
     expect(canTransitionCashSession("closed", "open")).toBe(false);
     expect(canTransitionCashSession("closed", "closed")).toBe(false);
+  });
+
+  it("refuses an open session from another terminal when Centro has multiple open caixas", () => {
+    const otherTerminal = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const session = {
+      cash_session_id: SESSION_ID,
+      terminal_id: otherTerminal,
+      status: "open" as const,
+    };
+    expect(resolveOpenCashSaleContext({ session, terminalId: TERMINAL_ID })).toEqual({
+      ok: false,
+      error: "cash_session_conflict",
+    });
+    expect(
+      resolveOpenCashSaleContext({
+        session: { ...session, terminal_id: TERMINAL_ID },
+        terminalId: TERMINAL_ID,
+      })
+    ).toEqual({
+      ok: true,
+      cashSessionId: SESSION_ID,
+      terminalId: TERMINAL_ID,
+    });
+    expect(
+      resolveOpenCashSaleContext({
+        session: { ...session, terminal_id: TERMINAL_ID, status: "closed" },
+        terminalId: TERMINAL_ID,
+      })
+    ).toEqual({ ok: false, error: "cash_session_required" });
   });
 });
 

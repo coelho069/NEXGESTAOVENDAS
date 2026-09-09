@@ -11,6 +11,7 @@ import {
 } from "@/lib/adapters/payment-health";
 import { executeCardPayment, getCardAdapterHealth } from "@/lib/server/card-payment";
 import { probeStripeCardHealth } from "@/lib/server/stripe-card";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { CardPaymentInput } from "@/lib/validation/schemas";
 
 vi.mock("@/lib/server/stripe-card", async (importOriginal) => {
@@ -21,7 +22,12 @@ vi.mock("@/lib/server/stripe-card", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: vi.fn(),
+}));
+
 const probeStripeCardHealthMock = vi.mocked(probeStripeCardHealth);
+const createAdminClientMock = vi.mocked(createAdminClient);
 
 function captureInput(): CardPaymentInput {
   return {
@@ -45,6 +51,7 @@ describe("card checkout hold flag", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     probeStripeCardHealthMock.mockReset();
+    createAdminClientMock.mockReset();
   });
 
   it("holds health when CARD_CHECKOUT_ENABLED is unset or false", async () => {
@@ -86,8 +93,27 @@ describe("card checkout hold flag", () => {
     expect(probeStripeCardHealthMock).not.toHaveBeenCalled();
   });
 
-  it("keeps prior health behavior when CARD_CHECKOUT_ENABLED=true", async () => {
+  it("fail-closes health when flag is on but confirmation path has no service role", async () => {
     vi.stubEnv("CARD_CHECKOUT_ENABLED", "true");
+    createAdminClientMock.mockReturnValue(null);
+    const health = await getCardAdapterHealth();
+    expect(health.configured).toBe(false);
+    expect(health.testmode).toBe(false);
+    expect(health.reason).toBe("card_confirmation_unavailable");
+    expect(probeStripeCardHealthMock).not.toHaveBeenCalled();
+    expect(
+      isCardPaymentHealthSelectable({
+        ok: true,
+        status: 200,
+        contentType: "application/json",
+        body: { ...health, method: "card" },
+      })
+    ).toBe(false);
+  });
+
+  it("keeps prior health behavior when CARD_CHECKOUT_ENABLED=true and confirmation path is ready", async () => {
+    vi.stubEnv("CARD_CHECKOUT_ENABLED", "true");
+    createAdminClientMock.mockReturnValue({ rpc: vi.fn() } as never);
     probeStripeCardHealthMock.mockResolvedValue({
       ok: true,
       configured: true,

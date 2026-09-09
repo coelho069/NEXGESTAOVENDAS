@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { processSaleInputSchema, storeIdSchema } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
 import { discountLimitHttpStatus, salePayloadExceedsDiscountCap } from "@/lib/domain/sale-ops";
+import { mapProcessSaleRpcError, rpcFailureLogFields } from "@/lib/domain/sale-process-error";
 import { requestFiscalIssueAfterCommit } from "@/lib/server/fiscal-operation";
 import {
   createRequestObservability,
@@ -102,44 +103,35 @@ export async function POST(request: Request) {
   });
 
   if (error) {
-    if (error.message.includes("idempotency_payload_mismatch")) {
-      return NextResponse.json({ error: "idempotency_payload_mismatch" }, { status: 409 });
-    }
-    if (
-      error.message.includes("suspended_sale_claimed") ||
-      error.message.includes("suspended_sale_completed") ||
-      error.message.includes("suspended_sale_claim_conflict") ||
-      error.message.includes("suspended_snapshot_conflict") ||
-      error.message.includes("suspended_sale_completion")
-    ) {
-      return NextResponse.json({ error: "suspended_sale_conflict" }, { status: 409 });
-    }
-    if (error.message.includes("suspended_sale_not_found")) {
-      return NextResponse.json({ error: "suspended_sale_not_found" }, { status: 404 });
-    }
-    if (error.message.includes("discount_limit_exceeded")) {
-      return NextResponse.json({ error: "discount_limit_exceeded" }, { status: 403 });
-    }
-    if (error.message.includes("forbidden") || error.message.includes("access_denied")) {
-      return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
-    }
-    if (error.message.includes("cash_session_closed")) {
-      return NextResponse.json({ error: "cash_session_closed" }, { status: 409 });
-    }
-    if (
-      error.message.includes("cash_session_already_open") ||
-      error.message.includes("cash_sale_session_mismatch") ||
-      error.message.includes("cash_idempotency_payload_mismatch")
-    ) {
-      return NextResponse.json({ error: "cash_session_conflict" }, { status: 409 });
-    }
-    if (error.code === "22023" || error.code === "23514") {
-      return NextResponse.json({ error: "sale_processing_failed" }, { status: 422 });
-    }
-    observeApiResult(obs, "server_error", {
-      error: "sale_processing_unavailable",
+    const rpcFields = rpcFailureLogFields(error);
+    const logContext = {
+      ...rpcFields,
       clientMutationId: parsed.data.client_mutation_id,
       storeId: parsed.data.store_id,
+      rpc: rpc,
+    };
+    if (
+      error.message?.includes("suspended_sale_claimed") ||
+      error.message?.includes("suspended_sale_completed") ||
+      error.message?.includes("suspended_sale_claim_conflict") ||
+      error.message?.includes("suspended_snapshot_conflict") ||
+      error.message?.includes("suspended_sale_completion")
+    ) {
+      observeApiResult(obs, "client_error", { ...logContext, error: "suspended_sale_conflict" });
+      return obs.withHeaders(NextResponse.json({ error: "suspended_sale_conflict" }, { status: 409 }));
+    }
+    if (error.message?.includes("suspended_sale_not_found")) {
+      observeApiResult(obs, "client_error", { ...logContext, error: "suspended_sale_not_found" });
+      return obs.withHeaders(NextResponse.json({ error: "suspended_sale_not_found" }, { status: 404 }));
+    }
+    const mapped = mapProcessSaleRpcError(error);
+    if (mapped) {
+      observeApiResult(obs, "client_error", { ...logContext, error: mapped.error });
+      return obs.withHeaders(NextResponse.json({ error: mapped.error }, { status: mapped.status }));
+    }
+    observeApiResult(obs, "server_error", {
+      ...logContext,
+      error: "sale_processing_unavailable",
     });
     return obs.withHeaders(
       NextResponse.json({ error: "sale_processing_unavailable" }, { status: 503 })
