@@ -168,6 +168,31 @@ describe("nex-atomic-deploy-check.sh", () => {
     expect(result.stdout).toMatch(/HTML\/RSC static references exist/);
   });
 
+  it("strips a trailing backslash from escaped HTML/RSC static refs", () => {
+    const root = makeRoot();
+    roots.push(root);
+    writeStandalone(root, {
+      staticFiles: {
+        "css/app.css": "body{}",
+        "chunks/main-app-abc.js": "/* main-app */",
+        "media/font.woff2": "font",
+      },
+      // Escaped quotes (RSC/JSON) leave a trailing \ on grep -oE matches.
+      html: [
+        'href=\\"/_next/static/css/app.css\\"',
+        'src=\\"/_next/static/chunks/main-app-abc.js\\"',
+        'url(\\"/_next/static/media/font.woff2\\")',
+      ].join("\n"),
+    });
+
+    const result = runCheck(root);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toMatch(/HTML\/RSC static references exist/);
+    expect(`${result.stdout}${result.stderr}`).not.toMatch(
+      /ATOMIC DEPLOY CHECK FAILED/,
+    );
+  });
+
   it("fails readiness gate when the process is not listening", async () => {
     const root = makeRoot();
     roots.push(root);
