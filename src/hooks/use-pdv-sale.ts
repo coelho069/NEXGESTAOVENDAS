@@ -16,6 +16,8 @@ import {
   type SaleState,
 } from "@/lib/domain/sale-ops";
 import { useCheckout } from "@/hooks/use-checkout";
+import { useStoreSalePolicy } from "@/hooks/use-store-sale-policy";
+import { describeSaleProcessError } from "@/lib/domain/sale-process-error";
 import { useCartStore } from "@/stores/cart-store";
 import { usePdvUiStore } from "@/stores/pdv-ui-store";
 
@@ -48,6 +50,7 @@ export function usePdvSale(
 ) {
   const catalog = useMemo(() => products.map(toCatalogProduct), [products]);
   const { storeId, lines, discount, customerId, customerName, setCustomer, removeLine } = useCartStore();
+  const salePolicy = useStoreSalePolicy(storeId);
   const {
     selectedProductId,
     setSelectedProductId,
@@ -170,6 +173,11 @@ export function usePdvSale(
     async (method: Enums<"payment_method">) => {
       setMessage(null);
       try {
+        if (salePolicy.requireCustomerOnSale && !useCartStore.getState().customerId) {
+          setOpenPanel("customer");
+          report("Selecione um cliente para concluir a venda.");
+          return;
+        }
         const result = await paySale({
           method,
           role,
@@ -177,6 +185,7 @@ export function usePdvSale(
           storeName,
           cashSessionId: cashSessionId ?? undefined,
           terminalId,
+          requireCustomer: salePolicy.requireCustomerOnSale,
         });
         if (!result.ok) {
           setDraftReason(result.message);
@@ -206,7 +215,9 @@ export function usePdvSale(
         setOpenPanel("receipt");
         report(null);
       } catch (error) {
-        report(error instanceof Error ? error.message : "Erro no pagamento");
+        report(
+          error instanceof Error ? describeSaleProcessError(error.message) : "Erro no pagamento"
+        );
       }
     },
     [
@@ -220,6 +231,7 @@ export function usePdvSale(
       setLastReceipt,
       setPendingPix,
       setOpenPanel,
+      salePolicy.requireCustomerOnSale,
       storeName,
       terminalId,
     ]
@@ -339,6 +351,7 @@ export function usePdvSale(
     discount,
     customerId,
     customerName,
+    requireCustomer: salePolicy.requireCustomerOnSale,
     totals,
     cartQty,
     message,

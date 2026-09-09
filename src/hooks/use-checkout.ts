@@ -20,6 +20,7 @@ import {
 import { confirmFixtureLocalSales } from "@/lib/domain/sale-return-local";
 import { recordCapturedCardSale } from "@/lib/offline/close-card-sale";
 import { recordCapturedPixSale } from "@/lib/offline/close-pix-sale";
+import { describeSaleProcessError } from "@/lib/domain/sale-process-error";
 import { evaluatePixCheckoutGate, type StripePixQr } from "@/lib/domain/stripe-pix";
 import { closeSale } from "@/lib/offline/close-sale";
 import { endClientSession } from "@/lib/offline/end-session";
@@ -142,6 +143,7 @@ export function useCheckout() {
       storeName: string;
       cashSessionId?: string;
       terminalId?: string;
+      requireCustomer?: boolean;
     }): Promise<
       | { ok: true; draft: false; receipt: ReceiptModel; saleId: string; offline: boolean }
       | { ok: false; draft: true; message: string; receipt: null }
@@ -188,6 +190,7 @@ export function useCheckout() {
           stock: liveStock,
           products: input.products,
           role: input.role,
+          requireCustomer: input.requireCustomer,
         });
         if (!validated.ok) {
           throw new Error(validated.error);
@@ -353,6 +356,7 @@ export function useCheckout() {
           role,
           lines: cart.lines,
           discount: cart.discount,
+          customerId: cart.customerId ?? undefined,
           suspendedSaleId: cart.suspendedSaleId ?? undefined,
           suspensionClaimId: cart.suspensionClaimId ?? undefined,
           payments: [payment],
@@ -673,6 +677,8 @@ async function payCardOnServer(input: {
     captureStatus === "unknown" ||
     (captureResponse.ok && captureStatus !== "captured")
   ) {
+    const mappedError =
+      typeof captureBody.error === "string" ? describeSaleProcessError(captureBody.error) : null;
     const serverMessage =
       typeof captureBody.message === "string" && !/captured/i.test(captureBody.message)
         ? captureBody.message
@@ -680,6 +686,7 @@ async function payCardOnServer(input: {
     return {
       kind: "unknown",
       message:
+        mappedError ??
         serverMessage ??
         "Pagamento card sem venda confirmada. Capture não é sucesso; reconcilie ou use dinheiro.",
     };

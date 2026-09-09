@@ -12,6 +12,13 @@ vi.mock("@/lib/supabase/server", () => ({ createClient }));
 vi.mock("@/lib/server/fiscal-operation", () => ({
   requestFiscalIssueAfterCommit: vi.fn().mockResolvedValue({ data: { status: "pending" } }),
 }));
+vi.mock("@/lib/server/store-sale-policy", () => ({
+  loadStoreSalePolicy: vi.fn().mockResolvedValue({
+    requireCustomerOnSale: false,
+    requireCustomerDocument: false,
+    requireOpenCashSession: false,
+  }),
+}));
 vi.mock("@/lib/observability/request-context", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/observability/request-context")>();
   return {
@@ -21,6 +28,9 @@ vi.mock("@/lib/observability/request-context", async (importOriginal) => {
 });
 
 import { POST } from "@/app/api/sales/process/route";
+import { loadStoreSalePolicy } from "@/lib/server/store-sale-policy";
+
+const loadStoreSalePolicyMock = vi.mocked(loadStoreSalePolicy);
 
 const STORE_ID = "22222222-2222-4222-8222-222222222201";
 const SESSION_ID = "66666666-6666-4666-8666-666666666666";
@@ -109,6 +119,39 @@ describe("POST /api/sales/process cash RPC failures", () => {
         rpc: "process_sale_with_cash",
       })
     );
+  });
+
+  it("maps customer_required_on_sale instead of opaque sale_processing_failed", async () => {
+    rpc.mockResolvedValue({
+      data: null,
+      error: { code: "22023", message: "customer_required_on_sale" },
+    });
+
+    const response = await POST(request(salePayload()));
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({ error: "customer_required_on_sale" });
+    expect(observeApiResult).toHaveBeenCalledWith(
+      expect.anything(),
+      "client_error",
+      expect.objectContaining({
+        error: "customer_required_on_sale",
+        rpcCode: "22023",
+        rpcMessage: "customer_required_on_sale",
+      })
+    );
+  });
+
+  it("rejects cash checkout before RPC when store policy requires a customer", async () => {
+    loadStoreSalePolicyMock.mockResolvedValueOnce({
+      requireCustomerOnSale: true,
+      requireCustomerDocument: false,
+      requireOpenCashSession: false,
+    });
+
+    const response = await POST(request(salePayload()));
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({ error: "customer_required_on_sale" });
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("still journals opaque 22023 as sale_processing_failed instead of silent 422", async () => {

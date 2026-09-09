@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { mapProcessSaleRpcError, rpcFailureLogFields } from "@/lib/domain/sale-process-error";
+import {
+  describeSaleProcessError,
+  mapProcessSaleRpcError,
+  rpcFailureLogFields,
+} from "@/lib/domain/sale-process-error";
 
 describe("mapProcessSaleRpcError", () => {
   it("maps opaque 22023/23514 tokens to actionable cash errors", () => {
@@ -31,6 +35,12 @@ describe("mapProcessSaleRpcError", () => {
         message: "payment_cash_session_scope_mismatch",
       })
     ).toEqual({ error: "cash_session_conflict", status: 409 });
+    expect(
+      mapProcessSaleRpcError({ code: "22023", message: "customer_required_on_sale" })
+    ).toEqual({ error: "customer_required_on_sale", status: 422 });
+    expect(
+      mapProcessSaleRpcError({ code: "22023", message: "customer_document_required" })
+    ).toEqual({ error: "customer_document_required", status: 422 });
   });
 
   it("keeps unmapped 22023/23514 as sale_processing_failed", () => {
@@ -52,5 +62,11 @@ describe("mapProcessSaleRpcError", () => {
     expect(fields.rpcMessage).toBe("insufficient_stock");
     expect(fields.rpcHint).toBe("restock BEV-001 before sale");
     expect(fields.rpcDetails).toContain("api_key=");
+  });
+
+  it("describes customer_required without falling back to sale_processing_failed", () => {
+    expect(describeSaleProcessError("customer_required_on_sale")).toMatch(/cliente/i);
+    expect(describeSaleProcessError("inventory_movement_conflict")).toMatch(/estoque/i);
+    expect(describeSaleProcessError("customer_required_on_sale")).not.toMatch(/sale_processing_failed/);
   });
 });

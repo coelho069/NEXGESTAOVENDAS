@@ -5,6 +5,7 @@ import { cardPaymentInputSchema, storeIdSchema } from "@/lib/validation/schemas"
 import { clientRateLimitKey, consumeRateLimit } from "@/lib/security/rate-limit";
 import { rateLimitedResponse, validationFailedResponse } from "@/lib/security/safe-error";
 import { executeCardPayment, getCardAdapterHealth } from "@/lib/server/card-payment";
+import { loadStoreSalePolicy } from "@/lib/server/store-sale-policy";
 import {
   createRequestObservability,
   observeApiResult,
@@ -91,9 +92,34 @@ export async function POST(request: Request) {
     return obs.withHeaders(NextResponse.json({ error: "forbidden_store" }, { status: 403 }));
   }
 
+  const salePolicy = await loadStoreSalePolicy(supabase, parsed.data.store_id);
+  if (salePolicy.requireCustomerOnSale && !parsed.data.customer_id) {
+    observeApiResult(obs, "client_error", {
+      error: "customer_required_on_sale",
+      action: parsed.data.action,
+      saleConfirmed: false,
+    });
+    return obs.withHeaders(
+      NextResponse.json(
+        {
+          error: "customer_required_on_sale",
+          status: "unknown",
+          sale_confirmed: false,
+          configured: true,
+          message: "Selecione um cliente para concluir a venda.",
+        },
+        { status: 422 }
+      )
+    );
+  }
+
   const result = await executeCardPayment(supabase, parsed.data, user.id);
   const saleConfirmed = result.sale_confirmed === true;
   const status = result.status === "captured" && !saleConfirmed ? "unknown" : result.status;
+  const captureError =
+    parsed.data.action === "capture" && !saleConfirmed
+      ? result.error ?? "card_capture_without_sale"
+      : undefined;
   const outcome =
     result.status === "not_configured"
       ? "rejected"
@@ -104,13 +130,12 @@ export async function POST(request: Request) {
     status,
     action: parsed.data.action,
     saleConfirmed,
-    ...(parsed.data.action === "capture" && !saleConfirmed
-      ? { error: "card_capture_without_sale" }
-      : {}),
+    ...(captureError ? { error: captureError } : {}),
   });
   return obs.withHeaders(
     NextResponse.json({
       status,
+      error: captureError,
       message: result.message,
       configured: result.configured,
       provider_reference: result.providerReference,
