@@ -249,10 +249,19 @@ export function calculateTotals(state: SaleState): SaleTotals {
 
 export function validateSale(
   state: SaleState,
-  options: { stock?: StockMap | null; products?: CatalogProduct[]; role: MemberRole }
+  options: {
+    stock?: StockMap | null;
+    products?: CatalogProduct[];
+    role: MemberRole;
+    requireCustomer?: boolean;
+  }
 ): SaleOpResult {
   if (state.lines.length === 0) {
     return fail(state, "Carrinho vazio");
+  }
+
+  if (options.requireCustomer && !state.customerId) {
+    return fail(state, "Selecione um cliente para concluir a venda.");
   }
 
   if (isLocalStockEmpty(options.stock)) {

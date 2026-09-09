@@ -4,11 +4,19 @@ type CustomerDialogProps = {
   open: boolean;
   customers: CatalogCustomer[];
   selectedId: string | null;
+  requireCustomer?: boolean;
   onSelect: (customer: CatalogCustomer | null) => void;
   onClose: () => void;
 };
 
-export function CustomerDialog({ open, customers, selectedId, onSelect, onClose }: CustomerDialogProps) {
+export function CustomerDialog({
+  open,
+  customers,
+  selectedId,
+  requireCustomer = false,
+  onSelect,
+  onClose,
+}: CustomerDialogProps) {
   if (!open) return null;
 
   return (
@@ -16,16 +24,21 @@ export function CustomerDialog({ open, customers, selectedId, onSelect, onClose 
       <button type="button" className="absolute inset-0 bg-slate-900/40" aria-label="Fechar cliente" onClick={onClose} />
       <div className="relative w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
         <h2 className="text-lg font-semibold">Associar cliente</h2>
+        {requireCustomer ? (
+          <p className="mt-1 text-sm text-amber-800">Esta loja exige um cliente em toda venda.</p>
+        ) : null}
         <ul className="mt-4 space-y-2">
-          <li>
-            <button
-              type="button"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left"
-              onClick={() => onSelect(null)}
-            >
-              Sem cliente
-            </button>
-          </li>
+          {requireCustomer ? null : (
+            <li>
+              <button
+                type="button"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left"
+                onClick={() => onSelect(null)}
+              >
+                Sem cliente
+              </button>
+            </li>
+          )}
           {customers.map((customer) => (
             <li key={customer.id}>
               <button

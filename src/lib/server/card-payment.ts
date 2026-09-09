@@ -1,7 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/db/types";
 import type { PaymentOperationResult } from "@/lib/adapters/payment";
-import { rpcFailureLogFields } from "@/lib/domain/sale-process-error";
+import {
+  describeSaleProcessError,
+  mapProcessSaleRpcError,
+  rpcFailureLogFields,
+} from "@/lib/domain/sale-process-error";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   createStripeCardGateway,
@@ -26,6 +30,7 @@ type DbClient = SupabaseClient<Database>;
 
 export type CardPaymentApiResult = PaymentOperationResult & {
   configured: boolean;
+  error?: string;
   sale_id?: string;
   sale_status?: string;
   sale_confirmed?: boolean;
@@ -208,9 +213,10 @@ export async function executeCardPayment(
         sale_status: sale.sale_status,
         sale_confirmed: sale.sale_confirmed,
         status: sale.sale_confirmed ? "captured" : "unknown",
+        error: sale.sale_confirmed ? undefined : sale.error ?? "card_capture_without_sale",
         message: sale.sale_confirmed
           ? result.message
-          : "Capture sem venda confirmada. Não trate como capturado; reconcilie.",
+          : describeSaleProcessError(sale.error ?? "card_capture_without_sale"),
       };
     }
     case "cancel": {
@@ -463,7 +469,12 @@ async function confirmCardSale(
     items?: CardPaymentInput["items"];
   },
   providerRef: string
-): Promise<{ sale_id?: string; sale_status?: string; sale_confirmed: boolean }> {
+): Promise<{
+  sale_id?: string;
+  sale_status?: string;
+  sale_confirmed: boolean;
+  error?: string;
+}> {
   const { data, error } = await supabase.rpc("process_card_sale", {
     p_payload: asJson({
       store_id: input.store_id,
@@ -476,13 +487,15 @@ async function confirmCardSale(
     }),
   });
   if (error || !data || typeof data !== "object" || Array.isArray(data)) {
+    const mapped = error ? mapProcessSaleRpcError(error) : null;
     cardLog.error("process_card_sale_failed", {
       ...(error ? rpcFailureLogFields(error) : { rpcMessage: "empty_or_invalid_process_card_sale" }),
       clientMutationId: input.client_mutation_id,
       storeId: input.store_id,
       providerReference: providerRef,
+      error: mapped?.error ?? "card_capture_without_sale",
     });
-    return { sale_confirmed: false };
+    return { sale_confirmed: false, error: mapped?.error ?? "card_capture_without_sale" };
   }
   const saleId = typeof data.sale_id === "string" ? data.sale_id : undefined;
   const saleStatus = typeof data.status === "string" ? data.status : undefined;

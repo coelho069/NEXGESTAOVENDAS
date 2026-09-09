@@ -16,6 +16,7 @@ import {
   type SaleState,
 } from "@/lib/domain/sale-ops";
 import { useCheckout } from "@/hooks/use-checkout";
+import { describeSaleProcessError } from "@/lib/domain/sale-process-error";
 import { useCartStore } from "@/stores/cart-store";
 import { usePdvUiStore } from "@/stores/pdv-ui-store";
 
@@ -206,7 +207,9 @@ export function usePdvSale(
         setOpenPanel("receipt");
         report(null);
       } catch (error) {
-        report(error instanceof Error ? error.message : "Erro no pagamento");
+        report(
+          error instanceof Error ? describeSaleProcessError(error.message) : "Erro no pagamento"
+        );
       }
     },
     [
@@ -339,6 +342,7 @@ export function usePdvSale(
     discount,
     customerId,
     customerName,
+    requireCustomer: false,
     totals,
     cartQty,
     message,

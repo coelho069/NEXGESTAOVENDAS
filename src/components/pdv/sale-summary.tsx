@@ -63,6 +63,7 @@ export function PaymentActions({
 type SaleSummaryProps = {
   totals: SaleTotals;
   customerName: string | null;
+  customerRequired?: boolean;
   discountLabel: string;
   checkoutDisabled: boolean;
   suspendDisabled: boolean;
@@ -78,6 +79,7 @@ type SaleSummaryProps = {
 export function SaleSummary({
   totals,
   customerName,
+  customerRequired = false,
   discountLabel,
   checkoutDisabled,
   suspendDisabled,
@@ -120,7 +122,7 @@ export function SaleSummary({
           onClick={onCustomer}
           className="w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm transition hover:border-indigo-300"
         >
-          Cliente (F4): {customerName ?? "Não informado"}
+          Cliente (F4): {customerName ?? (customerRequired ? "Obrigatório" : "Não informado")}
         </button>
         <button
           type="button"

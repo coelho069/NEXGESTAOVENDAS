@@ -107,6 +107,37 @@ describe("card capture fail-closed", () => {
     expect(userRpc).toHaveBeenCalledWith("process_card_sale", expect.anything());
   });
 
+  it("surfaces inventory_movement_conflict without claiming capture success", async () => {
+    vi.stubEnv("CARD_CHECKOUT_ENABLED", "true");
+    const adminRpc = vi.fn().mockResolvedValue({ data: { status: "captured" }, error: null });
+    createAdminClientMock.mockReturnValue({ rpc: adminRpc } as never);
+    probeStripeCardHealthMock.mockResolvedValue({
+      ok: true,
+      configured: true,
+      testmode: true,
+      message: "ok",
+    });
+    resolveCardPaymentAdapterMock.mockResolvedValue({
+      capture: async () => ({
+        status: "captured",
+        message: "Stripe capture → captured.",
+        providerReference: "pi_test_123",
+      }),
+    } as never);
+    const userRpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: { code: "23514", message: "inventory_movement_chain_mismatch" },
+    });
+
+    const result = await executeCardPayment({ rpc: userRpc } as never, captureInput(), OPERATOR);
+
+    expect(result.status).toBe("unknown");
+    expect(result.sale_confirmed).toBe(false);
+    expect(result.error).toBe("inventory_movement_conflict");
+    expect(result.message).toMatch(/estoque/i);
+    expect(result.status).not.toBe("captured");
+  });
+
   it("authorize never reports sale_confirmed and does not look captured", async () => {
     vi.stubEnv("CARD_CHECKOUT_ENABLED", "true");
     createAdminClientMock.mockReturnValue({ rpc: vi.fn() } as never);

@@ -32,7 +32,16 @@ const ACTIONABLE_TOKENS: ReadonlyArray<{ token: string; error: string; status: n
   { token: "price_mismatch", error: "price_mismatch", status: 422 },
   { token: "product_not_found", error: "product_not_found", status: 422 },
   { token: "customer_not_found", error: "customer_not_found", status: 422 },
+  // Defense-in-depth: walk-in cash must succeed. Token is mapped only if a
+  // stale RPC still raises it — HTTP must never collapse to sale_processing_failed.
+  { token: "customer_required_on_sale", error: "customer_required_on_sale", status: 422 },
+  { token: "customer_document_required", error: "customer_document_required", status: 422 },
+  { token: "customer_store_scope_mismatch", error: "customer_not_found", status: 422 },
   { token: "payment_total_mismatch", error: "payment_total_mismatch", status: 422 },
+  { token: "invalid_card_sale", error: "invalid_sale_payload", status: 422 },
+  { token: "card_payment_not_captured", error: "card_payment_not_captured", status: 422 },
+  { token: "card_payment_intent_not_found", error: "card_payment_intent_not_found", status: 404 },
+  { token: "store_not_found", error: "invalid_sale_payload", status: 422 },
   { token: "payment_method_not_configured", error: "payment_method_not_configured", status: 422 },
   { token: "inventory_movement_balance_mismatch", error: "inventory_movement_conflict", status: 422 },
   { token: "inventory_movement_chain_mismatch", error: "inventory_movement_conflict", status: 422 },
@@ -72,6 +81,15 @@ export function rpcFailureLogFields(error: RpcFailureLike): Record<string, unkno
   return fields;
 }
 
+const RPC_GUARD_TOKEN = /[a-z][a-z0-9]*(?:_[a-z0-9]+)+/g;
+
+export function extractRpcGuardToken(error: RpcFailureLike): string | null {
+  const haystack = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
+  const matches = haystack.match(RPC_GUARD_TOKEN);
+  if (!matches?.length) return null;
+  return [...matches].sort((left, right) => right.length - left.length)[0] ?? null;
+}
+
 export function mapProcessSaleRpcError(error: RpcFailureLike): MappedSaleProcessError | null {
   const haystack = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
   for (const candidate of ACTIONABLE_TOKENS) {
@@ -80,7 +98,34 @@ export function mapProcessSaleRpcError(error: RpcFailureLike): MappedSaleProcess
     }
   }
   if (error.code === "22023" || error.code === "23514") {
-    return { error: "sale_processing_failed", status: 422 };
+    const token = extractRpcGuardToken(error);
+    return { error: token ?? "rpc_constraint_failed", status: 422 };
   }
   return null;
+}
+
+const SALE_PROCESS_ERROR_MESSAGES: Record<string, string> = {
+  customer_required_on_sale: "Selecione um cliente para concluir a venda.",
+  customer_document_required: "O cliente selecionado precisa de CPF/CNPJ cadastrado.",
+  customer_not_found: "Cliente não encontrado nesta organização.",
+  inventory_movement_conflict:
+    "Livro de estoque inconsistente com o saldo. Tente novamente ou ajuste o estoque.",
+  insufficient_stock: "Estoque insuficiente para concluir a venda.",
+  cash_session_required: "Abra o caixa deste terminal antes de vender em dinheiro.",
+  cash_session_conflict: "Sessão de caixa deste terminal está em conflito. Reabra o caixa.",
+  cash_session_closed: "Sessão de caixa encerrada. Abra o caixa deste terminal.",
+  card_payment_not_captured: "Cartão autorizado sem captura. A venda não foi confirmada.",
+  card_payment_intent_not_found: "Pagamento com cartão não encontrado para esta venda.",
+  card_capture_without_sale: "Capture sem venda confirmada. Não trate como capturado; reconcilie.",
+  rpc_constraint_failed: "A venda foi recusada pelo servidor. Veja o detalhe e tente novamente.",
+};
+
+export function isCustomerRequiredSaleError(error: string | null | undefined): boolean {
+  if (!error) return false;
+  return error.includes("customer_required_on_sale");
+}
+
+export function describeSaleProcessError(error: string | null | undefined): string {
+  if (!error) return "Falha ao processar a venda. Tente novamente.";
+  return SALE_PROCESS_ERROR_MESSAGES[error] ?? error;
 }

@@ -111,7 +111,43 @@ describe("POST /api/sales/process cash RPC failures", () => {
     );
   });
 
-  it("still journals opaque 22023 as sale_processing_failed instead of silent 422", async () => {
+  it("maps customer_required_on_sale instead of opaque sale_processing_failed", async () => {
+    rpc.mockResolvedValue({
+      data: null,
+      error: { code: "22023", message: "customer_required_on_sale" },
+    });
+
+    const response = await POST(request(salePayload()));
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({ error: "customer_required_on_sale" });
+    expect(observeApiResult).toHaveBeenCalledWith(
+      expect.anything(),
+      "client_error",
+      expect.objectContaining({
+        error: "customer_required_on_sale",
+        rpcCode: "22023",
+        rpcMessage: "customer_required_on_sale",
+      })
+    );
+  });
+
+  it("forwards walk-in cash (no customer_id) to RPC instead of blocking", async () => {
+    rpc.mockResolvedValue({
+      data: { sale_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", status: "confirmed" },
+      error: null,
+    });
+
+    const response = await POST(request(salePayload()));
+    expect(response.status).toBe(200);
+    const rpcPayload = rpc.mock.calls[0]?.[1] as { p_payload?: Record<string, unknown> };
+    expect(rpcPayload.p_payload).toMatchObject({
+      store_id: STORE_ID,
+      client_mutation_id: MUTATION_ID,
+    });
+    expect(rpcPayload.p_payload).not.toHaveProperty("customer_id");
+  });
+
+  it("surfaces unmapped 22023 as the RPC token, never sale_processing_failed", async () => {
     rpc.mockResolvedValue({
       data: null,
       error: { code: "22023", message: "unmapped_guardrail", details: "check failed" },
@@ -119,12 +155,12 @@ describe("POST /api/sales/process cash RPC failures", () => {
 
     const response = await POST(request(salePayload()));
     expect(response.status).toBe(422);
-    await expect(response.json()).resolves.toEqual({ error: "sale_processing_failed" });
+    await expect(response.json()).resolves.toEqual({ error: "unmapped_guardrail" });
     expect(observeApiResult).toHaveBeenCalledWith(
       expect.anything(),
       "client_error",
       expect.objectContaining({
-        error: "sale_processing_failed",
+        error: "unmapped_guardrail",
         rpcCode: "22023",
         rpcMessage: "unmapped_guardrail",
         rpcDetails: "check failed",
