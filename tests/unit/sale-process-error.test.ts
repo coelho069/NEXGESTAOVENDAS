@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   describeSaleProcessError,
+  isCustomerRequiredSaleError,
   mapProcessSaleRpcError,
   rpcFailureLogFields,
 } from "@/lib/domain/sale-process-error";
@@ -43,12 +44,19 @@ describe("mapProcessSaleRpcError", () => {
     ).toEqual({ error: "customer_document_required", status: 422 });
   });
 
-  it("keeps unmapped 22023/23514 as sale_processing_failed", () => {
+  it("never returns opaque sale_processing_failed for 22023/23514", () => {
     expect(mapProcessSaleRpcError({ code: "22023", message: "some_new_rpc_guard" })).toEqual({
-      error: "sale_processing_failed",
+      error: "some_new_rpc_guard",
+      status: 422,
+    });
+    expect(mapProcessSaleRpcError({ code: "22023", message: "invalid parameter value" })).toEqual({
+      error: "rpc_constraint_failed",
       status: 422,
     });
     expect(mapProcessSaleRpcError({ code: "40001", message: "serialization_failure" })).toBeNull();
+    expect(mapProcessSaleRpcError({ code: "22023", message: "customer_required_on_sale" })?.error).not.toBe(
+      "sale_processing_failed"
+    );
   });
 
   it("exposes rpc code/message/hint without secrets for the journal", () => {
@@ -68,5 +76,8 @@ describe("mapProcessSaleRpcError", () => {
     expect(describeSaleProcessError("customer_required_on_sale")).toMatch(/cliente/i);
     expect(describeSaleProcessError("inventory_movement_conflict")).toMatch(/estoque/i);
     expect(describeSaleProcessError("customer_required_on_sale")).not.toMatch(/sale_processing_failed/);
+    expect(isCustomerRequiredSaleError("customer_required_on_sale")).toBe(true);
+    expect(isCustomerRequiredSaleError("HTTP 422: customer_required_on_sale")).toBe(true);
+    expect(isCustomerRequiredSaleError("insufficient_stock")).toBe(false);
   });
 });

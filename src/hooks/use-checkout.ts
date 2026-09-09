@@ -20,7 +20,11 @@ import {
 import { confirmFixtureLocalSales } from "@/lib/domain/sale-return-local";
 import { recordCapturedCardSale } from "@/lib/offline/close-card-sale";
 import { recordCapturedPixSale } from "@/lib/offline/close-pix-sale";
-import { describeSaleProcessError } from "@/lib/domain/sale-process-error";
+import {
+  describeSaleProcessError,
+  isCustomerRequiredSaleError,
+} from "@/lib/domain/sale-process-error";
+import { fetchStoreSalePolicy } from "@/hooks/use-store-sale-policy";
 import { evaluatePixCheckoutGate, type StripePixQr } from "@/lib/domain/stripe-pix";
 import { closeSale } from "@/lib/offline/close-sale";
 import { endClientSession } from "@/lib/offline/end-session";
@@ -186,11 +190,16 @@ export function useCheckout() {
           discount: cart.discount,
           customerId: cart.customerId,
         };
+        const storePolicy = await fetchStoreSalePolicy(cart.storeId);
+        const requireCustomer = Boolean(input.requireCustomer || storePolicy.requireCustomerOnSale);
+        if (requireCustomer && !cart.customerId) {
+          throw new Error("customer_required_on_sale");
+        }
         const validated = validateSale(saleState, {
           stock: liveStock,
           products: input.products,
           role: input.role,
-          requireCustomer: input.requireCustomer,
+          requireCustomer,
         });
         if (!validated.ok) {
           throw new Error(validated.error);
@@ -269,7 +278,6 @@ export function useCheckout() {
         const createdAt = new Date().toISOString();
         const receiptLines = cart.lines;
         const customerName = cart.customerName;
-        cart.clear();
 
         try {
           const online = typeof navigator === "undefined" || navigator.onLine;
@@ -284,6 +292,22 @@ export function useCheckout() {
 
         const pending = useSyncStore.getState().pendingCount;
         const conflicts = useSyncStore.getState().conflicts;
+        const rejected = conflicts.find(
+          (conflict) =>
+            conflict.clientMutationId === clientMutationId &&
+            isCustomerRequiredSaleError(conflict.message)
+        );
+        if (rejected) {
+          useCartStore.getState().setCheckoutAttemptId(null);
+          return {
+            ok: false,
+            draft: true,
+            message: describeSaleProcessError("customer_required_on_sale"),
+            receipt: null,
+          };
+        }
+
+        cart.clear();
         const outbox = await getOutboxCommand(db, clientMutationId);
         const localSale = await db.sales.get(result.saleId);
         const online = typeof navigator === "undefined" || navigator.onLine;
@@ -342,6 +366,10 @@ export function useCheckout() {
       const cart = useCartStore.getState();
       if (!cart.storeId) throw new Error("Selecione uma loja");
       if (cart.lines.length === 0) throw new Error("Carrinho vazio");
+      const cashPolicy = await fetchStoreSalePolicy(cart.storeId);
+      if (cashPolicy.requireCustomerOnSale && !cart.customerId) {
+        throw new Error("customer_required_on_sale");
+      }
 
       const result = await withCheckoutLock(cart.storeId, async () => {
         const adapter = getPaymentAdapter("cash");

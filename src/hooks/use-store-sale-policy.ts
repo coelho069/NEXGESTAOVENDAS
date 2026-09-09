@@ -7,6 +7,20 @@ import {
   type StoreSalePolicy,
 } from "@/lib/domain/store-sale-policy";
 
+export async function fetchStoreSalePolicy(storeId: string): Promise<StoreSalePolicy> {
+  try {
+    const response = await fetch(`/api/store/settings?store_id=${encodeURIComponent(storeId)}`, {
+      credentials: "include",
+    });
+    if (!response.ok) {
+      return DEFAULT_STORE_SALE_POLICY;
+    }
+    return parseStoreSalePolicy(await response.json());
+  } catch {
+    return DEFAULT_STORE_SALE_POLICY;
+  }
+}
+
 export function useStoreSalePolicy(storeId: string | null): StoreSalePolicy {
   const [policy, setPolicy] = useState<StoreSalePolicy>(DEFAULT_STORE_SALE_POLICY);
 
@@ -18,19 +32,8 @@ export function useStoreSalePolicy(storeId: string | null): StoreSalePolicy {
 
     let cancelled = false;
     const load = async () => {
-      try {
-        const response = await fetch(`/api/store/settings?store_id=${encodeURIComponent(storeId)}`, {
-          credentials: "include",
-        });
-        if (!response.ok) {
-          if (!cancelled) setPolicy(DEFAULT_STORE_SALE_POLICY);
-          return;
-        }
-        const json: unknown = await response.json();
-        if (!cancelled) setPolicy(parseStoreSalePolicy(json));
-      } catch {
-        if (!cancelled) setPolicy(DEFAULT_STORE_SALE_POLICY);
-      }
+      const next = await fetchStoreSalePolicy(storeId);
+      if (!cancelled) setPolicy(next);
     };
     void load();
     return () => {

@@ -79,6 +79,15 @@ export function rpcFailureLogFields(error: RpcFailureLike): Record<string, unkno
   return fields;
 }
 
+const RPC_GUARD_TOKEN = /[a-z][a-z0-9]*(?:_[a-z0-9]+)+/g;
+
+export function extractRpcGuardToken(error: RpcFailureLike): string | null {
+  const haystack = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
+  const matches = haystack.match(RPC_GUARD_TOKEN);
+  if (!matches?.length) return null;
+  return [...matches].sort((left, right) => right.length - left.length)[0] ?? null;
+}
+
 export function mapProcessSaleRpcError(error: RpcFailureLike): MappedSaleProcessError | null {
   const haystack = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
   for (const candidate of ACTIONABLE_TOKENS) {
@@ -87,7 +96,8 @@ export function mapProcessSaleRpcError(error: RpcFailureLike): MappedSaleProcess
     }
   }
   if (error.code === "22023" || error.code === "23514") {
-    return { error: "sale_processing_failed", status: 422 };
+    const token = extractRpcGuardToken(error);
+    return { error: token ?? "rpc_constraint_failed", status: 422 };
   }
   return null;
 }
@@ -105,8 +115,13 @@ const SALE_PROCESS_ERROR_MESSAGES: Record<string, string> = {
   card_payment_not_captured: "Cartão autorizado sem captura. A venda não foi confirmada.",
   card_payment_intent_not_found: "Pagamento com cartão não encontrado para esta venda.",
   card_capture_without_sale: "Capture sem venda confirmada. Não trate como capturado; reconcilie.",
-  sale_processing_failed: "Falha ao processar a venda. Tente novamente.",
+  rpc_constraint_failed: "A venda foi recusada pelo servidor. Veja o detalhe e tente novamente.",
 };
+
+export function isCustomerRequiredSaleError(error: string | null | undefined): boolean {
+  if (!error) return false;
+  return error.includes("customer_required_on_sale");
+}
 
 export function describeSaleProcessError(error: string | null | undefined): string {
   if (!error) return "Falha ao processar a venda. Tente novamente.";

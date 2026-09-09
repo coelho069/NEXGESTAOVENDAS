@@ -154,7 +154,7 @@ describe("POST /api/sales/process cash RPC failures", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("still journals opaque 22023 as sale_processing_failed instead of silent 422", async () => {
+  it("surfaces unmapped 22023 as the RPC token, never sale_processing_failed", async () => {
     rpc.mockResolvedValue({
       data: null,
       error: { code: "22023", message: "unmapped_guardrail", details: "check failed" },
@@ -162,12 +162,12 @@ describe("POST /api/sales/process cash RPC failures", () => {
 
     const response = await POST(request(salePayload()));
     expect(response.status).toBe(422);
-    await expect(response.json()).resolves.toEqual({ error: "sale_processing_failed" });
+    await expect(response.json()).resolves.toEqual({ error: "unmapped_guardrail" });
     expect(observeApiResult).toHaveBeenCalledWith(
       expect.anything(),
       "client_error",
       expect.objectContaining({
-        error: "sale_processing_failed",
+        error: "unmapped_guardrail",
         rpcCode: "22023",
         rpcMessage: "unmapped_guardrail",
         rpcDetails: "check failed",
