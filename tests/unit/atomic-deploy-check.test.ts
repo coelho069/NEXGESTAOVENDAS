@@ -181,7 +181,7 @@ describe("nex-atomic-deploy-check.sh", () => {
       html: [
         'href=\\"/_next/static/css/app.css\\"',
         'src=\\"/_next/static/chunks/main-app-abc.js\\"',
-        'url(\\/_next/static/media/font.woff2\\)',
+        'url(\\"/_next/static/media/font.woff2\\")',
       ].join("\n"),
     });
 
