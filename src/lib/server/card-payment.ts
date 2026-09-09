@@ -37,9 +37,10 @@ function asJson(value: unknown): Json {
 }
 
 /**
- * CARD_CHECKOUT_ENABLED must stay unset/false until migration
- * 20260906220000 (`process_card_sale`) is applied AND smoke Log2
- * (authorize → capture → sale confirmed) PASSES. Explicit opt-in only.
+ * CARD_CHECKOUT_ENABLED must stay unset/false until this integrity PR is
+ * merged AND smoke Log2 (authorize ≠ confirmed → capture → process_card_sale
+ * confirmed) PASSES. Explicit opt-in only. Capture without sale confirmation
+ * is a separate bug from cash and stays fail-closed.
  */
 function isCardCheckoutEnabled(): boolean {
   return process.env.CARD_CHECKOUT_ENABLED === "true";

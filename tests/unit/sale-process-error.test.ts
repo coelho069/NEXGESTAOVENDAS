@@ -22,6 +22,15 @@ describe("mapProcessSaleRpcError", () => {
     expect(
       mapProcessSaleRpcError({ code: "40901", message: "cash_session_closed" })
     ).toEqual({ error: "cash_session_closed", status: 409 });
+    expect(
+      mapProcessSaleRpcError({ code: "22023", message: "cash_session_terminal_mismatch" })
+    ).toEqual({ error: "cash_session_conflict", status: 409 });
+    expect(
+      mapProcessSaleRpcError({
+        code: "23514",
+        message: "payment_cash_session_scope_mismatch",
+      })
+    ).toEqual({ error: "cash_session_conflict", status: 409 });
   });
 
   it("keeps unmapped 22023/23514 as sale_processing_failed", () => {

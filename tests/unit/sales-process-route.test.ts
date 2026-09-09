@@ -132,6 +132,30 @@ describe("POST /api/sales/process cash RPC failures", () => {
     );
   });
 
+  it("maps 23514 session-scope CHECK to cash_session_conflict and journals RPC detail", async () => {
+    rpc.mockResolvedValue({
+      data: null,
+      error: {
+        code: "23514",
+        message: "payment_cash_session_scope_mismatch",
+        hint: "sale and payment cash_session_id must match",
+      },
+    });
+
+    const response = await POST(request(salePayload()));
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ error: "cash_session_conflict" });
+    expect(observeApiResult).toHaveBeenCalledWith(
+      expect.anything(),
+      "client_error",
+      expect.objectContaining({
+        error: "cash_session_conflict",
+        rpcCode: "23514",
+        rpcMessage: "payment_cash_session_scope_mismatch",
+      })
+    );
+  });
+
   it("journals 503 RPC failures with code/message", async () => {
     rpc.mockResolvedValue({
       data: null,

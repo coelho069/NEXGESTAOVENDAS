@@ -63,6 +63,33 @@ export function canTransitionCashSession(
   return from === "open" && to === "closed";
 }
 
+/**
+ * One open session is allowed per (store, terminal). Centro can have several
+ * open rows across terminals. Selling must use the pair that matches this
+ * terminal — a foreign open session is a conflict, not a valid caixa.
+ */
+export type OpenCashSaleContext =
+  | { ok: true; cashSessionId: string; terminalId: string }
+  | { ok: false; error: "cash_session_required" | "cash_session_conflict" };
+
+export function resolveOpenCashSaleContext(input: {
+  session: Pick<CashSessionView, "cash_session_id" | "terminal_id" | "status"> | null | undefined;
+  terminalId: string;
+}): OpenCashSaleContext {
+  const terminalId = input.terminalId.trim();
+  const session = input.session;
+  if (!terminalId || !session) {
+    return { ok: false, error: "cash_session_required" };
+  }
+  if (session.status !== "open" || !session.cash_session_id) {
+    return { ok: false, error: "cash_session_required" };
+  }
+  if (session.terminal_id !== terminalId) {
+    return { ok: false, error: "cash_session_conflict" };
+  }
+  return { ok: true, cashSessionId: session.cash_session_id, terminalId };
+}
+
 export function isNonNegativeMoney(value: string): boolean {
   const amount = new Decimal(value);
   return amount.isFinite() && amount.greaterThanOrEqualTo(0) && amount.decimalPlaces() <= 2;

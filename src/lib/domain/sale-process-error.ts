@@ -16,6 +16,7 @@ const ACTIONABLE_TOKENS: ReadonlyArray<{ token: string; error: string; status: n
   { token: "idempotency_payload_mismatch", error: "idempotency_payload_mismatch", status: 409 },
   { token: "cash_idempotency_payload_mismatch", error: "cash_session_conflict", status: 409 },
   { token: "cash_sale_session_mismatch", error: "cash_session_conflict", status: 409 },
+  { token: "cash_session_terminal_mismatch", error: "cash_session_conflict", status: 409 },
   { token: "cash_session_already_open", error: "cash_session_conflict", status: 409 },
   { token: "cash_session_closed", error: "cash_session_closed", status: 409 },
   { token: "cash_session_required", error: "cash_session_required", status: 409 },
