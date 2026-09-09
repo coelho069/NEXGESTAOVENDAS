@@ -57,6 +57,5 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     };
   }, [flushPending, loading, refreshSyncUi, setLastHeartbeatAt, setOnline, user?.id]);
 
-  if (loading) return null;
   return <>{children}</>;
 }
