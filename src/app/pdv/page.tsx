@@ -1,3 +1,4 @@
+import { SubscriptionAccessFrame } from "@/components/auth/subscription-access-frame";
 import { PdvScreen } from "@/components/pdv/pdv-screen";
 import { getAuthedContext } from "@/lib/auth/session";
 import { fixtureStoreOptions, pdvFixturesEnabled } from "@/lib/pdv/fixtures";
@@ -36,7 +37,9 @@ export default async function PdvPage({
 
   return (
     <main>
-      <PdvScreen stores={stores} initialStoreId={initialStoreId} role={role} />
+      <SubscriptionAccessFrame orgId={auth?.orgId ?? null} role={role} skip={fixtureMode}>
+        <PdvScreen stores={stores} initialStoreId={initialStoreId} role={role} />
+      </SubscriptionAccessFrame>
     </main>
   );
 }
