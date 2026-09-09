@@ -5,7 +5,6 @@ import { cardPaymentInputSchema, storeIdSchema } from "@/lib/validation/schemas"
 import { clientRateLimitKey, consumeRateLimit } from "@/lib/security/rate-limit";
 import { rateLimitedResponse, validationFailedResponse } from "@/lib/security/safe-error";
 import { executeCardPayment, getCardAdapterHealth } from "@/lib/server/card-payment";
-import { loadStoreSalePolicy } from "@/lib/server/store-sale-policy";
 import {
   createRequestObservability,
   observeApiResult,
@@ -90,27 +89,6 @@ export async function POST(request: Request) {
   const auth = await getAuthedContext(parsed.data.store_id);
   if (!auth?.orgId || !auth.role) {
     return obs.withHeaders(NextResponse.json({ error: "forbidden_store" }, { status: 403 }));
-  }
-
-  const salePolicy = await loadStoreSalePolicy(supabase, parsed.data.store_id);
-  if (salePolicy.requireCustomerOnSale && !parsed.data.customer_id) {
-    observeApiResult(obs, "client_error", {
-      error: "customer_required_on_sale",
-      action: parsed.data.action,
-      saleConfirmed: false,
-    });
-    return obs.withHeaders(
-      NextResponse.json(
-        {
-          error: "customer_required_on_sale",
-          status: "unknown",
-          sale_confirmed: false,
-          configured: true,
-          message: "Selecione um cliente para concluir a venda.",
-        },
-        { status: 422 }
-      )
-    );
   }
 
   const result = await executeCardPayment(supabase, parsed.data, user.id);

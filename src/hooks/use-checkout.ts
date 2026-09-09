@@ -24,7 +24,6 @@ import {
   describeSaleProcessError,
   isCustomerRequiredSaleError,
 } from "@/lib/domain/sale-process-error";
-import { fetchStoreSalePolicy } from "@/hooks/use-store-sale-policy";
 import { evaluatePixCheckoutGate, type StripePixQr } from "@/lib/domain/stripe-pix";
 import { closeSale } from "@/lib/offline/close-sale";
 import { endClientSession } from "@/lib/offline/end-session";
@@ -147,7 +146,6 @@ export function useCheckout() {
       storeName: string;
       cashSessionId?: string;
       terminalId?: string;
-      requireCustomer?: boolean;
     }): Promise<
       | { ok: true; draft: false; receipt: ReceiptModel; saleId: string; offline: boolean }
       | { ok: false; draft: true; message: string; receipt: null }
@@ -190,16 +188,10 @@ export function useCheckout() {
           discount: cart.discount,
           customerId: cart.customerId,
         };
-        const storePolicy = await fetchStoreSalePolicy(cart.storeId);
-        const requireCustomer = Boolean(input.requireCustomer || storePolicy.requireCustomerOnSale);
-        if (requireCustomer && !cart.customerId) {
-          throw new Error("customer_required_on_sale");
-        }
         const validated = validateSale(saleState, {
           stock: liveStock,
           products: input.products,
           role: input.role,
-          requireCustomer,
         });
         if (!validated.ok) {
           throw new Error(validated.error);
@@ -366,10 +358,6 @@ export function useCheckout() {
       const cart = useCartStore.getState();
       if (!cart.storeId) throw new Error("Selecione uma loja");
       if (cart.lines.length === 0) throw new Error("Carrinho vazio");
-      const cashPolicy = await fetchStoreSalePolicy(cart.storeId);
-      if (cashPolicy.requireCustomerOnSale && !cart.customerId) {
-        throw new Error("customer_required_on_sale");
-      }
 
       const result = await withCheckoutLock(cart.storeId, async () => {
         const adapter = getPaymentAdapter("cash");

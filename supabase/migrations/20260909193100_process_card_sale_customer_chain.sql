@@ -1,5 +1,5 @@
--- process_card_sale: honor store customer policy and reconcile ledger before decrement.
--- Does not enable PIX or change cash/card architecture.
+-- process_card_sale: merge capture customer_id and reconcile ledger before decrement.
+-- Walk-in (null customer) is allowed. Does not enable PIX or change cash/card architecture.
 
 CREATE OR REPLACE FUNCTION public.process_card_sale(p_payload jsonb)
 RETURNS jsonb
@@ -31,9 +31,6 @@ DECLARE
   v_payment_id uuid;
   v_status text;
   v_sale_total numeric(12, 2);
-  v_require_customer boolean := false;
-  v_require_document boolean := false;
-  v_customer_document text;
 BEGIN
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'not_authenticated' USING ERRCODE = '42501';
@@ -175,27 +172,6 @@ BEGIN
     WHERE c.id = v_customer_id AND c.org_id = v_org_id
   ) THEN
     RAISE EXCEPTION 'customer_not_found' USING ERRCODE = '22023';
-  END IF;
-
-  IF to_regclass('public.store_settings') IS NOT NULL THEN
-    EXECUTE
-      'SELECT COALESCE(require_customer_on_sale, false), COALESCE(require_customer_document, false)
-       FROM public.store_settings
-       WHERE store_id = $1 AND org_id = $2'
-      INTO v_require_customer, v_require_document
-      USING v_store_id, v_org_id;
-    IF v_require_customer AND v_customer_id IS NULL THEN
-      RAISE EXCEPTION 'customer_required_on_sale' USING ERRCODE = '22023';
-    END IF;
-    IF v_require_document AND v_customer_id IS NOT NULL THEN
-      SELECT NULLIF(btrim(COALESCE(c.document, '')), '')
-      INTO v_customer_document
-      FROM public.customers c
-      WHERE c.id = v_customer_id AND c.org_id = v_org_id;
-      IF v_customer_document IS NULL THEN
-        RAISE EXCEPTION 'customer_document_required' USING ERRCODE = '22023';
-      END IF;
-    END IF;
   END IF;
 
   PERFORM 1

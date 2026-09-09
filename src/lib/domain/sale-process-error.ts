@@ -32,6 +32,8 @@ const ACTIONABLE_TOKENS: ReadonlyArray<{ token: string; error: string; status: n
   { token: "price_mismatch", error: "price_mismatch", status: 422 },
   { token: "product_not_found", error: "product_not_found", status: 422 },
   { token: "customer_not_found", error: "customer_not_found", status: 422 },
+  // Defense-in-depth: walk-in cash must succeed. Token is mapped only if a
+  // stale RPC still raises it — HTTP must never collapse to sale_processing_failed.
   { token: "customer_required_on_sale", error: "customer_required_on_sale", status: 422 },
   { token: "customer_document_required", error: "customer_document_required", status: 422 },
   { token: "customer_store_scope_mismatch", error: "customer_not_found", status: 422 },

@@ -14,6 +14,10 @@ function asBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
+/**
+ * Settings payload parser. PDV cash walk-in ignores `requireCustomerOnSale`:
+ * a missing customer must still sell. The flag is advisory for other surfaces.
+ */
 export function parseStoreSalePolicy(value: unknown): StoreSalePolicy {
   if (!value || typeof value !== "object") {
     return DEFAULT_STORE_SALE_POLICY;

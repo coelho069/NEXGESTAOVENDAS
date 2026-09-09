@@ -12,13 +12,6 @@ vi.mock("@/lib/supabase/server", () => ({ createClient }));
 vi.mock("@/lib/server/fiscal-operation", () => ({
   requestFiscalIssueAfterCommit: vi.fn().mockResolvedValue({ data: { status: "pending" } }),
 }));
-vi.mock("@/lib/server/store-sale-policy", () => ({
-  loadStoreSalePolicy: vi.fn().mockResolvedValue({
-    requireCustomerOnSale: false,
-    requireCustomerDocument: false,
-    requireOpenCashSession: false,
-  }),
-}));
 vi.mock("@/lib/observability/request-context", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/observability/request-context")>();
   return {
@@ -28,9 +21,6 @@ vi.mock("@/lib/observability/request-context", async (importOriginal) => {
 });
 
 import { POST } from "@/app/api/sales/process/route";
-import { loadStoreSalePolicy } from "@/lib/server/store-sale-policy";
-
-const loadStoreSalePolicyMock = vi.mocked(loadStoreSalePolicy);
 
 const STORE_ID = "22222222-2222-4222-8222-222222222201";
 const SESSION_ID = "66666666-6666-4666-8666-666666666666";
@@ -141,17 +131,20 @@ describe("POST /api/sales/process cash RPC failures", () => {
     );
   });
 
-  it("rejects cash checkout before RPC when store policy requires a customer", async () => {
-    loadStoreSalePolicyMock.mockResolvedValueOnce({
-      requireCustomerOnSale: true,
-      requireCustomerDocument: false,
-      requireOpenCashSession: false,
+  it("forwards walk-in cash (no customer_id) to RPC instead of blocking", async () => {
+    rpc.mockResolvedValue({
+      data: { sale_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", status: "confirmed" },
+      error: null,
     });
 
     const response = await POST(request(salePayload()));
-    expect(response.status).toBe(422);
-    await expect(response.json()).resolves.toEqual({ error: "customer_required_on_sale" });
-    expect(rpc).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    const rpcPayload = rpc.mock.calls[0]?.[1] as { p_payload?: Record<string, unknown> };
+    expect(rpcPayload.p_payload).toMatchObject({
+      store_id: STORE_ID,
+      client_mutation_id: MUTATION_ID,
+    });
+    expect(rpcPayload.p_payload).not.toHaveProperty("customer_id");
   });
 
   it("surfaces unmapped 22023 as the RPC token, never sale_processing_failed", async () => {

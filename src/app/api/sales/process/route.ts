@@ -4,7 +4,6 @@ import { processSaleInputSchema, storeIdSchema } from "@/lib/validation/schemas"
 import { getAuthedContext } from "@/lib/auth/session";
 import { discountLimitHttpStatus, salePayloadExceedsDiscountCap } from "@/lib/domain/sale-ops";
 import { mapProcessSaleRpcError, rpcFailureLogFields } from "@/lib/domain/sale-process-error";
-import { loadStoreSalePolicy } from "@/lib/server/store-sale-policy";
 import { requestFiscalIssueAfterCommit } from "@/lib/server/fiscal-operation";
 import {
   createRequestObservability,
@@ -77,18 +76,6 @@ export async function POST(request: Request) {
 
   if (salePayloadExceedsDiscountCap(parsed.data, auth.role)) {
     return NextResponse.json({ error: "discount_limit_exceeded" }, { status: discountLimitHttpStatus(true) });
-  }
-
-  const salePolicy = await loadStoreSalePolicy(supabase, parsed.data.store_id);
-  if (salePolicy.requireCustomerOnSale && !parsed.data.customer_id) {
-    observeApiResult(obs, "client_error", {
-      error: "customer_required_on_sale",
-      storeId: parsed.data.store_id,
-      clientMutationId: parsed.data.client_mutation_id,
-    });
-    return obs.withHeaders(
-      NextResponse.json({ error: "customer_required_on_sale" }, { status: 422 })
-    );
   }
 
   const hasSuspensionContext = Boolean(
