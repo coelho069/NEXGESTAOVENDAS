@@ -127,6 +127,11 @@ collect_html_refs() {
   while IFS= read -r html; do
     local ref
     while IFS= read -r ref; do
+      # grep may keep a trailing \ from escaped quotes in RSC/JSON (e.g. .woff2\").
+      ref="${ref#"${ref%%[![:space:]]*}"}"
+      ref="${ref%"${ref##*[![:space:]]}"}"
+      ref="${ref%\\}"
+      ref="${ref%"${ref##*[![:space:]]}"}"
       [[ -n "$ref" ]] || continue
       html_refs_found=1
       local rel="${ref#/_next/static/}"
