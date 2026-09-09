@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { SubscriptionAccessView } from "@/components/auth/subscription-access-view";
 import {
   gateTenantSubscriptionAccess,
@@ -10,6 +10,10 @@ import {
   resolveSubscriptionCheck,
   subscriptionBlockTitle,
 } from "@/lib/domain/subscription-access";
+
+afterEach(() => {
+  cleanup();
+});
 
 describe("subscription query classification", () => {
   it("treats missing public.subscriptions schema cache as unavailable, not none", () => {
