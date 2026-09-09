@@ -29,6 +29,7 @@ deploy even if the process starts.
    - `.next/standalone/server.js`
    - `.next/standalone/.next/static` with file count **> 0**
    - files referenced by built HTML/RSC **or** `*.css` + `*main-app*` chunk patterns
+     (refs are trimmed; a trailing `\` from escaped RSC/JSON quotes is stripped)
 5. **Start** the standalone server (`node .next/standalone/server.js`, `PORT` as deployed).
 6. **Readiness + sample chunk 200** (after start), default host port **3211**:
 
