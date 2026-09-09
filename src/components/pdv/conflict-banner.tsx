@@ -1,3 +1,4 @@
+import { describeSaleProcessError } from "@/lib/domain/sale-process-error";
 import type { LocalConflict } from "@/lib/offline/types";
 
 export function ConflictBanner({
@@ -21,7 +22,7 @@ export function ConflictBanner({
           <li key={conflict.id}>
             {conflict.outcomeUnknown || conflict.message.startsWith("Resultado remoto incerto")
               ? "Pagamento desconhecido: reconcilie antes de tentar cobrar novamente."
-              : `HTTP ${conflict.httpStatus}: ${conflict.message}`}
+              : `HTTP ${conflict.httpStatus}: ${describeSaleProcessError(conflict.message)}`}
             {conflict.outcomeUnknown && onReconcile ? (
               <button
                 type="button"

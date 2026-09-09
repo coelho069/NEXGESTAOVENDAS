@@ -20,6 +20,10 @@ import {
 import { confirmFixtureLocalSales } from "@/lib/domain/sale-return-local";
 import { recordCapturedCardSale } from "@/lib/offline/close-card-sale";
 import { recordCapturedPixSale } from "@/lib/offline/close-pix-sale";
+import {
+  describeSaleProcessError,
+  isCustomerRequiredSaleError,
+} from "@/lib/domain/sale-process-error";
 import { evaluatePixCheckoutGate, type StripePixQr } from "@/lib/domain/stripe-pix";
 import { closeSale } from "@/lib/offline/close-sale";
 import { endClientSession } from "@/lib/offline/end-session";
@@ -266,7 +270,6 @@ export function useCheckout() {
         const createdAt = new Date().toISOString();
         const receiptLines = cart.lines;
         const customerName = cart.customerName;
-        cart.clear();
 
         try {
           const online = typeof navigator === "undefined" || navigator.onLine;
@@ -281,6 +284,22 @@ export function useCheckout() {
 
         const pending = useSyncStore.getState().pendingCount;
         const conflicts = useSyncStore.getState().conflicts;
+        const rejected = conflicts.find(
+          (conflict) =>
+            conflict.clientMutationId === clientMutationId &&
+            isCustomerRequiredSaleError(conflict.message)
+        );
+        if (rejected) {
+          useCartStore.getState().setCheckoutAttemptId(null);
+          return {
+            ok: false,
+            draft: true,
+            message: describeSaleProcessError("customer_required_on_sale"),
+            receipt: null,
+          };
+        }
+
+        cart.clear();
         const outbox = await getOutboxCommand(db, clientMutationId);
         const localSale = await db.sales.get(result.saleId);
         const online = typeof navigator === "undefined" || navigator.onLine;
@@ -353,6 +372,7 @@ export function useCheckout() {
           role,
           lines: cart.lines,
           discount: cart.discount,
+          customerId: cart.customerId ?? undefined,
           suspendedSaleId: cart.suspendedSaleId ?? undefined,
           suspensionClaimId: cart.suspensionClaimId ?? undefined,
           payments: [payment],
@@ -673,6 +693,8 @@ async function payCardOnServer(input: {
     captureStatus === "unknown" ||
     (captureResponse.ok && captureStatus !== "captured")
   ) {
+    const mappedError =
+      typeof captureBody.error === "string" ? describeSaleProcessError(captureBody.error) : null;
     const serverMessage =
       typeof captureBody.message === "string" && !/captured/i.test(captureBody.message)
         ? captureBody.message
@@ -680,6 +702,7 @@ async function payCardOnServer(input: {
     return {
       kind: "unknown",
       message:
+        mappedError ??
         serverMessage ??
         "Pagamento card sem venda confirmada. Capture não é sucesso; reconcilie ou use dinheiro.",
     };

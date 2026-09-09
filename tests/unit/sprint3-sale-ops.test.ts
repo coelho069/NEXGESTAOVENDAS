@@ -117,6 +117,30 @@ describe("applyDiscount / calculateTotals / validateSale", () => {
       }).ok
     ).toBe(false);
   });
+
+  it("validateSale requires a customer only when the store policy says so", () => {
+    const walkIn = validateSale(withAgua(1), {
+      role: "cashier",
+      stock: { [agua.productId]: 5 },
+    });
+    expect(walkIn.ok).toBe(true);
+    const missing = validateSale(withAgua(1), {
+      role: "cashier",
+      stock: { [agua.productId]: 5 },
+      requireCustomer: true,
+    });
+    expect(missing.ok).toBe(false);
+    expect(missing.error).toMatch(/cliente/i);
+    const selected = validateSale(
+      { ...withAgua(1), customerId: "55555555-5555-4555-8555-555555555501" },
+      {
+        role: "cashier",
+        stock: { [agua.productId]: 5 },
+        requireCustomer: true,
+      }
+    );
+    expect(selected.ok).toBe(true);
+  });
 });
 
 describe("HID scanner assembler", () => {

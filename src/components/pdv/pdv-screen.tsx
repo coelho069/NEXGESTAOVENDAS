@@ -391,6 +391,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
               <SaleSummary
                 totals={sale.totals}
                 customerName={sale.customerName}
+                customerRequired={sale.requireCustomer}
                 discountLabel={sale.discount}
                 checkoutDisabled={checkoutDisabled}
                 suspendDisabled={
@@ -441,6 +442,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             open={openPanel === "customer"}
             customers={customers}
             selectedId={sale.customerId}
+            requireCustomer={sale.requireCustomer}
             onSelect={sale.associateCustomer}
             onClose={() => setOpenPanel("none")}
           />

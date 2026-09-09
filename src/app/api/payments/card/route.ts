@@ -94,6 +94,10 @@ export async function POST(request: Request) {
   const result = await executeCardPayment(supabase, parsed.data, user.id);
   const saleConfirmed = result.sale_confirmed === true;
   const status = result.status === "captured" && !saleConfirmed ? "unknown" : result.status;
+  const captureError =
+    parsed.data.action === "capture" && !saleConfirmed
+      ? result.error ?? "card_capture_without_sale"
+      : undefined;
   const outcome =
     result.status === "not_configured"
       ? "rejected"
@@ -104,13 +108,12 @@ export async function POST(request: Request) {
     status,
     action: parsed.data.action,
     saleConfirmed,
-    ...(parsed.data.action === "capture" && !saleConfirmed
-      ? { error: "card_capture_without_sale" }
-      : {}),
+    ...(captureError ? { error: captureError } : {}),
   });
   return obs.withHeaders(
     NextResponse.json({
       status,
+      error: captureError,
       message: result.message,
       configured: result.configured,
       provider_reference: result.providerReference,
