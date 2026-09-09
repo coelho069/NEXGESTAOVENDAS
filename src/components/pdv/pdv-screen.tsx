@@ -27,6 +27,7 @@ import { useHidScanner } from "@/hooks/use-hid-scanner";
 import { usePdvShortcuts } from "@/hooks/use-pdv-shortcuts";
 import { useCardPaymentHealth } from "@/hooks/use-card-payment-health";
 import { usePdvSale } from "@/hooks/use-pdv-sale";
+import { resolveOpenCashSaleContext } from "@/lib/domain/cash";
 import { useCartStore } from "@/stores/cart-store";
 import { useSyncStore } from "@/stores/sync-store";
 import { usePdvUiStore } from "@/stores/pdv-ui-store";
@@ -88,14 +89,18 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
   };
 
   const storeName = authorizedStore?.name ?? "Loja";
+  const cashSale = resolveOpenCashSaleContext({
+    session: cash.session,
+    terminalId: cash.terminalId,
+  });
   const sale = usePdvSale(
     products,
     balances,
     storeName,
     effectiveRole,
     hasStoreContext,
-    cash.session?.cash_session_id ?? null,
-    cash.terminalId
+    cashSale.ok ? cashSale.cashSessionId : null,
+    cashSale.ok ? cashSale.terminalId : ""
   );
   const activeSuspendedContext: SuspendedCartContext | null =
     suspendedSaleId && suspensionClaimId

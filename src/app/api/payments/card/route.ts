@@ -92,20 +92,31 @@ export async function POST(request: Request) {
   }
 
   const result = await executeCardPayment(supabase, parsed.data, user.id);
-  observeApiResult(obs, "ok", {
-    status: result.status,
+  const saleConfirmed = result.sale_confirmed === true;
+  const status = result.status === "captured" && !saleConfirmed ? "unknown" : result.status;
+  const outcome =
+    result.status === "not_configured"
+      ? "rejected"
+      : parsed.data.action === "capture" && !saleConfirmed
+        ? "client_error"
+        : "ok";
+  observeApiResult(obs, outcome, {
+    status,
     action: parsed.data.action,
-    saleConfirmed: result.sale_confirmed === true,
+    saleConfirmed,
+    ...(parsed.data.action === "capture" && !saleConfirmed
+      ? { error: "card_capture_without_sale" }
+      : {}),
   });
   return obs.withHeaders(
     NextResponse.json({
-      status: result.status,
+      status,
       message: result.message,
       configured: result.configured,
       provider_reference: result.providerReference,
       sale_id: result.sale_id,
       sale_status: result.sale_status,
-      sale_confirmed: result.sale_confirmed === true,
+      sale_confirmed: saleConfirmed,
     })
   );
 }

@@ -604,6 +604,12 @@ async function payCardOnServer(input: {
           : "Pagamento card sem resposta confirmada. Reconcilie; não confirme a venda.",
     };
   }
+  if (authorizeBody.sale_confirmed === true) {
+    return {
+      kind: "unknown",
+      message: "Authorize não confirma a venda. Capture bloqueado até sale_confirmed no servidor.",
+    };
+  }
   if (authorizeStatus !== "authorized" || typeof authorizeBody.provider_reference !== "string") {
     return {
       kind: "draft",
@@ -662,13 +668,20 @@ async function payCardOnServer(input: {
     return { kind: "captured", payment, result };
   }
 
-  if (captureStatus === "unknown" || (captureResponse.ok && captureStatus !== "captured")) {
+  if (
+    !saleConfirmed ||
+    captureStatus === "unknown" ||
+    (captureResponse.ok && captureStatus !== "captured")
+  ) {
+    const serverMessage =
+      typeof captureBody.message === "string" && !/captured/i.test(captureBody.message)
+        ? captureBody.message
+        : null;
     return {
       kind: "unknown",
       message:
-        typeof captureBody.message === "string"
-          ? captureBody.message
-          : "Resposta HTTP sem PaymentIntent succeeded. Status unknown; venda não confirmada.",
+        serverMessage ??
+        "Pagamento card sem venda confirmada. Capture não é sucesso; reconcilie ou use dinheiro.",
     };
   }
 

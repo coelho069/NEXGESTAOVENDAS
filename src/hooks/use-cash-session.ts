@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import {
   calculateCashDifference,
   calculateExpectedCash,
+  resolveOpenCashSaleContext,
   type CashMovementView,
   type CashSessionResponse,
 } from "@/lib/domain/cash";
@@ -50,14 +51,14 @@ function writePendingMutations(userId: string | null, storeId: string, mutations
   sessionStorage.setItem(pendingMutationStorageKey(userId, storeId), JSON.stringify(mutations));
 }
 
-function cacheKey(userId: string | null, storeId: string): string {
-  return `${CACHE_KEY_PREFIX}${userId ?? "anonymous"}:${storeId}`;
+function cacheKey(userId: string | null, storeId: string, terminalId: string): string {
+  return `${CACHE_KEY_PREFIX}${userId ?? "anonymous"}:${storeId}:${terminalId}`;
 }
 
-function readCached(userId: string | null, storeId: string): CashSessionResponse | null {
+function readCached(userId: string | null, storeId: string, terminalId: string): CashSessionResponse | null {
   if (typeof localStorage === "undefined") return null;
   try {
-    const value: unknown = JSON.parse(localStorage.getItem(cacheKey(userId, storeId)) ?? "null");
+    const value: unknown = JSON.parse(localStorage.getItem(cacheKey(userId, storeId, terminalId)) ?? "null");
     if (!value || typeof value !== "object") return null;
     const response = value as Partial<CashSessionResponse>;
     if (!Array.isArray(response.movements) || typeof response.expected_amount !== "string") {
@@ -69,9 +70,14 @@ function readCached(userId: string | null, storeId: string): CashSessionResponse
   }
 }
 
-function writeCached(userId: string | null, storeId: string, response: CashSessionResponse): void {
+function writeCached(
+  userId: string | null,
+  storeId: string,
+  terminalId: string,
+  response: CashSessionResponse
+): void {
   if (typeof localStorage === "undefined") return;
-  localStorage.setItem(cacheKey(userId, storeId), JSON.stringify(response));
+  localStorage.setItem(cacheKey(userId, storeId, terminalId), JSON.stringify(response));
 }
 
 function fixtureResponse(storeId: string, terminalId: string): CashSessionResponse {
@@ -139,8 +145,8 @@ export function useCashSession(storeId: string | null) {
 
   const saveResponse = useCallback((next: CashSessionResponse) => {
     setResponse(next);
-    if (storeId) writeCached(userId, storeId, next);
-  }, [storeId, userId]);
+    if (storeId && terminalId) writeCached(userId, storeId, terminalId, next);
+  }, [storeId, terminalId, userId]);
 
   const getPendingMutation = useCallback(
     (operationKey: string): string => {
@@ -181,7 +187,7 @@ export function useCashSession(storeId: string | null) {
     setLoading(true);
     setError(null);
     if (fixtures) {
-      const cached = readCached(userId, storeId);
+      const cached = readCached(userId, storeId, terminalId);
       saveResponse(cached?.session?.terminal_id === terminalId ? cached : fixtureResponse(storeId, terminalId));
       setOffline(false);
       setLoading(false);
@@ -205,7 +211,7 @@ export function useCashSession(storeId: string | null) {
       saveResponse(body as CashSessionResponse);
       setOffline(false);
     } catch (cause) {
-      const cached = readCached(userId, storeId);
+      const cached = readCached(userId, storeId, terminalId);
       if (cached?.session?.terminal_id === terminalId) {
         setResponse(cached);
         setOffline(true);
@@ -426,14 +432,19 @@ export function useCashSession(storeId: string | null) {
     ]
   );
 
-  const canSell = Boolean(response?.session?.status === "open");
-  const expectedAmount = response?.expected_amount ?? "0.00";
+  const scopedResponse =
+    !response?.session || response.session.terminal_id === terminalId ? response : null;
+  const canSell = resolveOpenCashSaleContext({
+    session: scopedResponse?.session,
+    terminalId,
+  }).ok;
+  const expectedAmount = scopedResponse?.expected_amount ?? "0.00";
   return useMemo(
     () => ({
       terminalId,
-      response,
-      session: response?.session ?? null,
-      movements: response?.movements ?? [],
+      response: scopedResponse,
+      session: scopedResponse?.session ?? null,
+      movements: scopedResponse?.movements ?? [],
       expectedAmount,
       loading,
       mutating,
@@ -456,7 +467,7 @@ export function useCashSession(storeId: string | null) {
       openSession,
       recordMovement,
       refresh,
-      response,
+      scopedResponse,
       terminalId,
     ]
   );
