@@ -842,6 +842,121 @@ export type Database = {
         }
         Relationships: []
       }
+
+      plans: {
+        Row: {
+          amount: number
+          billing_interval: Database["public"]["Enums"]["subscription_billing_interval"]
+          created_at: string
+          currency: string
+          description: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          billing_interval: Database["public"]["Enums"]["subscription_billing_interval"]
+          created_at?: string
+          currency?: string
+          description?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          billing_interval?: Database["public"]["Enums"]["subscription_billing_interval"]
+          created_at?: string
+          currency?: string
+          description?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      platform_admins: {
+        Row: {
+          created_at: string
+          is_active: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          is_active?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          is_active?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          cancelled_at: string | null
+          contracted_amount: number
+          created_at: string
+          currency: string
+          id: string
+          org_id: string
+          period_end: string
+          period_start: string
+          plan_id: string
+          status: Database["public"]["Enums"]["subscription_status"]
+          updated_at: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          contracted_amount: number
+          created_at?: string
+          currency?: string
+          id?: string
+          org_id: string
+          period_end: string
+          period_start: string
+          plan_id: string
+          status?: Database["public"]["Enums"]["subscription_status"]
+          updated_at?: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          contracted_amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          org_id?: string
+          period_end?: string
+          period_start?: string
+          plan_id?: string
+          status?: Database["public"]["Enums"]["subscription_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_provider_events: {
         Row: {
           created_at: string
@@ -1594,6 +1709,7 @@ export type Database = {
         Args: { p_payload: Json; p_store_id: string }
         Returns: Json
       }
+      is_platform_admin: { Args: never; Returns: boolean }
       current_user_org_id: { Args: never; Returns: string }
       fiscal_result_error_code: { Args: { p_payload: Json }; Returns: string }
       cancel_sale: { Args: { p_payload: Json }; Returns: Json }
@@ -1691,6 +1807,14 @@ export type Database = {
         | "cancelled"
         | "refunded"
         | "partially_refunded"
+      subscription_billing_interval: "monthly" | "yearly"
+      subscription_status:
+        | "active"
+        | "trialing"
+        | "past_due"
+        | "expired"
+        | "canceled"
+        | "cancelled"
       suspended_sale_status: "suspended" | "claimed" | "completed"
       sync_status: "pending" | "processing" | "synced" | "failed" | "conflict"
     }
@@ -1858,6 +1982,15 @@ export const Constants = {
         "cancelled",
         "refunded",
         "partially_refunded",
+      ],
+      subscription_billing_interval: ["monthly", "yearly"],
+      subscription_status: [
+        "active",
+        "trialing",
+        "past_due",
+        "expired",
+        "canceled",
+        "cancelled",
       ],
       suspended_sale_status: ["suspended", "claimed", "completed"],
       sync_status: ["pending", "processing", "synced", "failed", "conflict"],
