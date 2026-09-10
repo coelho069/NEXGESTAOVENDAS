@@ -549,3 +549,153 @@ export const productPatchSchema = productWriteSchema
   });
 
 export type ProductPatchInput = z.infer<typeof productPatchSchema>;
+
+// ---------------------------------------------------------------------------
+// Platform ADM — plans & subscriptions (current subscription model: org_id)
+// ---------------------------------------------------------------------------
+
+export const adminSubscriptionStatusSchema = z.enum([
+  "active",
+  "trialing",
+  "past_due",
+  "expired",
+  "canceled",
+  "cancelled",
+]);
+
+export const adminSubscriptionBillingIntervalSchema = z.enum(["monthly", "yearly"]);
+
+const adminDateOnlySchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD")
+  .refine(isValidDateOnly, "date must be a real calendar date");
+
+export const createAdminPlanSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(2000).optional().default(""),
+  amount: z.string().regex(moneyPattern, "amount must be numeric(12,2) string"),
+  billing_interval: adminSubscriptionBillingIntervalSchema,
+  is_active: z.boolean().optional().default(true),
+});
+
+export type CreateAdminPlanInput = z.infer<typeof createAdminPlanSchema>;
+
+export const updateAdminPlanSchema = z.object({
+  plan_id: z.string().uuid(),
+  name: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(2000).optional().default(""),
+  amount: z.string().regex(moneyPattern, "amount must be numeric(12,2) string"),
+  billing_interval: adminSubscriptionBillingIntervalSchema,
+});
+
+export type UpdateAdminPlanInput = z.infer<typeof updateAdminPlanSchema>;
+
+export const setAdminPlanActiveSchema = z.object({
+  plan_id: z.string().uuid(),
+  is_active: z.boolean(),
+});
+
+export type SetAdminPlanActiveInput = z.infer<typeof setAdminPlanActiveSchema>;
+
+export const deleteAdminPlanSchema = z.object({
+  plan_id: z.string().uuid(),
+});
+
+export type DeleteAdminPlanInput = z.infer<typeof deleteAdminPlanSchema>;
+
+export const createAdminSubscriptionSchema = z
+  .object({
+    org_id: z.string().uuid(),
+    plan_id: z.string().uuid(),
+    status: adminSubscriptionStatusSchema,
+    period_start: adminDateOnlySchema,
+    period_end: adminDateOnlySchema,
+    contracted_amount: z
+      .string()
+      .regex(moneyPattern, "contracted_amount must be numeric(12,2) string")
+      .optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.period_end <= value.period_start) {
+      context.addIssue({
+        code: "custom",
+        path: ["period_end"],
+        message: "period_end must be after period_start",
+      });
+    }
+    if (value.status === "canceled" || value.status === "cancelled") {
+      context.addIssue({
+        code: "custom",
+        path: ["status"],
+        message: "use cancel action for canceled subscriptions",
+      });
+    }
+  });
+
+export type CreateAdminSubscriptionInput = z.infer<typeof createAdminSubscriptionSchema>;
+
+export const updateAdminSubscriptionStatusSchema = z.object({
+  subscription_id: z.string().uuid(),
+  // Cancelation is exclusively handled by cancelAdminSubscriptionSchema.
+  status: z.enum(["active", "trialing", "past_due", "expired"]),
+});
+
+export type UpdateAdminSubscriptionStatusInput = z.infer<typeof updateAdminSubscriptionStatusSchema>;
+
+export const updateAdminSubscriptionPlanSchema = z.object({
+  subscription_id: z.string().uuid(),
+  plan_id: z.string().uuid(),
+  contracted_amount: z
+    .string()
+    .regex(moneyPattern, "contracted_amount must be numeric(12,2) string")
+    .optional(),
+});
+
+export type UpdateAdminSubscriptionPlanInput = z.infer<typeof updateAdminSubscriptionPlanSchema>;
+
+export const updateAdminSubscriptionPeriodSchema = z
+  .object({
+    subscription_id: z.string().uuid(),
+    period_start: adminDateOnlySchema,
+    period_end: adminDateOnlySchema,
+  })
+  .superRefine((value, context) => {
+    if (value.period_end <= value.period_start) {
+      context.addIssue({
+        code: "custom",
+        path: ["period_end"],
+        message: "period_end must be after period_start",
+      });
+    }
+  });
+
+export type UpdateAdminSubscriptionPeriodInput = z.infer<typeof updateAdminSubscriptionPeriodSchema>;
+
+export const cancelAdminSubscriptionSchema = z.object({
+  subscription_id: z.string().uuid(),
+});
+
+export type CancelAdminSubscriptionInput = z.infer<typeof cancelAdminSubscriptionSchema>;
+
+export const adminSubscriptionListQuerySchema = z
+  .object({
+    query: z.string().trim().max(200).optional(),
+    plan: z.string().trim().max(200).optional(),
+    plan_id: z.string().uuid().optional(),
+    status: z
+      .enum(["active", "trialing", "past_due", "expired", "canceled", "cancelled", "none"])
+      .optional(),
+    expires_from: adminDateOnlySchema.optional(),
+    expires_to: adminDateOnlySchema.optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.expires_from && value.expires_to && value.expires_from > value.expires_to) {
+      context.addIssue({
+        code: "custom",
+        path: ["expires_to"],
+        message: "expires_to must be on or after expires_from",
+      });
+    }
+  });
+
+export type AdminSubscriptionListQuery = z.infer<typeof adminSubscriptionListQuerySchema>;
