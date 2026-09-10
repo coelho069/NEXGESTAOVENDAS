@@ -1,40 +1,74 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import type { User } from "@supabase/supabase-js";
 import type { Database } from "@/lib/db/types";
+import {
+  applySessionCookieOptions,
+  collectSupabaseAuthCookieNames,
+  expireSupabaseAuthCookies,
+  isInvalidRefreshTokenError,
+} from "@/lib/supabase/session-cookies";
 
-export async function updateSession(request: NextRequest) {
+export type MiddlewareSession = {
+  response: NextResponse;
+  user: User | null;
+};
+
+export async function updateSession(request: NextRequest): Promise<MiddlewareSession> {
   let supabaseResponse = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !anonKey) {
-    return supabaseResponse;
+    return { response: supabaseResponse, user: null };
   }
 
-  const supabase = createServerClient<Database>(url, anonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) => {
-          request.cookies.set(name, value);
-        });
-        supabaseResponse = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) => {
-          supabaseResponse.cookies.set(name, value, {
-            ...options,
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production" ? true : options?.secure,
-            sameSite: options?.sameSite ?? "lax",
-            path: options?.path ?? "/",
-          });
-        });
-      },
-    },
-  });
+  const authCookieNames = collectSupabaseAuthCookieNames(request.cookies.getAll());
 
-  await supabase.auth.getUser();
-  return supabaseResponse;
+  try {
+    const supabase = createServerClient<Database>(url, anonKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => {
+            request.cookies.set(name, value);
+          });
+          supabaseResponse = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) => {
+            supabaseResponse.cookies.set(name, value, applySessionCookieOptions(options));
+          });
+        },
+      },
+    });
+
+    try {
+      const { data, error } = await supabase.auth.getUser();
+      if (!error) {
+        return { response: supabaseResponse, user: data.user ?? null };
+      }
+
+      if (isInvalidRefreshTokenError(error)) {
+        supabaseResponse = expireSupabaseAuthCookies(
+          request,
+          supabaseResponse,
+          authCookieNames
+        );
+      }
+      return { response: supabaseResponse, user: null };
+    } catch (error) {
+      if (isInvalidRefreshTokenError(error)) {
+        supabaseResponse = expireSupabaseAuthCookies(
+          request,
+          supabaseResponse,
+          authCookieNames
+        );
+      }
+      return { response: supabaseResponse, user: null };
+    }
+  } catch {
+    return { response: supabaseResponse, user: null };
+  }
 }
