@@ -9,6 +9,8 @@ import { clientRateLimitKey, consumeRateLimit } from "@/lib/security/rate-limit"
 import { rateLimitedResponse, validationFailedResponse } from "@/lib/security/safe-error";
 import { reconcileCardAgainstStripe } from "@/lib/server/card-payment";
 import { reconcilePixAgainstStripe } from "@/lib/server/pix-payment";
+import { reconcileMercadoPagoPix } from "@/lib/server/mercadopago-pix-payment";
+import { isMercadoPagoOrderRef } from "@/lib/domain/mercadopago";
 import { toMoneyString, money } from "@/lib/money";
 
 export async function POST(request: Request) {
@@ -109,18 +111,23 @@ export async function POST(request: Request) {
           ? toMoneyString(money(intent.amount))
           : "";
     if (providerRef && amount) {
-      const pix = await reconcilePixAgainstStripe({
+      const clientMutationId =
+        parsed.data.client_mutation_id ??
+        (typeof intent.client_mutation_id === "string" ? intent.client_mutation_id : undefined);
+      const reconcileInput = {
         supabase,
         storeId: parsed.data.store_id,
-        clientMutationId:
-          parsed.data.client_mutation_id ??
-          (typeof intent.client_mutation_id === "string" ? intent.client_mutation_id : undefined),
+        clientMutationId,
         amount,
         providerReference: providerRef,
-      });
+      };
+      const pix = isMercadoPagoOrderRef(providerRef)
+        ? await reconcileMercadoPagoPix(reconcileInput)
+        : await reconcilePixAgainstStripe(reconcileInput);
       return NextResponse.json({
         status: pix.status,
         method: "pix",
+        provider: isMercadoPagoOrderRef(providerRef) ? "mercadopago" : "stripe",
         amount,
         provider_reference: pix.providerReference,
         sale_id: pix.sale_id,

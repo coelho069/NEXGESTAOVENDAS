@@ -12,14 +12,12 @@ import {
   MERCADOPAGO_API_BASE,
   parseMercadoPagoOrderResponse,
   parseMercadoPagoWebhookNotification,
-  webhookActionToPaymentState,
   type MercadoPagoWebhookNotification,
 } from "@/lib/domain/mercadopago";
 import { verifyMercadoPagoWebhookSignature } from "@/lib/domain/mercadopago-webhook-signature";
 
 const HEALTH_TTL_MS = 30_000;
 const DEFAULT_TIMEOUT_MS = 15_000;
-const WEBHOOK_REPLAY_TTL_MS = 24 * 60 * 60 * 1000;
 
 type MercadoPagoEnv =
   | {
@@ -39,12 +37,7 @@ type HealthCache = {
   message: string;
 };
 
-type WebhookReplayEntry = {
-  expiresAt: number;
-};
-
 let healthCache: HealthCache | null = null;
-const processedWebhookEvents = new Map<string, WebhookReplayEntry>();
 
 export function getMercadoPagoEnv(
   envSource: Record<string, string | undefined> = process.env
@@ -285,11 +278,6 @@ export async function resolveMercadoPagoPixPaymentAdapter(): Promise<PaymentAdap
 export function resetMercadoPagoHealthCache(): void {
   healthCache = null;
   bindMercadoPagoPixAdapter(null);
-  processedWebhookEvents.clear();
-}
-
-export function resetMercadoPagoWebhookReplayCache(): void {
-  processedWebhookEvents.clear();
 }
 
 function createBoundAdapter(env: Extract<MercadoPagoEnv, { configured: true }>): PaymentAdapter {
@@ -303,60 +291,6 @@ export function verifyMercadoPagoWebhookRequest(input: {
   secret: string;
 }): void {
   verifyMercadoPagoWebhookSignature(input);
-}
-
-function purgeExpiredWebhookEvents(now: number): void {
-  for (const [key, entry] of processedWebhookEvents.entries()) {
-    if (entry.expiresAt <= now) {
-      processedWebhookEvents.delete(key);
-    }
-  }
-}
-
-function markWebhookProcessed(eventKey: string, now: number): boolean {
-  purgeExpiredWebhookEvents(now);
-  const existing = processedWebhookEvents.get(eventKey);
-  if (existing && existing.expiresAt > now) {
-    return true;
-  }
-  processedWebhookEvents.set(eventKey, { expiresAt: now + WEBHOOK_REPLAY_TTL_MS });
-  return false;
-}
-
-export type MercadoPagoWebhookApplyResult = {
-  status: string;
-  providerReference?: string;
-  replay?: boolean;
-  ignored?: boolean;
-};
-
-export function applyMercadoPagoWebhookNotification(
-  notification: MercadoPagoWebhookNotification
-): MercadoPagoWebhookApplyResult {
-  const now = Date.now();
-  const eventKey = String(notification.id);
-  const replay = markWebhookProcessed(eventKey, now);
-  if (replay) {
-    return {
-      status: "replay",
-      providerReference: notification.data.id,
-      replay: true,
-    };
-  }
-
-  const mapped = webhookActionToPaymentState(notification.action);
-  if (mapped === "ignored") {
-    return {
-      status: "ignored",
-      providerReference: notification.data.id,
-      ignored: true,
-    };
-  }
-
-  return {
-    status: mapped,
-    providerReference: notification.data.id,
-  };
 }
 
 export function parseMercadoPagoWebhookBody(body: unknown): MercadoPagoWebhookNotification | null {
