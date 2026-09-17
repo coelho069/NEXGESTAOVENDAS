@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { payCashNoChange } from "./pdv-cash-helpers";
 
 const STORE_ID = "22222222-2222-4222-8222-222222222201";
 
@@ -9,8 +10,7 @@ async function openCashCheckout(page: import("@playwright/test").Page) {
   await page.getByTestId("pdv-search-input").fill("BEV-001");
   await page.getByTestId("pdv-search-input").press("Enter");
   await expect(page.getByTestId("cart-line-BEV-001")).toBeVisible();
-  await page.getByTestId("open-payment").click();
-  await page.getByTestId("checkout-cash").click();
+  await payCashNoChange(page);
   await expect(page.getByTestId("receipt")).toBeVisible();
 }
 
