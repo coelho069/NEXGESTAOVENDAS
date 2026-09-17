@@ -31,7 +31,12 @@ import { resolveOpenCashSaleContext } from "@/lib/domain/cash";
 import { useCartStore } from "@/stores/cart-store";
 import { useSyncStore } from "@/stores/sync-store";
 import { usePdvUiStore } from "@/stores/pdv-ui-store";
-import { soleAuthorizedStoreId, type StoreOption } from "@/lib/auth/store-context";
+import {
+  hasPdvStoreContext,
+  resolveAutoStoreId,
+  type StoreOption,
+} from "@/lib/auth/store-context";
+import { useAuth } from "@/hooks/use-auth";
 import type { MemberRole } from "@/lib/domain/rbac";
 import { snapshotToCartLines, type SuspendedCartContext } from "@/lib/domain/suspended-sale";
 
@@ -42,6 +47,7 @@ type PdvScreenProps = {
 };
 
 export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
+  const { loading: authLoading } = useAuth();
   const { customers, createCustomer } = useCustomers();
   const {
     storeId,
@@ -74,8 +80,10 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     () => stores.find((store) => store.id === storeId) ?? null,
     [storeId, stores]
   );
-  const storeContextMatchesRoute = !initialStoreId || storeId === initialStoreId;
-  const hasStoreContext = Boolean(authorizedStore && storeContextMatchesRoute);
+  const hasStoreContext = useMemo(
+    () => hasPdvStoreContext(stores, storeId, initialStoreId),
+    [initialStoreId, storeId, stores]
+  );
   const effectiveRole = role ?? authorizedStore?.role ?? "cashier";
   const displayRole = role ?? authorizedStore?.role ?? null;
   const { balances, loading: stockLoading } = useProjectedStock(storeId, inventoryEpoch);
@@ -180,7 +188,9 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
   };
 
   useEffect(() => {
-    const targetStoreId = initialStoreId ?? soleAuthorizedStoreId(stores);
+    if (authLoading) return;
+
+    const targetStoreId = resolveAutoStoreId(stores, initialStoreId);
     if (targetStoreId && storeId !== targetStoreId) {
       if (!setStoreId(targetStoreId)) {
         setContextMessage(
@@ -193,9 +203,9 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     }
     if (storeId && !authorizedStore && sale.lines.length === 0 && !sale.checkoutInFlight && !sale.checkoutAttemptId) {
       setStoreId(null);
-      return;
     }
   }, [
+    authLoading,
     authorizedStore,
     initialStoreId,
     sale.checkoutAttemptId,

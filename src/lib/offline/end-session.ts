@@ -19,7 +19,9 @@ function clearPrefixedWebStorage(storage: Storage, prefixes: string[]): void {
 }
 
 export async function clearClientSessionStorage(userId?: string | null): Promise<void> {
-  useCartStore.getState().clear();
+  const cart = useCartStore.getState();
+  cart.clear();
+  cart.setStoreId(null);
   if (typeof localStorage !== "undefined") {
     clearPrefixedWebStorage(localStorage, [
       CART_PERSIST_KEY,

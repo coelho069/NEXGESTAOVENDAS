@@ -66,6 +66,25 @@ export function soleAuthorizedStoreId(stores: readonly { id: string }[]): string
   return stores.length === 1 ? stores[0]?.id ?? null : null;
 }
 
+/** Server route hint or sole authorized store — used to auto-bind the PDV cart. */
+export function resolveAutoStoreId(
+  stores: readonly StoreOption[],
+  initialStoreId: string | null
+): string | null {
+  return initialStoreId ?? soleAuthorizedStoreId(stores);
+}
+
+export function hasPdvStoreContext(
+  stores: readonly StoreOption[],
+  storeId: string | null,
+  initialStoreId: string | null
+): boolean {
+  if (!storeId) return false;
+  const authorizedStore = stores.some((store) => store.id === storeId);
+  const storeContextMatchesRoute = !initialStoreId || storeId === initialStoreId;
+  return authorizedStore && storeContextMatchesRoute;
+}
+
 export function shouldShowStoreSelect(stores: readonly { id: string }[]): boolean {
   return stores.length > 1;
 }
