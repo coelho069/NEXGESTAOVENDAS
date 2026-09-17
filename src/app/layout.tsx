@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Nex Gestão Vendas — PDV",
-  description: "PDV local-first Sprint 4",
+  title: "Nex Gestão Vendas — Planos PDV",
+  description: "Planos de assinatura do PDV local-first Nex Gestão Vendas para varejo brasileiro.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
