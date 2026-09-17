@@ -172,6 +172,12 @@ describe("admin subscription access description uses current gate", () => {
     expect(describeSubscriptionAccessForAdmin("cancelled").accessAllowed).toBe(false);
     expect(describeSubscriptionAccessForAdmin(null).accessAllowed).toBe(false);
   });
+
+  it("exposes gate reason codes aligned with tenant access gate", () => {
+    expect(describeSubscriptionAccessForAdmin("active").accessReason).toBe("ok");
+    expect(describeSubscriptionAccessForAdmin("expired").accessReason).toBe("expired");
+    expect(describeSubscriptionAccessForAdmin(null).accessReason).toBe("none");
+  });
 });
 
 describe("admin plan and subscription validation schemas", () => {

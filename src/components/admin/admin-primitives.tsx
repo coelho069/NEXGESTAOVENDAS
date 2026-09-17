@@ -9,6 +9,7 @@ import {
   type SubscriptionBillingInterval,
 } from "@/lib/domain/admin-subscriptions";
 import type { MemberRole } from "@/lib/domain/rbac";
+import { subscriptionGateReasonLabel } from "@/lib/domain/subscription-access";
 
 export function AdminDataNotice({ message }: { message: string }) {
   return (
@@ -122,6 +123,21 @@ export function formatAdminAmount(value: string | null): string {
 
 export function formatAdminBillingInterval(value: SubscriptionBillingInterval | null): string {
   return value ? SUBSCRIPTION_BILLING_INTERVAL_LABELS[value] : "N/D";
+}
+
+export function formatAdminGateReason(value: string): string {
+  return subscriptionGateReasonLabel(value);
+}
+
+export function formatAdminSubscriptionPeriod(
+  startedAt: string | null,
+  expiresAt: string | null
+): string {
+  if (!startedAt && !expiresAt) return "N/D";
+  if (startedAt && expiresAt) {
+    return `${formatAdminDate(startedAt)} → ${formatAdminDate(expiresAt)}`;
+  }
+  return formatAdminDate(startedAt ?? expiresAt);
 }
 
 export function adminRoleLabel(role: MemberRole | null): string {

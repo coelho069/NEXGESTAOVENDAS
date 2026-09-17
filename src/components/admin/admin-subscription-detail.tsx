@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Building2, CalendarClock, Clock3, Store, Users } from "lucide-react";
+import { ArrowLeft, Building2, CalendarClock, ShieldAlert, Store, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
   AdminDataNotice,
@@ -10,11 +10,14 @@ import {
   formatAdminAmount,
   formatAdminBillingInterval,
   formatAdminDate,
+  formatAdminGateReason,
+  formatAdminSubscriptionPeriod,
 } from "@/components/admin/admin-primitives";
 import { AdminSubscriptionManage } from "@/components/admin/admin-subscription-manage";
-import type {
-  AdminPlanRecord,
-  AdminSubscriptionDetail,
+import {
+  ADMIN_SUBSCRIPTION_STATUS_LABELS,
+  type AdminPlanRecord,
+  type AdminSubscriptionDetail,
 } from "@/lib/domain/admin-subscriptions";
 
 export function AdminSubscriptionDetailScreen({
@@ -54,26 +57,31 @@ export function AdminSubscriptionDetailScreen({
       </header>
 
       {error ? <AdminErrorNotice message="Não foi possível carregar os detalhes do cliente." /> : null}
-      {data?.status === "none" ? (
-        <AdminDataNotice message="Esta organização ainda não possui uma assinatura cadastrada." />
-      ) : null}
-      {data && data.status !== "none" ? (
+      {data ? (
         <AdminDataNotice
-          message={`${data.accessAllowed ? "Acesso ao PDV liberado" : "Acesso ao PDV bloqueado"}: ${data.accessMessage}`}
+          message={`${data.accessAllowed ? "Acesso ao PDV liberado" : "Acesso ao PDV bloqueado"} · Motivo do gate: ${formatAdminGateReason(data.accessReason)}. ${data.accessMessage}`}
         />
       ) : null}
 
       {data ? (
         <>
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <DetailCard label="Plano" value={data.planName ?? "Sem plano"} icon={Building2} />
-            <DetailCard label="Valor contratado" value={formatAdminAmount(data.amount)} icon={Clock3} />
             <DetailCard
-              label="Periodicidade"
-              value={formatAdminBillingInterval(data.billingInterval)}
+              label="Status"
+              value={ADMIN_SUBSCRIPTION_STATUS_LABELS[data.status]}
+              icon={Building2}
+            />
+            <DetailCard label="Plano" value={data.planName ?? "Sem plano"} icon={Building2} />
+            <DetailCard
+              label="Período"
+              value={formatAdminSubscriptionPeriod(data.startedAt, data.expiresAt)}
               icon={CalendarClock}
             />
-            <DetailCard label="Última atualização" value={formatAdminDate(data.lastUpdated)} icon={Clock3} />
+            <DetailCard
+              label="Motivo do gate"
+              value={formatAdminGateReason(data.accessReason)}
+              icon={ShieldAlert}
+            />
           </section>
 
           <AdminSubscriptionManage data={data} plans={plans} />
@@ -121,7 +129,10 @@ export function AdminSubscriptionDetailScreen({
                   label="Acesso por assinatura"
                   value={data.accessAllowed ? "Liberado" : "Bloqueado"}
                 />
-                <DetailField label="Motivo do acesso" value={data.accessReason} />
+                <DetailField
+                  label="Motivo do gate"
+                  value={formatAdminGateReason(data.accessReason)}
+                />
                 <DetailField label="Lojas visíveis" value={String(data.storeCount)} />
                 <DetailField label="Lojas ativas" value={String(data.activeStoreCount)} />
                 <DetailField label="Usuários vinculados" value={String(data.teamMemberCount)} />

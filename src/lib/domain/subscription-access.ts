@@ -228,6 +228,27 @@ export function gateTenantSubscriptionAccess(check: SubscriptionCheck): Subscrip
   }
 }
 
+export const SUBSCRIPTION_GATE_REASON_LABELS: Record<SubscriptionCheckReason, string> = {
+  ok: "Assinatura válida",
+  unavailable: "Validação indisponível",
+  expired: "Assinatura expirada",
+  canceled: "Assinatura cancelada",
+  none: "Sem assinatura cadastrada",
+};
+
+export function subscriptionGateReasonLabel(reason: string): string {
+  switch (reason) {
+    case "ok":
+    case "unavailable":
+    case "expired":
+    case "canceled":
+    case "none":
+      return SUBSCRIPTION_GATE_REASON_LABELS[reason];
+    default:
+      return reason;
+  }
+}
+
 export function subscriptionBlockTitle(state: SubscriptionEffectiveState): string {
   switch (state) {
     case "expired":

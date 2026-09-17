@@ -9,6 +9,7 @@ import {
   outcomeFromSubscriptionLookup,
   resolveSubscriptionCheck,
   subscriptionBlockTitle,
+  subscriptionGateReasonLabel,
 } from "@/lib/domain/subscription-access";
 
 afterEach(() => {
@@ -170,6 +171,17 @@ describe("SubscriptionAccessView", () => {
       expect(screen.queryByTestId("pdv-shell")).not.toBeInTheDocument();
       unmount();
     }
+  });
+});
+
+describe("subscription gate reason labels", () => {
+  it("maps gate reason codes to admin-readable Portuguese labels", () => {
+    expect(subscriptionGateReasonLabel("ok")).toBe("Assinatura válida");
+    expect(subscriptionGateReasonLabel("none")).toBe("Sem assinatura cadastrada");
+    expect(subscriptionGateReasonLabel("expired")).toBe("Assinatura expirada");
+    expect(subscriptionGateReasonLabel("canceled")).toBe("Assinatura cancelada");
+    expect(subscriptionGateReasonLabel("unavailable")).toBe("Validação indisponível");
+    expect(subscriptionGateReasonLabel("custom_code")).toBe("custom_code");
   });
 });
 
