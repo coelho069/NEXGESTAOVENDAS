@@ -5,9 +5,11 @@ import {
   describeSubscriptionAccessForAdmin,
   filterAdminSubscriptionRecords,
   findNextSubscriptionExpirations,
+  formatAdminGateReason,
   pickCurrentSubscription,
   type AdminSubscriptionRecord,
 } from "@/lib/domain/admin-subscriptions";
+import { formatAdminSubscriptionPeriod } from "@/components/admin/admin-primitives";
 import {
   adminSubscriptionListQuerySchema,
   cancelAdminSubscriptionSchema,
@@ -171,6 +173,34 @@ describe("admin subscription access description uses current gate", () => {
     expect(describeSubscriptionAccessForAdmin("canceled").accessAllowed).toBe(false);
     expect(describeSubscriptionAccessForAdmin("cancelled").accessAllowed).toBe(false);
     expect(describeSubscriptionAccessForAdmin(null).accessAllowed).toBe(false);
+  });
+
+  it("formats gate reason labels in Portuguese for admin detail", () => {
+    expect(
+      formatAdminGateReason({
+        accessReason: "ok",
+        accessMessage: "Assinatura permite acesso operacional.",
+      })
+    ).toContain("liberado");
+    expect(
+      formatAdminGateReason({
+        accessReason: "expired",
+        accessMessage: "Assinatura expirada — PDV bloqueado.",
+      })
+    ).toContain("expirada");
+    expect(
+      formatAdminGateReason({
+        accessReason: "none",
+        accessMessage: "Organização sem assinatura cadastrada.",
+      })
+    ).toContain("Sem assinatura");
+  });
+});
+
+describe("admin subscription period formatting", () => {
+  it("renders billing period as start — end in pt-BR", () => {
+    expect(formatAdminSubscriptionPeriod("2026-09-01", "2026-10-01")).toMatch(/01\/09\/2026.*01\/10\/2026/);
+    expect(formatAdminSubscriptionPeriod(null, null)).toBe("N/D");
   });
 });
 

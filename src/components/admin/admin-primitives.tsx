@@ -124,6 +124,17 @@ export function formatAdminBillingInterval(value: SubscriptionBillingInterval | 
   return value ? SUBSCRIPTION_BILLING_INTERVAL_LABELS[value] : "N/D";
 }
 
+export function formatAdminSubscriptionPeriod(
+  startedAt: string | null,
+  expiresAt: string | null
+): string {
+  if (!startedAt && !expiresAt) return "N/D";
+  if (startedAt && expiresAt) {
+    return `${formatAdminDate(startedAt)} — ${formatAdminDate(expiresAt)}`;
+  }
+  return formatAdminDate(startedAt ?? expiresAt);
+}
+
 export function adminRoleLabel(role: MemberRole | null): string {
   if (role === "admin") return "Administrador";
   if (role === "manager") return "Gerente";
