@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AuthChangeEvent } from "@supabase/supabase-js";
+import { shouldReloadCatalogOnAuthEvent } from "@/lib/auth/auth-events";
 import { filterActiveProducts, type ProductRow } from "@/lib/domain/product";
 import {
   catalogLoadCauseFromUnknown,
@@ -10,24 +10,6 @@ import {
 } from "@/lib/domain/catalog-load";
 import { fixtureProducts, pdvFixturesEnabled } from "@/lib/pdv/fixtures";
 import { createClient } from "@/lib/supabase/client";
-
-export function shouldReloadCatalogOnAuthEvent(event: AuthChangeEvent): boolean {
-  switch (event) {
-    case "SIGNED_IN":
-    case "SIGNED_OUT":
-      return true;
-    case "INITIAL_SESSION":
-    case "TOKEN_REFRESHED":
-    case "USER_UPDATED":
-    case "PASSWORD_RECOVERY":
-    case "MFA_CHALLENGE_VERIFIED":
-      return false;
-    default: {
-      const _exhaustive: never = event;
-      return _exhaustive;
-    }
-  }
-}
 
 function applyCatalogResult(
   failed: boolean,

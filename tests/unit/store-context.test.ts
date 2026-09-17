@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildAuthorizedStores,
+  hasPdvStoreContext,
+  resolveAutoStoreId,
   selectAuthorizedStore,
   shouldShowStoreSelect,
   soleAuthorizedStoreId,
@@ -64,5 +66,25 @@ describe("authorized store context", () => {
     expect(soleAuthorizedStoreId([{ id: STORE_A }])).toBe(STORE_A);
     expect(shouldShowStoreSelect([{ id: STORE_A }, { id: STORE_B }])).toBe(true);
     expect(soleAuthorizedStoreId([{ id: STORE_A }, { id: STORE_B }])).toBeNull();
+  });
+
+  it("auto-resolves the PDV store from route hint or sole authorized store", () => {
+    const single = [{ id: STORE_A, name: "Loja Centro" }];
+    expect(resolveAutoStoreId(single, null)).toBe(STORE_A);
+    expect(resolveAutoStoreId(single, STORE_A)).toBe(STORE_A);
+    expect(resolveAutoStoreId([], STORE_A)).toBe(STORE_A);
+    expect(resolveAutoStoreId([], null)).toBeNull();
+  });
+
+  it("requires an authorized store id that matches the route context", () => {
+    const stores = [
+      { id: STORE_A, name: "Loja Centro" },
+      { id: STORE_B, name: "Loja Shopping" },
+    ];
+    expect(hasPdvStoreContext(stores, null, null)).toBe(false);
+    expect(hasPdvStoreContext(stores, STORE_A, null)).toBe(true);
+    expect(hasPdvStoreContext(stores, STORE_A, STORE_A)).toBe(true);
+    expect(hasPdvStoreContext(stores, STORE_A, STORE_B)).toBe(false);
+    expect(hasPdvStoreContext(stores, STORE_C, null)).toBe(false);
   });
 });
