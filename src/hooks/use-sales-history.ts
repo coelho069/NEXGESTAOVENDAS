@@ -17,6 +17,7 @@ import type { SaleReturnOperation, SaleReturnReason } from "@/lib/domain/sale-re
 import { getPdvLocalDbForUser } from "@/lib/offline/pdv-local-db";
 import { getTerminalId } from "@/lib/offline/terminal-identity";
 import { pdvFixturesEnabled } from "@/lib/pdv/fixtures";
+import { SALES_HISTORY_SYNC_EVENT, notifySalesHistorySync } from "@/lib/pdv/sales-history-sync";
 import { useSessionStore } from "@/stores/session-store";
 
 function readError(body: unknown, fallback: string): string {
@@ -216,6 +217,7 @@ export function useSalesHistory(storeId: string | null) {
           });
           await openDetail(input.saleId);
           await refresh();
+          notifySalesHistorySync();
           return result;
         }
 
@@ -241,6 +243,7 @@ export function useSalesHistory(storeId: string | null) {
         }
         await openDetail(input.saleId);
         await refresh();
+        notifySalesHistorySync();
         return body as {
           return_id: string;
           sale_id: string;
@@ -268,6 +271,14 @@ export function useSalesHistory(storeId: string | null) {
     // Refresh on store change only; search applies when the operator clicks Atualizar.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: avoid per-keystroke fetch
   }, [storeId]);
+
+  useEffect(() => {
+    const handleSync = () => {
+      void refresh();
+    };
+    window.addEventListener(SALES_HISTORY_SYNC_EVENT, handleSync);
+    return () => window.removeEventListener(SALES_HISTORY_SYNC_EVENT, handleSync);
+  }, [refresh]);
 
   return {
     rows,
