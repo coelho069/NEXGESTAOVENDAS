@@ -3,7 +3,10 @@ import { Inter } from "next/font/google";
 import { SyncProvider } from "@/components/providers/sync-provider";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
 
 export const metadata: Metadata = {
   title: "Nex Gestão Vendas — PDV",
@@ -13,7 +16,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR">
-      <body className={`${inter.className} bg-slate-50 text-slate-900 antialiased`}>
+      <body className={inter.className}>
         <SyncProvider>{children}</SyncProvider>
       </body>
     </html>
