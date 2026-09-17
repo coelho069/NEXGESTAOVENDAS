@@ -284,6 +284,35 @@ export async function countUnsyncedCommands(db: PdvLocalDatabase): Promise<numbe
   return sales + inventory;
 }
 
+export async function syncOutboxMutation(
+  deps: SyncEngineDeps,
+  clientMutationId: string
+): Promise<boolean> {
+  await resetStuckProcessing(deps.db, deps.now?.() ?? new Date(), 30_000, deps.storeId);
+
+  let command = await deps.db.outbox.get(clientMutationId);
+  if (!command) return false;
+  if (command.status === "synced") return true;
+
+  if (command.status === "processing") {
+    await releaseOutboxProcessing(deps.db, clientMutationId, deps.now?.() ?? new Date());
+    command = await deps.db.outbox.get(clientMutationId);
+  }
+
+  if (command?.status === "pending") {
+    await pushOutboxCommand(deps, command);
+  }
+
+  command = await deps.db.outbox.get(clientMutationId);
+  if (command?.status === "synced") {
+    return true;
+  }
+
+  await pullChanges(deps);
+  command = await deps.db.outbox.get(clientMutationId);
+  return command?.status === "synced";
+}
+
 export async function pushPendingCommands(deps: SyncEngineDeps): Promise<void> {
   const now = deps.now?.() ?? new Date();
   await resetStuckProcessing(deps.db, now, 30_000, deps.storeId);
@@ -512,34 +541,28 @@ async function applyPushResponse(
   const body = await readJson(response, signal);
   const message = body.error ?? `HTTP ${response.status}`;
   if (klass === "success") {
-    if (
-      !body.sale_id ||
-      !validateUuid(body.sale_id) ||
-      body.client_mutation_id !== clientMutationId ||
-      body.replay === undefined ||
-      body.status !== "confirmed" ||
-      body.stock_reconciled !== true
-    ) {
-      const responseError = !body.sale_id
-        ? "missing sale_id"
-        : !validateUuid(body.sale_id)
-          ? "invalid sale_id"
-          : "invalid process_sale response";
-      await scheduleRetryOrResolve(
-        deps,
-        processing,
-        responseError,
-        true
-      );
+    const parsed = parseProcessSalePushSuccess(body, clientMutationId);
+    if (!parsed.ok) {
+      await scheduleRetryOrResolve(deps, processing, parsed.error, true);
       return;
     }
-    await reconcileSale(deps.db, clientMutationId, {
-      sale_id: body.sale_id,
-      status: body.status,
-      total: body.total,
-      stockReconciled: body.stock_reconciled,
-      fiscalStatus: body.fiscalStatus,
-    }, expectedProcessingUpdatedAt);
+    await reconcileSale(
+      deps.db,
+      clientMutationId,
+      {
+        sale_id: parsed.saleId,
+        status: "confirmed",
+        total: parsed.total,
+        stockReconciled: parsed.stockReconciled,
+        fiscalStatus: parsed.fiscalStatus,
+      },
+      expectedProcessingUpdatedAt
+    );
+    const outboxAfter = await deps.db.outbox.get(clientMutationId);
+    if (outboxAfter?.status !== "synced") {
+      await scheduleRetryOrResolve(deps, processing, "reconcile did not complete", true);
+      return;
+    }
     notifySalesHistorySync();
     return;
   }
@@ -1021,6 +1044,71 @@ async function markProcessingCommandFailed(
   return failed;
 }
 
+type ProcessSalePushBody = {
+  error?: string;
+  sale_id?: string;
+  client_mutation_id?: string;
+  replay?: boolean;
+  status?: string;
+  total?: string;
+  stock_reconciled?: boolean;
+  fiscalStatus?: FiscalStatus;
+  movement_id?: string;
+  product_id?: string;
+  terminal_id?: string;
+  import_id?: string;
+  import_row?: number;
+  movement_type?: string;
+  created_at?: string;
+  balance_after?: string;
+  delta?: string;
+};
+
+function parseOptionalBoolean(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return undefined;
+}
+
+export function parseProcessSalePushSuccess(
+  body: ProcessSalePushBody,
+  clientMutationId: string
+):
+  | {
+      ok: true;
+      saleId: string;
+      replay: boolean;
+      total?: string;
+      stockReconciled: boolean;
+      fiscalStatus?: FiscalStatus;
+    }
+  | { ok: false; error: string } {
+  if (!body.sale_id || !validateUuid(body.sale_id)) {
+    return { ok: false, error: !body.sale_id ? "missing sale_id" : "invalid sale_id" };
+  }
+  if (body.client_mutation_id !== clientMutationId) {
+    return { ok: false, error: "invalid process_sale response" };
+  }
+  if (body.status !== "confirmed") {
+    return { ok: false, error: "invalid process_sale response" };
+  }
+
+  const stockReconciled = parseOptionalBoolean(body.stock_reconciled);
+  if (stockReconciled === false) {
+    return { ok: false, error: "invalid process_sale response" };
+  }
+
+  return {
+    ok: true,
+    saleId: body.sale_id,
+    replay: parseOptionalBoolean(body.replay) ?? false,
+    total: body.total,
+    stockReconciled: stockReconciled ?? true,
+    fiscalStatus: body.fiscalStatus,
+  };
+}
+
 async function readJson(response: Response, signal?: AbortSignal): Promise<{
   error?: string;
   sale_id?: string;
@@ -1049,11 +1137,10 @@ async function readJson(response: Response, signal?: AbortSignal): Promise<{
       sale_id: typeof body.sale_id === "string" ? body.sale_id : undefined,
       client_mutation_id:
         typeof body.client_mutation_id === "string" ? body.client_mutation_id : undefined,
-      replay: typeof body.replay === "boolean" ? body.replay : undefined,
+      replay: parseOptionalBoolean(body.replay),
       status: typeof body.status === "string" ? body.status : undefined,
       total: normalizeMoneyValue(body.total),
-      stock_reconciled:
-        typeof body.stock_reconciled === "boolean" ? body.stock_reconciled : undefined,
+      stock_reconciled: parseOptionalBoolean(body.stock_reconciled),
       fiscalStatus: parseFiscalStatus(
         typeof body.fiscal === "object" && body.fiscal !== null
           ? (body.fiscal as Record<string, unknown>).status
