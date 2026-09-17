@@ -215,7 +215,7 @@ describe("7. HID and shortcuts respect modal and input focus except search", () 
     expect(shouldAcceptHidScan(document.body, false)).toBe(true);
   });
 
-  it("does not fire F6 inside inputs; search shortcut still works", () => {
+  it("does not fire F4 inside inputs; search shortcut still works", () => {
     const discount = document.createElement("input");
     expect(shouldHandleShortcut("discount", discount)).toBe(false);
     expect(shouldHandleShortcut("search", discount)).toBe(true);
@@ -224,6 +224,7 @@ describe("7. HID and shortcuts respect modal and input focus except search", () 
     expect(shouldHandleShortcut("discount", searchInput())).toBe(false);
     expect(shouldHandleShortcut("discount", document.body, true)).toBe(false);
     expect(shouldHandleShortcut("cancel", document.body, true)).toBe(true);
-    expect(matchPdvShortcut({ key: "F6", ctrlKey: false, metaKey: false, altKey: false })).toBe("discount");
+    expect(matchPdvShortcut({ key: "F4", ctrlKey: false, metaKey: false, altKey: false })).toBe("discount");
+    expect(matchPdvShortcut({ key: "F6", ctrlKey: false, metaKey: false, altKey: false })).toBe("customer");
   });
 });

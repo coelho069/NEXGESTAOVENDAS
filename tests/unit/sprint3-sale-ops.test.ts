@@ -193,14 +193,18 @@ describe("payment draft and receipt", () => {
 });
 
 describe("keyboard shortcuts", () => {
-  it("maps F2 F4 F6 F8 F9 Esc Ctrl+K and +/-", () => {
+  it("maps F2 F4 F6 F8 F9 F10 F12 Esc Ctrl+K Ctrl+H Del and +/-", () => {
     expect(matchPdvShortcut({ key: "F2", ctrlKey: false, metaKey: false, altKey: false })).toBe("search");
     expect(matchPdvShortcut({ key: "k", ctrlKey: true, metaKey: false, altKey: false })).toBe("search");
-    expect(matchPdvShortcut({ key: "F4", ctrlKey: false, metaKey: false, altKey: false })).toBe("customer");
-    expect(matchPdvShortcut({ key: "F6", ctrlKey: false, metaKey: false, altKey: false })).toBe("discount");
-    expect(matchPdvShortcut({ key: "F8", ctrlKey: false, metaKey: false, altKey: false })).toBe("payment");
-    expect(matchPdvShortcut({ key: "F9", ctrlKey: false, metaKey: false, altKey: false })).toBe("receipt");
+    expect(matchPdvShortcut({ key: "h", ctrlKey: true, metaKey: false, altKey: false })).toBe("salesHistory");
+    expect(matchPdvShortcut({ key: "F4", ctrlKey: false, metaKey: false, altKey: false })).toBe("discount");
+    expect(matchPdvShortcut({ key: "F6", ctrlKey: false, metaKey: false, altKey: false })).toBe("customer");
+    expect(matchPdvShortcut({ key: "F8", ctrlKey: false, metaKey: false, altKey: false })).toBe("payCash");
+    expect(matchPdvShortcut({ key: "F9", ctrlKey: false, metaKey: false, altKey: false })).toBe("payCard");
+    expect(matchPdvShortcut({ key: "F10", ctrlKey: false, metaKey: false, altKey: false })).toBe("payPix");
+    expect(matchPdvShortcut({ key: "F12", ctrlKey: false, metaKey: false, altKey: false })).toBe("finalize");
     expect(matchPdvShortcut({ key: "Escape", ctrlKey: false, metaKey: false, altKey: false })).toBe("cancel");
+    expect(matchPdvShortcut({ key: "Delete", ctrlKey: false, metaKey: false, altKey: false })).toBe("removeLine");
     expect(matchPdvShortcut({ key: "+", ctrlKey: false, metaKey: false, altKey: false })).toBe("qtyInc");
     expect(matchPdvShortcut({ key: "-", ctrlKey: false, metaKey: false, altKey: false })).toBe("qtyDec");
   });
