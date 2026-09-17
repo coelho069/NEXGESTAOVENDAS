@@ -1,9 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { ChevronRight, Download, Filter, Package } from "lucide-react";
 import { formatBRL } from "@/lib/money";
 import { PermissionGate } from "@/components/auth/permission-gate";
 import { StoreSelect } from "@/components/auth/store-select";
+import { Button, buttonClassName } from "@/components/ui/button";
 import type { PaymentAdapterAlert } from "@/lib/adapters/payment";
 import type { MemberRole } from "@/lib/domain/rbac";
 import { paymentMethodLabel, saleStatusLabel } from "@/lib/domain/sale-history";
@@ -14,6 +16,9 @@ type DashboardScreenProps = {
   initial: DashboardLoadResult;
   paymentAlerts: PaymentAdapterAlert[];
 };
+
+const fieldClassName =
+  "mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100";
 
 export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardScreenProps) {
   const summary = initial.payload.summary;
@@ -34,12 +39,15 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
   const unknownFromPayload = hasUnknownPayloadStatus(summary.excludedSales, summary.excludedPayments);
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6 p-4 lg:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="mx-auto flex max-w-6xl flex-col gap-7 p-4 lg:p-6">
+      <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Dashboard</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {initial.payload.from} → {initial.payload.to} (fim exclusivo) · America/Sao_Paulo
+          <p className="mt-1.5 text-sm text-slate-500">
+            <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium tabular-nums text-slate-600">
+              {initial.payload.from} → {initial.payload.to}
+            </span>
+            <span className="ml-2">(fim exclusivo) · America/Sao_Paulo</span>
           </p>
         </div>
         <span
@@ -48,19 +56,19 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
         >
           Papel: {roleLabel(initial.role)}
         </span>
-      </div>
+      </header>
 
       <form
         method="get"
         action="/dashboard"
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
+        className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
       >
         <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
           Loja
           <StoreSelect
             name="store"
             testId="dashboard-store"
-            className="mt-1.5 block rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-900"
+            className={fieldClassName}
             stores={initial.stores}
             defaultValue={storeId}
           />
@@ -72,7 +80,7 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
             name="from"
             data-testid="dashboard-from"
             defaultValue={initial.payload.from}
-            className="mt-1.5 block rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-900"
+            className={fieldClassName}
           />
         </label>
         <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -82,16 +90,13 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
             name="to"
             data-testid="dashboard-to"
             defaultValue={initial.payload.to}
-            className="mt-1.5 block rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-900"
+            className={fieldClassName}
           />
         </label>
-        <button
-          type="submit"
-          data-testid="dashboard-filter"
-          className="rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white"
-        >
+        <Button type="submit" data-testid="dashboard-filter" className="px-4">
+          <Filter size={15} aria-hidden="true" />
           Filtrar
-        </button>
+        </Button>
       </form>
 
       {initial.degraded ? (
@@ -124,9 +129,9 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
           </div>
         ) : (
           <>
-            <div data-testid="dashboard-metrics" className="flex flex-col gap-5">
-              <section className="space-y-2">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Resumo</h2>
+            <div data-testid="dashboard-metrics" className="flex flex-col gap-6">
+              <section className="space-y-3">
+                <SectionHeading>Resumo</SectionHeading>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Metric
                     dataTestId="dashboard-revenue"
@@ -148,10 +153,8 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
                   />
                 </div>
               </section>
-              <section className="space-y-2">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Rentabilidade e volume
-                </h2>
+              <section className="space-y-3">
+                <SectionHeading>Rentabilidade e volume</SectionHeading>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <Metric dataTestId="dashboard-discounts" label="Descontos persistidos" value={formatBRL(summary.totalDiscounts)} />
                   <Metric label="COGS histórico" value={formatOptionalBRL(summary.cogs)} />
@@ -162,140 +165,157 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
               </section>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-3">
-              <SummaryCard title="Pagamentos capturados" testId="dashboard-payments">
-                {Object.entries(summary.paymentsByMethod).map(([method, amount]) => (
-                  <SummaryLine
-                    key={method}
-                    label={`${paymentMethodLabel(method)} (${summary.paymentCountsByMethod[method as keyof typeof summary.paymentCountsByMethod] ?? 0})`}
-                    value={formatBRL(amount)}
-                  />
-                ))}
-              </SummaryCard>
-              <SummaryCard title="Caixa físico" testId="dashboard-cash">
-                <SummaryLine label="Entradas cash capturadas" value={formatBRL(summary.cash.capturedCashPayments)} />
-                <SummaryLine label="Movimentos de venda" value={formatBRL(summary.cash.cashLedgerSales)} />
-                <SummaryLine label="Saldo líquido ledger" value={formatBRL(summary.cash.cashLedgerNet)} />
-                <SummaryLine label="Caixas abertos" value={String(summary.cash.openSessions)} />
-                <SummaryLine label="Diferença fechada" value={formatBRL(summary.cash.closedDifference)} />
-              </SummaryCard>
-              <SummaryCard title="Estoque persistido" testId="dashboard-inventory">
-                <SummaryLine label="Quantidade em mãos" value={summary.inventory.onHandQuantity} />
-                <SummaryLine label="SKUs" value={String(summary.inventory.skuCount)} />
-                <SummaryLine label="Linhas negativas" value={String(summary.inventory.negativeQuantityRows)} />
-                <SummaryLine label="Base de margem" value={summary.cogsAvailable ? "Snapshot histórico" : "N/D"} />
-              </SummaryCard>
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-2">
-              <SummaryCard
-                title="Canceladas / estornadas"
-                testId="dashboard-excluded"
-                hint="Fora do faturamento confirmado no período"
-              >
-                <SummaryLine label="Vendas excluídas" value={String(excludedSalesTotal)} />
-                {excludedSalesEntries.length === 0 ? (
-                  <p className="text-sm text-slate-500">Nenhuma venda excluída no período.</p>
-                ) : (
-                  excludedSalesEntries.map(([status, count]) => (
-                    <SummaryLine key={`sale-${status}`} label={excludedSaleStatusLabel(status)} value={String(count)} />
-                  ))
-                )}
-                <SummaryLine label="Pagamentos excluídos" value={String(excludedPaymentsTotal)} />
-                {excludedPaymentsEntries.length === 0 ? (
-                  <p className="text-sm text-slate-500">Nenhum pagamento excluído no período.</p>
-                ) : (
-                  excludedPaymentsEntries.map(([status, count]) => (
+            <section className="space-y-3">
+              <SectionHeading>Operação e estoque</SectionHeading>
+              <div className="grid gap-4 lg:grid-cols-3">
+                <SummaryCard title="Pagamentos capturados" testId="dashboard-payments">
+                  {Object.entries(summary.paymentsByMethod).map(([method, amount]) => (
                     <SummaryLine
-                      key={`payment-${status}`}
-                      label={excludedPaymentStatusLabel(status)}
-                      value={String(count)}
+                      key={method}
+                      label={`${paymentMethodLabel(method)} (${summary.paymentCountsByMethod[method as keyof typeof summary.paymentCountsByMethod] ?? 0})`}
+                      value={formatBRL(amount)}
                     />
-                  ))
-                )}
-              </SummaryCard>
+                  ))}
+                </SummaryCard>
+                <SummaryCard title="Caixa físico" testId="dashboard-cash">
+                  <SummaryLine label="Entradas cash capturadas" value={formatBRL(summary.cash.capturedCashPayments)} />
+                  <SummaryLine label="Movimentos de venda" value={formatBRL(summary.cash.cashLedgerSales)} />
+                  <SummaryLine label="Saldo líquido ledger" value={formatBRL(summary.cash.cashLedgerNet)} />
+                  <SummaryLine label="Caixas abertos" value={String(summary.cash.openSessions)} />
+                  <SummaryLine label="Diferença fechada" value={formatBRL(summary.cash.closedDifference)} />
+                </SummaryCard>
+                <SummaryCard title="Estoque persistido" testId="dashboard-inventory">
+                  <SummaryLine label="Quantidade em mãos" value={summary.inventory.onHandQuantity} />
+                  <SummaryLine label="SKUs" value={String(summary.inventory.skuCount)} />
+                  <SummaryLine label="Linhas negativas" value={String(summary.inventory.negativeQuantityRows)} />
+                  <SummaryLine label="Base de margem" value={summary.cogsAvailable ? "Snapshot histórico" : "N/D"} />
+                </SummaryCard>
+              </div>
+            </section>
 
-              <SummaryCard
-                title="Estoque crítico"
-                testId="dashboard-critical-stock"
-                hint="SKUs da página atual com saldo ≤ 0"
-              >
-                <SummaryLine
-                  label="Linhas negativas (loja)"
-                  value={String(summary.inventory.negativeQuantityRows)}
-                />
-                {criticalRows.length === 0 ? (
-                  <p className="text-sm text-slate-500">Nenhum SKU da página atual com saldo ≤ 0.</p>
-                ) : (
-                  criticalRows.map((row) => (
-                    <SummaryLine
-                      key={row.product_id}
-                      label={row.product_name ? `${row.sku} · ${row.product_name}` : row.sku}
-                      value={formatQuantity(row.on_hand)}
-                    />
-                  ))
-                )}
-                <a
-                  data-testid="dashboard-inventory-link"
-                  href={inventoryHref}
-                  className="inline-block pt-1 text-sm font-medium text-emerald-700"
+            <section className="space-y-3">
+              <SectionHeading>Exceções</SectionHeading>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <SummaryCard
+                  title="Canceladas / estornadas"
+                  testId="dashboard-excluded"
+                  hint="Fora do faturamento confirmado no período"
                 >
-                  Abrir inventário
-                </a>
-              </SummaryCard>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-4 text-sm">
-              {exportHref ? (
-                <a
-                  data-testid="dashboard-export"
-                  href={exportHref}
-                  className="font-medium text-emerald-700"
-                >
-                  Exportar página CSV
-                </a>
-              ) : null}
-              {nextHref ? (
-                <a data-testid="dashboard-next" href={nextHref} className="font-medium text-emerald-700">
-                  Próxima página
-                </a>
-              ) : null}
-            </div>
-
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th className="px-4 py-2.5 font-semibold">SKU</th>
-                    <th className="px-4 py-2.5 font-semibold">Faturamento</th>
-                    <th className="px-4 py-2.5 font-semibold">Descontos</th>
-                    <th className="px-4 py-2.5 font-semibold">COGS</th>
-                    <th className="px-4 py-2.5 font-semibold">Lucro</th>
-                    <th className="px-4 py-2.5 font-semibold">Sell-through</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {initial.payload.rows.length === 0 ? (
-                    <tr>
-                      <td className="px-4 py-5 text-slate-500" colSpan={6}>
-                        Sem vendas no período.
-                      </td>
-                    </tr>
+                  <SummaryLine label="Vendas excluídas" value={String(excludedSalesTotal)} />
+                  {excludedSalesEntries.length === 0 ? (
+                    <p className="text-sm text-slate-500">Nenhuma venda excluída no período.</p>
                   ) : (
-                    initial.payload.rows.map((row) => (
-                      <tr key={row.product_id} className="border-t border-slate-100">
-                        <td className="px-4 py-2.5 font-medium text-slate-800">{row.sku}</td>
-                        <td className="px-4 py-2.5 tabular-nums">{formatBRL(row.revenue)}</td>
-                        <td className="px-4 py-2.5 tabular-nums">{formatBRL(row.discounts)}</td>
-                        <td className="px-4 py-2.5 tabular-nums">{formatOptionalBRL(row.cogs)}</td>
-                        <td className="px-4 py-2.5 tabular-nums">{formatOptionalBRL(row.gross_profit)}</td>
-                        <td className="px-4 py-2.5 tabular-nums">{formatOptionalPercent(row.sell_through)}</td>
-                      </tr>
+                    excludedSalesEntries.map(([status, count]) => (
+                      <SummaryLine key={`sale-${status}`} label={excludedSaleStatusLabel(status)} value={String(count)} />
                     ))
                   )}
-                </tbody>
-              </table>
-            </div>
+                  <SummaryLine label="Pagamentos excluídos" value={String(excludedPaymentsTotal)} />
+                  {excludedPaymentsEntries.length === 0 ? (
+                    <p className="text-sm text-slate-500">Nenhum pagamento excluído no período.</p>
+                  ) : (
+                    excludedPaymentsEntries.map(([status, count]) => (
+                      <SummaryLine
+                        key={`payment-${status}`}
+                        label={excludedPaymentStatusLabel(status)}
+                        value={String(count)}
+                      />
+                    ))
+                  )}
+                </SummaryCard>
+
+                <SummaryCard
+                  title="Estoque crítico"
+                  testId="dashboard-critical-stock"
+                  hint="SKUs da página atual com saldo ≤ 0"
+                >
+                  <SummaryLine
+                    label="Linhas negativas (loja)"
+                    value={String(summary.inventory.negativeQuantityRows)}
+                  />
+                  {criticalRows.length === 0 ? (
+                    <p className="text-sm text-slate-500">Nenhum SKU da página atual com saldo ≤ 0.</p>
+                  ) : (
+                    criticalRows.map((row) => (
+                      <SummaryLine
+                        key={row.product_id}
+                        label={row.product_name ? `${row.sku} · ${row.product_name}` : row.sku}
+                        value={formatQuantity(row.on_hand)}
+                      />
+                    ))
+                  )}
+                  <a
+                    data-testid="dashboard-inventory-link"
+                    href={inventoryHref}
+                    className={`${buttonClassName("secondary")} mt-2 w-fit`}
+                  >
+                    <Package size={15} aria-hidden="true" />
+                    Abrir inventário
+                  </a>
+                </SummaryCard>
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <SectionHeading>Detalhe por SKU</SectionHeading>
+                <div className="flex flex-wrap items-center gap-2">
+                  {exportHref ? (
+                    <a
+                      data-testid="dashboard-export"
+                      href={exportHref}
+                      className={buttonClassName("primary")}
+                    >
+                      <Download size={15} aria-hidden="true" />
+                      Exportar página CSV
+                    </a>
+                  ) : null}
+                  {nextHref ? (
+                    <a data-testid="dashboard-next" href={nextHref} className={buttonClassName("secondary")}>
+                      Próxima página
+                      <ChevronRight size={15} aria-hidden="true" />
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-4 py-2.5 font-semibold">SKU</th>
+                      <th className="px-4 py-2.5 font-semibold">Faturamento</th>
+                      <th className="px-4 py-2.5 font-semibold">Descontos</th>
+                      <th className="px-4 py-2.5 font-semibold">COGS</th>
+                      <th className="px-4 py-2.5 font-semibold">Lucro</th>
+                      <th className="px-4 py-2.5 font-semibold">Sell-through</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {initial.payload.rows.length === 0 ? (
+                      <tr>
+                        <td className="px-4 py-5 text-slate-500" colSpan={6}>
+                          Sem vendas no período.
+                        </td>
+                      </tr>
+                    ) : (
+                      initial.payload.rows.map((row) => (
+                        <tr
+                          key={row.product_id}
+                          className="border-t border-slate-100 transition-colors hover:bg-slate-50"
+                        >
+                          <td className="px-4 py-2.5 font-medium text-slate-800">{row.sku}</td>
+                          <td className="px-4 py-2.5 tabular-nums">{formatBRL(row.revenue)}</td>
+                          <td className="px-4 py-2.5 tabular-nums">{formatBRL(row.discounts)}</td>
+                          <td className="px-4 py-2.5 tabular-nums">{formatOptionalBRL(row.cogs)}</td>
+                          <td className="px-4 py-2.5 tabular-nums">{formatOptionalBRL(row.gross_profit)}</td>
+                          <td className="px-4 py-2.5 tabular-nums">{formatOptionalPercent(row.sell_through)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           </>
         )}
       </PermissionGate>
@@ -322,6 +342,15 @@ function formatQuantity(value: number): string {
   return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 3 }).format(value);
 }
 
+function SectionHeading({ children }: { children: ReactNode }) {
+  return (
+    <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <span className="h-3.5 w-0.5 rounded-full bg-emerald-500" aria-hidden="true" />
+      {children}
+    </h2>
+  );
+}
+
 function Metric({
   dataTestId,
   label,
@@ -334,7 +363,14 @@ function Metric({
   emphasis?: boolean;
 }) {
   return (
-    <div data-testid={dataTestId} className="rounded-xl border border-slate-200 bg-white px-5 py-4">
+    <div
+      data-testid={dataTestId}
+      className={
+        emphasis
+          ? "rounded-xl border border-emerald-100 bg-white px-5 py-4 shadow-sm transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:shadow-md"
+          : "rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition-all duration-200 hover:-translate-y-px hover:border-slate-300 hover:shadow-md"
+      }
+    >
       <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
       <div
         className={
@@ -361,8 +397,11 @@ function SummaryCard({
   children: ReactNode;
 }) {
   return (
-    <section data-testid={testId} className="rounded-xl border border-slate-200 bg-white px-5 py-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
+    <section
+      data-testid={testId}
+      className="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition-all duration-200 hover:-translate-y-px hover:border-slate-300 hover:shadow-md"
+    >
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h3>
       {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
       <div className="mt-3 space-y-2">{children}</div>
     </section>
