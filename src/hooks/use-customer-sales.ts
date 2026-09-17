@@ -7,6 +7,7 @@ import {
   type CustomerSalesResponse,
   type CustomerSalesSummary,
 } from "@/lib/domain/customer-sales";
+import { SALES_HISTORY_SYNC_EVENT } from "@/lib/pdv/sales-history-sync";
 
 function readError(body: unknown, fallback: string): string {
   if (body && typeof body === "object" && "error" in body && typeof body.error === "string") {
@@ -104,6 +105,15 @@ export function useCustomerSales(customerId: string | null) {
 
   useEffect(() => {
     void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh when customerId changes only
+  }, [customerId]);
+
+  useEffect(() => {
+    const handleSync = () => {
+      void refresh();
+    };
+    window.addEventListener(SALES_HISTORY_SYNC_EVENT, handleSync);
+    return () => window.removeEventListener(SALES_HISTORY_SYNC_EVENT, handleSync);
   }, [refresh]);
 
   return {

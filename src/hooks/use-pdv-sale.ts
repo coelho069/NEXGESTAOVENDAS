@@ -17,6 +17,7 @@ import {
 } from "@/lib/domain/sale-ops";
 import { useCheckout } from "@/hooks/use-checkout";
 import { describeSaleProcessError } from "@/lib/domain/sale-process-error";
+import { notifySalesHistorySync } from "@/lib/pdv/sales-history-sync";
 import { useCartStore } from "@/stores/cart-store";
 import { usePdvUiStore } from "@/stores/pdv-ui-store";
 
@@ -213,6 +214,7 @@ export function usePdvSale(
         setDraftReason(null);
         setLastReceipt(result.receipt);
         bumpInventory();
+        notifySalesHistorySync();
         setOpenPanel("receipt");
         report(null);
       } catch (error) {
@@ -281,6 +283,7 @@ export function usePdvSale(
         fiscalStatus: "pending",
       });
       bumpInventory();
+      notifySalesHistorySync();
       setOpenPanel("receipt");
       report(null);
     },
@@ -329,6 +332,7 @@ export function usePdvSale(
         syncStatus: "synced",
         saleStatus: "confirmed",
       });
+      notifySalesHistorySync();
       report(null);
     } else {
       report("Ainda não há evidência server-side de pagamento confirmado. Não tente cobrar novamente.");
