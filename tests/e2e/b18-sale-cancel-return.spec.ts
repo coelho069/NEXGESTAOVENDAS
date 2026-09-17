@@ -1,10 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
+import { payCashNoChange, payCashWithChange } from "./pdv-cash-helpers";
 
 const STORE_ID = "22222222-2222-4222-8222-222222222201";
-
-function visible(page: Page, testId: string) {
-  return page.getByTestId(testId).filter({ visible: true });
-}
 
 async function selectStore(page: Page) {
   await page.getByTestId("store-select").selectOption(STORE_ID);
@@ -20,18 +17,12 @@ async function addSku(page: Page, sku: string, times = 1) {
 }
 
 async function payCashExact(page: Page) {
-  await page.getByTestId("open-payment").click();
-  await expect(page.getByTestId("pdv-payment-sheet")).toBeVisible();
-  await visible(page, "checkout-cash").click();
+  await payCashNoChange(page);
   await expect(page.getByTestId("receipt")).toBeVisible();
 }
 
 async function payCashWithTender(page: Page, received: string) {
-  await page.getByTestId("open-payment").click();
-  await expect(page.getByTestId("pdv-payment-sheet")).toBeVisible();
-  await page.getByTestId("cash-received-input").fill(received);
-  await expect(page.getByTestId("cash-change-due")).toContainText("Troco");
-  await visible(page, "checkout-cash").click();
+  await payCashWithChange(page, received);
   await expect(page.getByTestId("receipt")).toBeVisible();
 }
 
@@ -124,8 +115,7 @@ test("B18 devolução parcial, excesso bloqueado e devolução total", async ({ 
   await expect(page.getByTestId("projected-stock-BEV-001").first()).toHaveText(stockBefore);
 });
 
-// Cash-tender / change UX lives in later WIP (not this surgical B18 hotfix).
-test.skip("B18 venda cash com troco, caixa e estorno no saldo", async ({ page }) => {
+test("B18 venda cash com troco, caixa e estorno no saldo", async ({ page }) => {
   await page.goto("/pdv?role=manager");
   await selectStore(page);
 
@@ -133,12 +123,8 @@ test.skip("B18 venda cash com troco, caixa e estorno no saldo", async ({ page })
   await expect(page.getByTestId("cash-expected")).toContainText(/R\$\s*0,00/);
 
   await addSku(page, "BEV-001");
-  await page.getByTestId("open-payment").click();
-  await page.getByTestId("cash-received-input").fill("10.00");
-  await expect(page.getByTestId("cash-change-due")).toContainText(/Troco:\s*R\$/);
-  await visible(page, "checkout-cash").click();
+  await payCashWithChange(page, "10.00");
   await expect(page.getByTestId("receipt")).toBeVisible();
-  await expect(page.getByTestId("receipt-change-label")).toBeVisible();
   await page.getByTestId("receipt-close").click();
   await expect(page.getByTestId("receipt")).toHaveCount(0);
 
@@ -155,8 +141,7 @@ test.skip("B18 venda cash com troco, caixa e estorno no saldo", async ({ page })
   await expect(page.getByTestId("cash-expected")).toContainText(/R\$\s*0,00/);
 });
 
-// Depends on cash-received-input / receipt change labels from later WIP.
-test.skip("B18 desconto autorizado e pagamento cash sem alterar amount pelo troco", async ({ page }) => {
+test("B18 desconto autorizado e pagamento cash sem alterar amount pelo troco", async ({ page }) => {
   await page.goto("/pdv");
   await selectStore(page);
   await addSku(page, "BEV-001");
@@ -168,7 +153,5 @@ test.skip("B18 desconto autorizado e pagamento cash sem alterar amount pelo troc
   await page.getByTestId("discount-apply").click();
 
   await payCashWithTender(page, "10.00");
-  await expect(page.getByTestId("receipt")).toBeVisible();
-  await expect(page.getByTestId("receipt-change-label")).toBeVisible();
   await expect(page.getByTestId("receipt-sync-status")).toContainText(/Sincronização:/);
 });

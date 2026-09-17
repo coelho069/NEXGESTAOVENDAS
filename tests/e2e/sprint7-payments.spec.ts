@@ -15,8 +15,10 @@ async function openCart(page: import("@playwright/test").Page) {
 test("pagamento cash finaliza uma vez mesmo com retry de clique", async ({ page }) => {
   await openCart(page);
   const cash = page.getByTestId("checkout-cash");
+  const noChange = page.getByTestId("cash-change-no");
 
-  await Promise.allSettled([cash.click(), cash.click()]);
+  await cash.click();
+  await Promise.allSettled([noChange.click(), noChange.click()]);
   await expect(page.getByTestId("receipt")).toHaveCount(1);
   await expect(page.getByTestId("receipt-sync-status")).toContainText(/pending|synced/);
 

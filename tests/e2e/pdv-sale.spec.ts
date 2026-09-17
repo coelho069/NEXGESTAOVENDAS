@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { payCashNoChange } from "./pdv-cash-helpers";
 
 function visible(page: Page, testId: string) {
   return page.getByTestId(testId).filter({ visible: true });
@@ -17,11 +18,7 @@ async function addSku(page: Page, sku: string) {
 }
 
 async function payCash(page: Page) {
-  const openPayment = page.getByTestId("open-payment");
-  if (await openPayment.isVisible()) {
-    await openPayment.click();
-  }
-  await visible(page, "checkout-cash").click();
+  await payCashNoChange(page);
 }
 
 test("SKU -> quantidade -> desconto -> pagamento -> recibo", async ({ page }) => {
@@ -95,6 +92,6 @@ test("tablet abre pagamento em sheet", async ({ page }) => {
   await addSku(page, "PAD-001");
   await page.getByTestId("open-payment").click();
   await expect(page.getByTestId("pdv-payment-sheet")).toBeVisible();
-  await page.getByTestId("pdv-payment-sheet").getByTestId("checkout-cash").click();
+  await payCashNoChange(page);
   await expect(page.getByTestId("receipt")).toBeVisible();
 });
