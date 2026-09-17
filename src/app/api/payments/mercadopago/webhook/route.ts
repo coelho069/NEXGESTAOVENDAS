@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import {
-  applyMercadoPagoWebhookNotification,
   getMercadoPagoEnv,
   isMercadoPagoCheckoutEnabled,
   parseMercadoPagoWebhookBody,
   verifyMercadoPagoWebhookRequest,
 } from "@/lib/server/mercadopago";
+import { applyMercadoPagoWebhookEvent } from "@/lib/server/mercadopago-pix-payment";
 import { isMercadoPagoWebhookEventAllowed } from "@/lib/domain/mercadopago";
 import { clientRateLimitKey, consumeRateLimit } from "@/lib/security/rate-limit";
 import { rateLimitedResponse } from "@/lib/security/safe-error";
@@ -96,12 +96,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = applyMercadoPagoWebhookNotification(notification);
+  const result = await applyMercadoPagoWebhookEvent(notification);
   observeApiResult(obs, "ok", {
     eventId: notification.id,
     action: notification.action,
     replay: result.replay === true,
     status: result.status,
+    saleConfirmed: result.sale_confirmed === true,
   });
 
   return obs.withHeaders(
@@ -112,6 +113,8 @@ export async function POST(request: Request) {
       status: result.status,
       replay: result.replay === true,
       provider_reference: result.providerReference,
+      sale_id: result.sale_id,
+      sale_confirmed: result.sale_confirmed === true,
     })
   );
 }

@@ -156,6 +156,43 @@ export const pixPaymentInputSchema = z
 
 export type PixPaymentInput = z.infer<typeof pixPaymentInputSchema>;
 
+export const mercadopagoPixPaymentInputSchema = z
+  .object({
+    action: pixPaymentActionSchema,
+    store_id: storeIdSchema,
+    amount: z.string().regex(moneyPattern, "amount must be numeric(12,2) string"),
+    client_mutation_id: z.string().uuid(),
+    provider_reference: z
+      .string()
+      .regex(/^ORD[A-Z0-9]+$/, "provider_reference must be a Mercado Pago order id")
+      .optional(),
+    customer_id: z.string().uuid().optional(),
+    discount: z
+      .string()
+      .regex(moneyPattern, "discount must be numeric(12,2) string")
+      .optional()
+      .default("0.00"),
+    items: z.array(saleItemInputSchema).min(1).max(500).optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.action === "cancel" && !value.provider_reference) {
+      context.addIssue({
+        code: "custom",
+        path: ["provider_reference"],
+        message: "provider_reference is required for cancel",
+      });
+    }
+    if (value.action === "create" && (!value.items || value.items.length === 0)) {
+      context.addIssue({
+        code: "custom",
+        path: ["items"],
+        message: "items are required to create a Mercado Pago PIX sale",
+      });
+    }
+  });
+
+export type MercadoPagoPixPaymentInput = z.infer<typeof mercadopagoPixPaymentInputSchema>;
+
 const fiscalDocumentReferenceSchema = z
   .object({
     store_id: storeIdSchema,
