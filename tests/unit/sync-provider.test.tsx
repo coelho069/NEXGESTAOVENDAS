@@ -3,11 +3,18 @@ import path from "node:path";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { useAuthMock, startHeartbeatMock, flushPendingMock, refreshSyncUiMock } = vi.hoisted(() => ({
+const {
+  useAuthMock,
+  startHeartbeatMock,
+  flushPendingMock,
+  refreshSyncUiMock,
+  cartStoreState,
+} = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   startHeartbeatMock: vi.fn(() => () => undefined),
   flushPendingMock: vi.fn(),
   refreshSyncUiMock: vi.fn(),
+  cartStoreState: { storeId: null as string | null },
 }));
 
 vi.mock("@/hooks/use-auth", () => ({
@@ -25,10 +32,20 @@ vi.mock("@/lib/offline/heartbeat", () => ({
   startHeartbeat: () => startHeartbeatMock(),
 }));
 
-vi.mock("@/lib/offline/pdv-local-db", () => ({
-  getPdvLocalDbForUser: () => ({
+vi.mock("@/lib/offline/session-pdv-db", () => ({
+  getSessionPdvLocalDb: () => ({
     meta: { put: vi.fn() },
   }),
+}));
+
+vi.mock("@/stores/session-store", () => ({
+  useSessionStore: (selector: (state: { userId: string | null }) => unknown) =>
+    selector({ userId: "user-1" }),
+}));
+
+vi.mock("@/stores/cart-store", () => ({
+  useCartStore: (selector: (state: { storeId: string | null }) => unknown) =>
+    selector(cartStoreState),
 }));
 
 import { SyncProvider } from "@/components/providers/sync-provider";
@@ -54,6 +71,7 @@ describe("SyncProvider", () => {
   });
 
   it("starts heartbeat and sync after auth loading completes", () => {
+    cartStoreState.storeId = "22222222-2222-4222-8222-222222222201";
     useAuthMock.mockReturnValue({ user: { id: "user-1" }, loading: false });
 
     render(
@@ -65,6 +83,29 @@ describe("SyncProvider", () => {
     expect(screen.getByText("PDV")).toBeVisible();
     expect(startHeartbeatMock).toHaveBeenCalledTimes(1);
     expect(refreshSyncUiMock).toHaveBeenCalledTimes(1);
+    expect(flushPendingMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("pulls again when storeId becomes available", () => {
+    cartStoreState.storeId = null;
+    useAuthMock.mockReturnValue({ user: { id: "user-1" }, loading: false });
+
+    const { rerender } = render(
+      <SyncProvider>
+        <p>PDV</p>
+      </SyncProvider>
+    );
+
+    expect(flushPendingMock).toHaveBeenCalledTimes(1);
+
+    cartStoreState.storeId = "22222222-2222-4222-8222-222222222201";
+    rerender(
+      <SyncProvider>
+        <p>PDV</p>
+      </SyncProvider>
+    );
+
+    expect(flushPendingMock).toHaveBeenCalledTimes(2);
   });
 
   it("never blanks the tree with an auth-loading return null", () => {

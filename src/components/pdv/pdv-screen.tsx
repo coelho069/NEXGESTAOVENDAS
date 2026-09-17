@@ -100,7 +100,8 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     effectiveRole,
     hasStoreContext,
     cashSale.ok ? cashSale.cashSessionId : null,
-    cashSale.ok ? cashSale.terminalId : ""
+    cashSale.ok ? cashSale.terminalId : "",
+    stockLoading
   );
   const activeSuspendedContext: SuspendedCartContext | null =
     suspendedSaleId && suspensionClaimId

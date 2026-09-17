@@ -29,7 +29,8 @@ import { closeSale } from "@/lib/offline/close-sale";
 import { endClientSession } from "@/lib/offline/end-session";
 import { withMultiTabLock } from "@/lib/offline/multi-tab-lock";
 import { getOutboxCommand } from "@/lib/offline/outbox";
-import { getPdvLocalDbForUser, type PdvLocalDatabase } from "@/lib/offline/pdv-local-db";
+import type { PdvLocalDatabase } from "@/lib/offline/pdv-local-db";
+import { getSessionPdvLocalDb } from "@/lib/offline/session-pdv-db";
 import type { CloseSaleInput, CloseSaleResult } from "@/lib/offline/types";
 import { isQuotaExceededError } from "@/lib/offline/quota";
 import { pdvFixturesEnabled } from "@/lib/pdv/fixtures";
@@ -40,12 +41,11 @@ import {
   runSyncCycle,
 } from "@/lib/offline/sync-engine";
 import { useCartStore } from "@/stores/cart-store";
-import { useSessionStore } from "@/stores/session-store";
 import { useSyncStore } from "@/stores/sync-store";
 
-function syncDeps(storeId: string | null, userId: string | null) {
+function syncDeps(storeId: string | null) {
   return {
-    db: getPdvLocalDbForUser(userId),
+    db: getSessionPdvLocalDb(),
     fetchFn: fetch.bind(globalThis),
     storeId,
     onEndSession: endClientSession,
@@ -78,7 +78,7 @@ export function useCheckout() {
 
   const refreshSyncUi = useCallback(async () => {
     const { pendingCount, failedCount, conflicts } = await refreshLocalSyncState(
-      getPdvLocalDbForUser(useSessionStore.getState().userId)
+      getSessionPdvLocalDb()
     );
     setPendingCount(pendingCount);
     setFailedCount(failedCount);
@@ -88,7 +88,7 @@ export function useCheckout() {
 
   const flushPending = useCallback(async () => {
     if (pdvFixturesEnabled()) {
-      const db = getPdvLocalDbForUser(useSessionStore.getState().userId);
+      const db = getSessionPdvLocalDb();
       await confirmFixtureLocalSales(db);
       await refreshSyncUi();
       return;
@@ -106,9 +106,8 @@ export function useCheckout() {
 
     setSyncing(true);
     try {
-      const userId = useSessionStore.getState().userId;
       await withMultiTabLock(
-        () => runSyncCycle(syncDeps(storeId, userId)),
+        () => runSyncCycle(syncDeps(storeId)),
         { lockName: `nex-pdv-sync:${storeId}` }
       );
       const { pendingCount, conflicts } = await refreshSyncUi();
@@ -173,7 +172,7 @@ export function useCheckout() {
       try {
         if (!cart.storeId) throw new Error("Selecione uma loja");
 
-        const db = getPdvLocalDbForUser(useSessionStore.getState().userId);
+        const db = getSessionPdvLocalDb();
         const rows = await db.inventoryBalances.where("storeId").equals(cart.storeId).toArray();
         const liveStock: StockMap = {};
         for (const row of rows) {
@@ -364,7 +363,7 @@ export function useCheckout() {
         const total = cart.total();
         adapter.process(total);
         const payment = unifyCheckoutPayment("cash", total);
-        return closeSale(getPdvLocalDbForUser(useSessionStore.getState().userId), {
+        return closeSale(getSessionPdvLocalDb(), {
           storeId: cart.storeId!,
           clientMutationId,
           cashSessionId: cashContext?.cashSessionId,
@@ -420,7 +419,7 @@ export function useCheckout() {
       providerReference: string;
     }) => {
       const payment = unifyCheckoutPayment("pix", input.amount);
-      const db = getPdvLocalDbForUser(useSessionStore.getState().userId);
+      const db = getSessionPdvLocalDb();
       const result = await recordCapturedPixSale(db, {
         storeId: input.storeId,
         clientMutationId: input.clientMutationId,
@@ -493,7 +492,7 @@ export function useCheckout() {
 
       const status = typeof body.status === "string" ? body.status : "unknown";
       if (status === "captured" && typeof body.sale_id === "string") {
-        const db = getPdvLocalDbForUser(useSessionStore.getState().userId);
+        const db = getSessionPdvLocalDb();
         await reconcileSale(db, input.clientMutationId, {
           sale_id: body.sale_id,
           status,
@@ -501,7 +500,7 @@ export function useCheckout() {
           stockReconciled: true,
         });
       } else if (status === "failed" || status === "cancelled") {
-        const db = getPdvLocalDbForUser(useSessionStore.getState().userId);
+        const db = getSessionPdvLocalDb();
         await reconcilePaymentOutcome(
           db,
           input.clientMutationId,
