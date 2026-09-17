@@ -2,21 +2,26 @@
 
 import { useEffect } from "react";
 import { startHeartbeat } from "@/lib/offline/heartbeat";
-import { getPdvLocalDbForUser } from "@/lib/offline/pdv-local-db";
+import { getSessionPdvLocalDb } from "@/lib/offline/session-pdv-db";
 import { useAuth } from "@/hooks/use-auth";
 import { useCheckout } from "@/hooks/use-checkout";
+import { useCartStore } from "@/stores/cart-store";
+import { useSessionStore } from "@/stores/session-store";
 import { useSyncStore } from "@/stores/sync-store";
 
 export function SyncProvider({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { loading } = useAuth();
+  const userId = useSessionStore((state) => state.userId);
+  const storeId = useCartStore((state) => state.storeId);
   const { setOnline, setLastHeartbeatAt } = useSyncStore();
   const { flushPending, refreshSyncUi } = useCheckout();
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || !userId) return;
 
-    const db = getPdvLocalDbForUser(user?.id);
+    const db = getSessionPdvLocalDb();
     void refreshSyncUi();
+    void flushPending();
 
     const stopHeartbeat = startHeartbeat({
       intervalMs: 15_000,
@@ -55,7 +60,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("offline", handleOffline);
       navigator.serviceWorker?.removeEventListener("message", onWorkerMessage);
     };
-  }, [flushPending, loading, refreshSyncUi, setLastHeartbeatAt, setOnline, user?.id]);
+  }, [flushPending, loading, refreshSyncUi, setLastHeartbeatAt, setOnline, storeId, userId]);
 
   return <>{children}</>;
 }

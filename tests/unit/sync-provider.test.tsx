@@ -25,10 +25,20 @@ vi.mock("@/lib/offline/heartbeat", () => ({
   startHeartbeat: () => startHeartbeatMock(),
 }));
 
-vi.mock("@/lib/offline/pdv-local-db", () => ({
-  getPdvLocalDbForUser: () => ({
+vi.mock("@/lib/offline/session-pdv-db", () => ({
+  getSessionPdvLocalDb: () => ({
     meta: { put: vi.fn() },
   }),
+}));
+
+vi.mock("@/stores/session-store", () => ({
+  useSessionStore: (selector: (state: { userId: string | null }) => unknown) =>
+    selector({ userId: "user-1" }),
+}));
+
+vi.mock("@/stores/cart-store", () => ({
+  useCartStore: (selector: (state: { storeId: string | null }) => unknown) =>
+    selector({ storeId: "22222222-2222-4222-8222-222222222201" }),
 }));
 
 import { SyncProvider } from "@/components/providers/sync-provider";
@@ -65,6 +75,7 @@ describe("SyncProvider", () => {
     expect(screen.getByText("PDV")).toBeVisible();
     expect(startHeartbeatMock).toHaveBeenCalledTimes(1);
     expect(refreshSyncUiMock).toHaveBeenCalledTimes(1);
+    expect(flushPendingMock).toHaveBeenCalledTimes(1);
   });
 
   it("never blanks the tree with an auth-loading return null", () => {
