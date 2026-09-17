@@ -108,14 +108,16 @@ export function PlansSalesPage({
           >
             Entrar
           </Link>
-          {isAuthenticated ? (
-            <Link
-              href={pdvHref}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-            >
-              Abrir PDV
-            </Link>
-          ) : null}
+          <Link
+            href={pdvHref}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+              isAuthenticated
+                ? "bg-slate-900 text-white hover:bg-slate-800"
+                : "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+            }`}
+          >
+            Abrir PDV
+          </Link>
         </nav>
       </header>
 

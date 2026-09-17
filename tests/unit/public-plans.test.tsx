@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 
 const { createClient } = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -146,6 +146,7 @@ describe("PlansSalesPage", () => {
   const original = process.env[ASSINATURAS_WHATSAPP_ENV];
 
   afterEach(() => {
+    cleanup();
     if (original === undefined) {
       delete process.env[ASSINATURAS_WHATSAPP_ENV];
     } else {
@@ -153,7 +154,7 @@ describe("PlansSalesPage", () => {
     }
   });
 
-  it("renders active plans and login link for visitors", () => {
+  it("renders active plans and header links for visitors", () => {
     delete process.env[ASSINATURAS_WHATSAPP_ENV];
 
     render(<PlansSalesPage plans={[samplePlan]} loadError={null} isAuthenticated={false} />);
@@ -163,6 +164,9 @@ describe("PlansSalesPage", () => {
     expect(screen.getByText(/R\$\s*99,90/)).toBeInTheDocument();
     expect(screen.getAllByText("Em breve").length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "Entrar" })).toHaveAttribute("href", "/login");
+    expect(screen.getByRole("link", { name: "Abrir PDV" })).toHaveAttribute("href", "/pdv");
+    expect(screen.queryByText(/catálogo rápido/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/nenhuma loja/i)).not.toBeInTheDocument();
   });
 
   it("shows WhatsApp CTA when env is configured", () => {
@@ -182,9 +186,20 @@ describe("PlansSalesPage", () => {
     expect(screen.getByText(/Nenhum plano disponível/i)).toBeInTheDocument();
   });
 
-  it("exposes Abrir PDV for authenticated users", () => {
-    render(<PlansSalesPage plans={[]} loadError={null} isAuthenticated={true} />);
+  it("uses store-scoped PDV href for authenticated users", () => {
+    render(
+      <PlansSalesPage
+        plans={[]}
+        loadError={null}
+        isAuthenticated={true}
+        pdvHref="/pdv?store=store-1"
+      />
+    );
 
-    expect(screen.getByRole("link", { name: "Abrir PDV" })).toHaveAttribute("href", "/pdv");
+    const headerNav = screen.getByRole("navigation");
+    expect(within(headerNav).getByRole("link", { name: "Abrir PDV" })).toHaveAttribute(
+      "href",
+      "/pdv?store=store-1"
+    );
   });
 });
