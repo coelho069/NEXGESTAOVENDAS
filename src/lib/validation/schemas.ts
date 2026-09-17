@@ -581,6 +581,24 @@ export const customerWriteSchema = z
 
 export type CustomerWriteInput = z.infer<typeof customerWriteSchema>;
 
+export const customerSalesListQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+    after_created_at: z.string().datetime().optional(),
+    after_id: z.string().uuid().optional(),
+  })
+  .superRefine((value, context) => {
+    if (Boolean(value.after_created_at) !== Boolean(value.after_id)) {
+      context.addIssue({
+        code: "custom",
+        path: ["after_id"],
+        message: "after_created_at and after_id must be provided together",
+      });
+    }
+  });
+
+export type CustomerSalesListQuery = z.infer<typeof customerSalesListQuerySchema>;
+
 // ---------------------------------------------------------------------------
 // Platform ADM — plans & subscriptions (current subscription model: org_id)
 // ---------------------------------------------------------------------------

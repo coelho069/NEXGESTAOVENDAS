@@ -1600,6 +1600,7 @@ export type Database = {
       get_dashboard_metrics: { Args: { p_payload: Json }; Returns: Json }
       get_inventory_page: { Args: { p_payload: Json }; Returns: Json }
       get_sale_detail: { Args: { p_payload: Json }; Returns: Json }
+      list_customer_sales: { Args: { p_payload: Json }; Returns: Json }
       list_sales: { Args: { p_payload: Json }; Returns: Json }
       list_suspended_sales: { Args: { p_payload: Json }; Returns: Json }
       open_cash_session: { Args: { p_payload: Json }; Returns: Json }
