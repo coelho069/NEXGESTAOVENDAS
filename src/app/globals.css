@@ -2,22 +2,89 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens — Nex Gestão Vendas
+ *
+ * Alert semantics (always pair color with text; never rely on color alone):
+ *   success (green) = ok / confirmed
+ *   warning (amber) = attention
+ *   destructive (red) = block / error
+ *   muted (gray)    = neutral
+ *
+ * Typography: Inter 400/500/600 via next/font in layout.tsx.
+ * Numbers/totals: apply `tabular-nums` at the component level.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Surfaces */
+  --background: #f7f8fa;
+  --foreground: #111827;
+  --card: #ffffff;
+  --card-foreground: #111827;
+
+  /* Accent / actions */
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+
+  /* Semantic status */
+  --success: #059669;
+  --success-foreground: #ffffff;
+  --warning: #d97706;
+  --warning-foreground: #ffffff;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+
+  /* Text & borders */
+  --muted-foreground: #6b7280;
+  --border: #e5e7eb;
+  --input: #e5e7eb;
+  --ring: #2563eb;
+
+  /* Radius */
+  --radius: 0.5rem; /* 8px — inputs, buttons */
+  --radius-card: 0.75rem; /* 12px — cards */
+  --radius-modal: 1rem; /* 16px — modals */
+
+  /* Spacing (block gaps 16–24px; inside cards 12–16px) */
+  --space-block: 1rem; /* 16px */
+  --space-block-lg: 1.5rem; /* 24px */
+  --space-card: 0.75rem; /* 12px */
+  --space-card-lg: 1rem; /* 16px */
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0b1220;
+    --foreground: #e5e7eb;
+    --card: #111827;
+    --card-foreground: #e5e7eb;
+
+    --primary: #2563eb;
+    --primary-foreground: #ffffff;
+
+    --success: #059669;
+    --success-foreground: #ffffff;
+    --warning: #d97706;
+    --warning-foreground: #ffffff;
+    --destructive: #dc2626;
+    --destructive-foreground: #ffffff;
+
+    --muted-foreground: #9ca3af;
+    --border: #1f2937;
+    --input: #1f2937;
+    --ring: #2563eb;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: inherit;
+  }
 }
 
 @layer utilities {
