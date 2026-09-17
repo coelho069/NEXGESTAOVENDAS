@@ -17,6 +17,12 @@ export function AppNav({ role, storeId }: { role?: MemberRole | null; storeId?: 
       >
         Inventário
       </Link>
+      <Link
+        href={storeHref("/clientes", storeId)}
+        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-medium"
+      >
+        Clientes
+      </Link>
       {canViewReports(role) ? (
         <Link
           href={storeHref("/dashboard", storeId)}
