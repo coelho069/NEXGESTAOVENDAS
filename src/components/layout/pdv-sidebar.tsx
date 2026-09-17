@@ -23,6 +23,7 @@ const navItems: NavItem[] = [
   { href: "/pdv", icon: ShoppingCart, label: "Frente de Caixa" },
   { href: "/inventory", icon: Package, label: "Estoque" },
   { href: "/dashboard", icon: BarChart3, label: "Relatórios" },
+  { href: "/clientes", icon: Users, label: "Clientes" },
 ];
 
 function navItemClass(active: boolean): string {
@@ -63,15 +64,6 @@ export function PdvSidebar({
             <span className="font-medium">{label}</span>
           </Link>
         ))}
-        <button
-          type="button"
-          disabled
-          className="flex w-full cursor-not-allowed items-center gap-3 rounded-lg px-4 py-3 text-left text-slate-400"
-          title="Módulo ainda não disponível"
-        >
-          <Users size={20} aria-hidden="true" />
-          <span className="font-medium">Clientes</span>
-        </button>
         <button
           type="button"
           data-testid="sidebar-sales-history"

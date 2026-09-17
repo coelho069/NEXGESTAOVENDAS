@@ -38,6 +38,7 @@ export async function middleware(request: NextRequest) {
   const isProtected =
     request.nextUrl.pathname.startsWith("/pdv") ||
     request.nextUrl.pathname.startsWith("/inventory") ||
+    request.nextUrl.pathname.startsWith("/clientes") ||
     request.nextUrl.pathname.startsWith("/dashboard") ||
     request.nextUrl.pathname.startsWith("/admin");
   const response = await updateSession(request);

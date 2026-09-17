@@ -42,7 +42,7 @@ type PdvScreenProps = {
 };
 
 export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
-  const { customers } = useCustomers();
+  const { customers, createCustomer } = useCustomers();
   const {
     storeId,
     setStoreId,
@@ -444,6 +444,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             selectedId={sale.customerId}
             requireCustomer={sale.requireCustomer}
             onSelect={sale.associateCustomer}
+            onCreate={createCustomer}
             onClose={() => setOpenPanel("none")}
           />
           <DiscountDialog
