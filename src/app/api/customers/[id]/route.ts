@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthedContext } from "@/lib/auth/session";
-import { canWriteCustomers, parseCatalogCustomer } from "@/lib/domain/customer";
+import { parseCatalogCustomer } from "@/lib/domain/customer";
+import { resolveCustomerWriteContext } from "@/lib/server/customer-write-access";
 import { createClient } from "@/lib/supabase/server";
 import { customerIdSchema, customerWriteSchema } from "@/lib/validation/schemas";
 
@@ -40,7 +41,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const auth = await getAuthedContext();
-  if (!canWriteCustomers(auth) || !auth?.orgId) {
+  const writeContext = await resolveCustomerWriteContext(supabase, auth);
+  if (!writeContext) {
     return NextResponse.json({ error: "forbidden_customers" }, { status: 403 });
   }
 
@@ -54,7 +56,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .from("customers")
     .update(patch)
     .eq("id", id)
-    .eq("org_id", auth.orgId)
+    .eq("org_id", writeContext.orgId)
     .select("id, name, document, email")
     .maybeSingle();
 

@@ -75,7 +75,7 @@ describe("customer domain", () => {
     });
   });
 
-  it("allows org members to write customers and rejects empty org", () => {
+  it("hints write access from org + store context for client UX", () => {
     expect(canWriteCustomers({ orgId: ORG_A, stores: [{}] })).toBe(true);
     expect(canWriteCustomers({ orgId: ORG_A, stores: [] })).toBe(false);
     expect(canWriteCustomers(null)).toBe(false);
@@ -174,6 +174,17 @@ describe("app-nav clientes link", () => {
   });
 });
 
+function mockSupabaseClient(overrides: Record<string, unknown> = {}) {
+  return {
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user: { id: cashierContext().userId } } }),
+    },
+    rpc: vi.fn().mockResolvedValue({ data: true, error: null }),
+    from: vi.fn(),
+    ...overrides,
+  };
+}
+
 describe("POST /api/customers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -188,12 +199,11 @@ describe("POST /api/customers", () => {
     const insert = vi.fn(() => ({
       select: vi.fn(() => ({ single })),
     }));
-    createClient.mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: cashierContext().userId } } }),
-      },
-      from: vi.fn(() => ({ insert })),
-    });
+    createClient.mockResolvedValue(
+      mockSupabaseClient({
+        from: vi.fn(() => ({ insert })),
+      })
+    );
 
     const response = await POST(
       new Request("http://localhost/api/customers", {
@@ -227,12 +237,7 @@ describe("POST /api/customers", () => {
       orgId: null,
       stores: [],
     });
-    createClient.mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: cashierContext().userId } } }),
-      },
-      from: vi.fn(),
-    });
+    createClient.mockResolvedValue(mockSupabaseClient());
 
     const response = await POST(
       new Request("http://localhost/api/customers", {
@@ -243,6 +248,58 @@ describe("POST /api/customers", () => {
     );
 
     expect(response.status).toBe(403);
+  });
+
+  it("returns 403 when user_has_org_membership is false even with orgId", async () => {
+    getAuthedContext.mockResolvedValue({
+      ...cashierContext(),
+      stores: [],
+    });
+    createClient.mockResolvedValue(
+      mockSupabaseClient({
+        rpc: vi.fn().mockResolvedValue({ data: false, error: null }),
+      })
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/customers", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "Ana Nova" }),
+      })
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  it("allows write when user_has_org_membership is true without store context in session", async () => {
+    const single = vi.fn().mockResolvedValue({
+      data: { id: CUSTOMER_ID, name: "Ana Nova", document: null, email: null },
+      error: null,
+    });
+    const insert = vi.fn(() => ({
+      select: vi.fn(() => ({ single })),
+    }));
+    getAuthedContext.mockResolvedValue({
+      ...cashierContext(),
+      storeId: null,
+      stores: [],
+    });
+    createClient.mockResolvedValue(
+      mockSupabaseClient({
+        from: vi.fn(() => ({ insert })),
+      })
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/customers", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "Ana Nova" }),
+      })
+    );
+
+    expect(response.status).toBe(201);
   });
 });
 

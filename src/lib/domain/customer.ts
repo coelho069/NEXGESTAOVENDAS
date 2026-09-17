@@ -41,6 +41,7 @@ export function upsertCustomer(
   return next.sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
 }
 
+/** UX/session hint only. API routes call `user_has_org_membership()` via RLS helper. */
 export function canWriteCustomers(auth: { orgId: string | null; stores: readonly unknown[] } | null): boolean {
   return Boolean(auth?.orgId && auth.stores.length > 0);
 }

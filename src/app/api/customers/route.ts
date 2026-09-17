@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthedContext } from "@/lib/auth/session";
-import { canWriteCustomers, parseCatalogCustomer } from "@/lib/domain/customer";
+import { parseCatalogCustomer } from "@/lib/domain/customer";
+import { resolveCustomerWriteContext } from "@/lib/server/customer-write-access";
 import { createClient } from "@/lib/supabase/server";
 import { customerWriteSchema } from "@/lib/validation/schemas";
 
@@ -35,14 +36,15 @@ export async function POST(request: Request) {
   }
 
   const auth = await getAuthedContext();
-  if (!canWriteCustomers(auth) || !auth?.orgId) {
+  const writeContext = await resolveCustomerWriteContext(supabase, auth);
+  if (!writeContext) {
     return NextResponse.json({ error: "forbidden_customers" }, { status: 403 });
   }
 
   const { data, error } = await supabase
     .from("customers")
     .insert({
-      org_id: auth.orgId,
+      org_id: writeContext.orgId,
       name: parsed.data.name,
       document: parsed.data.document,
       email: parsed.data.email,
