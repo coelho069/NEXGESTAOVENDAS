@@ -39,6 +39,7 @@ import {
   reconcileSale,
   refreshLocalSyncState,
   runSyncCycle,
+  syncOutboxMutation,
 } from "@/lib/offline/sync-engine";
 import { useCartStore } from "@/stores/cart-store";
 import { useSyncStore } from "@/stores/sync-store";
@@ -106,16 +107,32 @@ export function useCheckout() {
 
     setSyncing(true);
     try {
-      await withMultiTabLock(
-        () => runSyncCycle(syncDeps(storeId)),
+      const deps = syncDeps(storeId);
+      const lockResult = await withMultiTabLock(
+        () => runSyncCycle(deps),
         { lockName: `nex-pdv-sync:${storeId}` }
       );
+      if (!lockResult.acquired) {
+        await runSyncCycle(deps);
+      }
       const { pendingCount, conflicts } = await refreshSyncUi();
       if (pendingCount === 0 && conflicts.length === 0) markSynced();
     } finally {
       setSyncing(false);
     }
   }, [markSynced, refreshSyncUi, setSyncing]);
+
+  const syncCheckoutMutation = useCallback(async (storeId: string, clientMutationId: string) => {
+    const deps = syncDeps(storeId);
+    const lockResult = await withMultiTabLock(
+      () => syncOutboxMutation(deps, clientMutationId),
+      { lockName: `nex-pdv-sync:${storeId}` }
+    );
+    if (!lockResult.acquired) {
+      await syncOutboxMutation(deps, clientMutationId);
+    }
+    await refreshSyncUi();
+  }, [refreshSyncUi]);
 
   const beginCheckout = useCallback((): string => {
     const cart = useCartStore.getState();
@@ -273,7 +290,7 @@ export function useCheckout() {
         try {
           const online = typeof navigator === "undefined" || navigator.onLine;
           if (online) {
-            await flushPending();
+            await syncCheckoutMutation(cart.storeId!, clientMutationId);
           } else {
             await refreshSyncUi();
           }
@@ -343,7 +360,7 @@ export function useCheckout() {
         endCheckout();
       }
     },
-    [beginCheckout, endCheckout, flushPending, refreshSyncUi, setQuotaExceeded]
+    [beginCheckout, endCheckout, refreshSyncUi, setQuotaExceeded, syncCheckoutMutation]
   );
 
   const checkoutCash = useCallback(
@@ -381,7 +398,7 @@ export function useCheckout() {
       clear();
 
       if (typeof navigator === "undefined" || navigator.onLine) {
-        await flushPending();
+        await syncCheckoutMutation(cart.storeId!, clientMutationId);
       } else {
         await refreshSyncUi();
       }
@@ -403,7 +420,7 @@ export function useCheckout() {
       endCheckout();
     }
     },
-    [beginCheckout, clear, endCheckout, flushPending, refreshSyncUi, setQuotaExceeded]
+    [beginCheckout, clear, endCheckout, refreshSyncUi, setQuotaExceeded, syncCheckoutMutation]
   );
 
   const completePendingPix = useCallback(
