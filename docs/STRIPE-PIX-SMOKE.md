@@ -92,17 +92,22 @@ Same endpoint as card: `POST /api/payments/stripe/webhook`
 
 On `payment_intent.succeeded` with a matching PIX intent:
 
+- webhook object id / amount / currency / PIX type must match the local intent
 - `apply_pix_provider_event` then `process_pix_sale`
 - sale `confirmed`, payment `method=pix` / `status=captured`
 - `sale_confirmed=true`
+- transient apply failure → HTTP **500** so Stripe retries (never ack + skip sale)
 
 On fail or mismatch (do **not** confirm):
 
 - `payment_intent.payment_failed` → `status=unknown`, no `process_pix_sale`
-- amount / currency / `provider_ref` mismatch on reconcile → `unknown`
+- amount / currency / `provider_ref` mismatch on webhook or reconcile → `unknown`
 - `succeeded` without a matching PIX intent → `unknown`
 - `process_pix_sale` error / amount mismatch → `unknown`
 - HTTP 200 without PI `succeeded` → `unknown`
+- Stripe retrieve timeout on reconcile → `unknown` (not a 500 sale confirm)
+- create QR without a persisted local intent → `unknown` (no pending QR)
+- cancel without provider `cancelled` keeps the QR visible
 
 Reconcile:
 
