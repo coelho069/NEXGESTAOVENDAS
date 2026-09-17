@@ -562,14 +562,22 @@ const optionalCustomerText = (max: number) =>
 
 export const customerIdSchema = z.string().uuid();
 
-export const customerWriteSchema = z.object({
-  name: z.string().trim().min(1).max(200),
-  document: optionalCustomerText(32),
-  email: optionalCustomerText(254).refine(
-    (value) => value === null || z.string().email().safeParse(value).success,
-    "email must be a valid address"
-  ),
-});
+export const customerWriteSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    document: optionalCustomerText(32).optional(),
+    email: optionalCustomerText(254)
+      .refine(
+        (value) => value === null || z.string().email().safeParse(value).success,
+        "email must be a valid address"
+      )
+      .optional(),
+  })
+  .transform((value) => ({
+    name: value.name,
+    document: value.document ?? null,
+    email: value.email ?? null,
+  }));
 
 export type CustomerWriteInput = z.infer<typeof customerWriteSchema>;
 
