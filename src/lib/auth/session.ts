@@ -1,13 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import type { MemberRole } from "@/lib/domain/rbac";
+import { resolveStoreRole } from "@/lib/auth/authorization";
 
 export type AuthedContext = {
   userId: string;
-  role: MemberRole;
+  role: MemberRole | null;
   orgId: string | null;
 };
 
-export async function getAuthedContext(): Promise<AuthedContext | null> {
+export async function getAuthedContext(storeId?: string): Promise<AuthedContext | null> {
   try {
     const supabase = await createClient();
     const {
@@ -17,13 +18,17 @@ export async function getAuthedContext(): Promise<AuthedContext | null> {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("default_role, org_id")
+      .select("org_id")
       .eq("id", user.id)
       .maybeSingle();
 
+    const role = storeId
+      ? await resolveStoreRole(supabase, { userId: user.id, storeId })
+      : null;
+
     return {
       userId: user.id,
-      role: (profile?.default_role as MemberRole | undefined) ?? "cashier",
+      role,
       orgId: profile?.org_id ?? null,
     };
   } catch {

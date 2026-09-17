@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { DEMO_CUSTOMERS, type CatalogCustomer } from "@/lib/domain/catalog";
+import { pdvFixturesEnabled } from "@/lib/pdv/fixtures";
 import { createClient } from "@/lib/supabase/client";
 
 export function useCustomers() {
-  const [customers, setCustomers] = useState<CatalogCustomer[]>(DEMO_CUSTOMERS);
+  const [customers, setCustomers] = useState<CatalogCustomer[]>(() =>
+    pdvFixturesEnabled() ? DEMO_CUSTOMERS : []
+  );
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -17,20 +20,22 @@ export function useCustomers() {
         .order("name");
 
       if (queryError || !data) {
-        setCustomers(DEMO_CUSTOMERS);
-        setError(queryError?.message ?? null);
+        setCustomers(pdvFixturesEnabled() ? DEMO_CUSTOMERS : []);
+        setError(queryError ? "Clientes indisponíveis." : null);
         return;
       }
 
       setCustomers(data as CatalogCustomer[]);
       setError(null);
     } catch {
-      setCustomers(DEMO_CUSTOMERS);
-      setError(null);
+      setCustomers(pdvFixturesEnabled() ? DEMO_CUSTOMERS : []);
+      setError("Clientes indisponíveis.");
     }
   }, []);
 
   useEffect(() => {
+    // Initial catalog loading synchronizes this client with Supabase.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
 

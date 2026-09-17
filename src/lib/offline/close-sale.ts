@@ -1,5 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
 import { buildProcessSalePayload, cartSubtotal, cartTotal, lineTotal } from "@/lib/domain/sale";
+import { validateSaleAmounts } from "@/lib/domain/sale-ops";
+import { processSaleInputSchema, type ProcessSaleInput } from "@/lib/validation/schemas";
+import { money } from "@/lib/money";
 import { rethrowIfQuotaExceeded } from "@/lib/offline/quota";
 import { assertNoSecrets } from "@/lib/offline/secrets";
 import type { PdvLocalDatabase } from "@/lib/offline/pdv-local-db";
@@ -7,15 +10,55 @@ import type { CloseSaleInput, CloseSaleResult, LocalSale, OutboxCommand } from "
 
 function assertCashOnlyAndNoSecrets(input: CloseSaleInput): void {
   assertNoSecrets(input, "closeSale");
-  for (const payment of input.payments) {
-    if (payment.method !== "cash") {
-      throw new Error("Only cash payments are supported in Sprint 1 MVP");
-    }
+  if (input.payments.length !== 1 || input.payments[0]?.method !== "cash") {
+    throw new Error("Only one cash payment is supported in Sprint 1 MVP");
   }
+}
+
+function comparablePayload(payload: ProcessSaleInput): string {
+  const withoutSaleId = { ...payload };
+  delete withoutSaleId.sale_id;
+  return JSON.stringify(withoutSaleId);
 }
 
 export async function closeSale(db: PdvLocalDatabase, input: CloseSaleInput): Promise<CloseSaleResult> {
   assertCashOnlyAndNoSecrets(input);
+
+  const discount = input.discount ?? "0.00";
+  const amountError = validateSaleAmounts(
+    {
+      lines: input.lines,
+      discount,
+      customerId: input.customerId ?? null,
+    },
+    input.role ?? "cashier"
+  );
+  if (amountError) {
+    throw new Error(amountError);
+  }
+
+  const saleId = input.saleId ?? uuidv4();
+  const subtotal = cartSubtotal(input.lines);
+  const total = cartTotal(input.lines, discount);
+  if (money(total).lt(0)) {
+    throw new Error("Total da venda não pode ser negativo");
+  }
+  if (input.payments[0]?.amount !== total) {
+    throw new Error("Pagamento deve corresponder ao total da venda");
+  }
+
+  const payload = buildProcessSalePayload(
+    input.storeId,
+    input.clientMutationId,
+    input.lines,
+    "cash",
+    { discount, customerId: input.customerId, saleId }
+  );
+  const parsedPayload = processSaleInputSchema.safeParse(payload);
+  if (!parsedPayload.success) {
+    throw new Error("Payload de venda inválido");
+  }
+  const canonicalPayload = parsedPayload.data;
 
   try {
     return await db.transaction(
@@ -28,6 +71,14 @@ export async function closeSale(db: PdvLocalDatabase, input: CloseSaleInput): Pr
       async () => {
         const existing = await db.sales.where("clientMutationId").equals(input.clientMutationId).first();
         if (existing) {
+          const existingOutbox = await db.outbox.get(input.clientMutationId);
+          if (
+            existing.storeId !== input.storeId ||
+            !existingOutbox ||
+            comparablePayload(existingOutbox.payload) !== comparablePayload(canonicalPayload)
+          ) {
+            throw new Error("clientMutationId já utilizado com outra venda");
+          }
           return {
             saleId: existing.id,
             clientMutationId: existing.clientMutationId,
@@ -37,6 +88,12 @@ export async function closeSale(db: PdvLocalDatabase, input: CloseSaleInput): Pr
 
         const outboxExisting = await db.outbox.get(input.clientMutationId);
         if (outboxExisting) {
+          if (
+            outboxExisting.storeId !== input.storeId ||
+            comparablePayload(outboxExisting.payload) !== comparablePayload(canonicalPayload)
+          ) {
+            throw new Error("clientMutationId já utilizado com outra venda");
+          }
           return {
             saleId: outboxExisting.saleId,
             clientMutationId: outboxExisting.clientMutationId,
@@ -44,11 +101,7 @@ export async function closeSale(db: PdvLocalDatabase, input: CloseSaleInput): Pr
           };
         }
 
-        const discount = input.discount ?? "0.00";
-        const saleId = input.saleId ?? uuidv4();
         const createdAt = new Date().toISOString();
-        const subtotal = cartSubtotal(input.lines);
-        const total = cartTotal(input.lines, discount);
 
         for (const line of input.lines) {
           const balance = await db.inventoryBalances.get([input.storeId, line.productId]);
@@ -77,6 +130,7 @@ export async function closeSale(db: PdvLocalDatabase, input: CloseSaleInput): Pr
           discount,
           total,
           createdAt,
+          stockReconciled: false,
         };
 
         await db.sales.add(sale);
@@ -105,15 +159,7 @@ export async function closeSale(db: PdvLocalDatabase, input: CloseSaleInput): Pr
           });
         }
 
-        const payload = buildProcessSalePayload(
-          input.storeId,
-          input.clientMutationId,
-          input.lines,
-          "cash",
-          { discount, customerId: input.customerId }
-        );
-
-        if (payload.client_mutation_id !== input.clientMutationId) {
+        if (canonicalPayload.client_mutation_id !== input.clientMutationId) {
           throw new Error("clientMutationId is immutable");
         }
 
@@ -122,7 +168,7 @@ export async function closeSale(db: PdvLocalDatabase, input: CloseSaleInput): Pr
           saleId,
           storeId: input.storeId,
           type: "process_sale",
-          payload,
+          payload: canonicalPayload,
           status: "pending",
           attemptCount: 0,
           nextAttemptAt: createdAt,

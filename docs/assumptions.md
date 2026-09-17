@@ -30,7 +30,8 @@ Decisões assumidas para destravar o MVP. Revisar antes dos próximos sprints.
 
 - Signup público desabilitado (`enable_signup=false` no Supabase config).
 - Usuários demo criados via `pnpm seed:auth` com e-mails `@example.invalid`.
-- Autorização de papel em `profiles.default_role` + `store_members.role`.
+- `store_members.role` é a única autoridade de autorização, resolvida por `auth.uid()` + `store_id`.
+- `profiles.default_role` permanece apenas como metadado/preferência informativa e nunca autoriza operações.
 - JWT `user_metadata` não usado para RLS (somente tabelas app + `auth.uid()`).
 
 ## Sync / offline

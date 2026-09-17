@@ -1,4 +1,62 @@
+# Agent Log — Correções de integridade do fluxo de venda
+
+---
+
+# Agent Log — Autoridade RBAC por loja
+
+**Data:** 2026-09-02
+**Escopo:** unificação da autorização em `store_members.role`, resolvida por usuário e loja.
+
+1. `getAuthedContext(storeId)` deixou de ler `profiles.default_role`; ausência de membership retorna papel nulo.
+2. Rotas de vendas, inventário, dashboard e sync, além dos loaders SSR, passaram a resolver a role para a loja solicitada antes de autorizar.
+3. A migration incremental `20260902201000_rbac_store_membership_authority.sql` remove policies históricas baseadas em perfil, recria helpers com `search_path` seguro e faz `adjust_inventory` gravar `actor_role` somente da membership.
+4. Testes unitários cobrem divergência de roles, ausência de membership, multi-store, mudança sem cache e guarda estática da migration.
+
+Validação PostgreSQL/RLS permanece **UNVERIFIED — ambiente PostgreSQL/Supabase indisponível**: Docker, Podman, Supabase CLI e `psql` não estão instalados.
+
+**Data:** 2026-09-01
+**Agente:** Cursor Grok 4.6
+**Escopo:** Correções pontuais (sync status, estoque, catálogo, teto de desconto no servidor, recibo, HID). Sem alterar Dexie schema, RLS ou dashboard.
+
+## Revisão técnica complementar
+
+**Agente:** Cursor GPT-5.6 Luna
+
+1. O outbox agora reivindica somente comandos ainda `pending`; respostas só são aplicadas ao registro que continua `processing` com o mesmo `updatedAt`.
+2. Transições terminais não sobrescrevem `failed`, `conflict` ou `synced`; estados não sincronizados também permanecem contabilizados na UI.
+3. O recibo respeita o estado exato do próprio outbox, mesmo quando existem outras vendas pendentes ou quando o dispositivo está offline.
+4. Atalhos não-Escape e scanner HID são bloqueados enquanto um painel modal está aberto.
+5. Fixtures de E2E não reinicializam o estoque projetado após cada atualização de tela.
+6. O teto de desconto considera o total dos descontos de cabeçalho e de itens; respostas `403` entram no fluxo de conflito e restauram o estoque projetado.
+
+## Análise (antes da implementação)
+
+Pontos de falha confirmados no fluxo PDV + outbox:
+
+1. **Recibo `synced` falso:** `paySale` usa só `pendingCount === 0 && online`. `countUnsyncedCommands` ignora `conflict`/`failed`, então 409/422 imprime `synced`/`confirmed`.
+2. **Estoque demo:** `ensureLocalInventory` faz `bulkPut` de quantidades fictícias quando Dexie está vazio; o caixa vende contra saldo inventado e o RPC pode falhar depois.
+3. **Catálogo demo:** `useProducts` cai em `DEMO_PRODUCTS` em erro/exceção, com `error` às vezes nulo — SKUs/preços que não são da org.
+4. **Desconto só no client:** papel vem de `<select>`; `process_sale` só rejeita total &lt; 0. Caixa pode persistir desconto de admin.
+5. **Método de pagamento divergente:** `closeSale` grava `cash`; o recibo usa `input.method`.
+6. **HID/atalhos:** listener global ignora foco; F6/scanner disparam com modal/input aberto (exceto a busca, que deve continuar aceitando HID).
+
+## Alterações necessárias
+
+1. Função pura `resolveReceiptSyncState({ pendingCount, online, outboxStatus, conflictForSale })`; recibo lê o outbox da venda após o flush.
+2. Remover semeadura em `ensureLocalInventory`; checkout e `addItem` falham fechado se o mapa local estiver vazio.
+3. `useProducts` inicia vazio; falha de catálogo mostra erro e não carrega `DEMO_PRODUCTS` (fixtures E2E só com `NEXT_PUBLIC_PDV_FIXTURES=1`).
+4. `discountExceedsRoleCap` no domínio; API `POST /api/sales/process` retorna **403**; RPC `assert_sale_discount_cap` chamado por `process_sale` (migration nova, sem mexer RLS).
+5. Mesmo `method` em `closeSale` e no recibo.
+6. `shouldAcceptHidScan` / `shouldHandleShortcut` bloqueiam input/modal; campo `pdv-search-input` permanece permitido para HID.
+
+## Fora de escopo desta correção
+
+Schema Dexie, policies RLS, páginas/API de dashboard, NFC-e, estorno.
+
+---
+
 # Agent Log — Sprint 4
+
 
 **Data:** 2026-09-01  
 **Agente:** Cursor Grok 4.6  

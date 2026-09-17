@@ -1,7 +1,7 @@
 import type { Enums } from "@/lib/db/types";
 import type { CatalogProduct } from "@/lib/domain/catalog";
 import type { CartLine } from "@/lib/domain/sale";
-import { cartSubtotal, cartTotal, lineTotal } from "@/lib/domain/sale";
+import { cartSubtotal, cartTotal } from "@/lib/domain/sale";
 import { money, multiplyMoney, toMoneyString } from "@/lib/money";
 
 export type MemberRole = Enums<"member_role">;
@@ -31,7 +31,47 @@ export const DISCOUNT_LIMIT_PERCENT: Record<MemberRole, string> = {
   admin: "100.00",
 };
 
-const MONEY_PATTERN = /^\d+\.\d{2}$/;
+const MONEY_PATTERN = /^(?:0|[1-9]\d{0,9})\.\d{2}$/;
+
+function isSupportedQuantity(quantity: number): boolean {
+  if (!Number.isFinite(quantity) || quantity <= 0) return false;
+  const decimal = money(quantity);
+  return decimal.lte("999999999.999") && decimal.decimalPlaces() <= 3;
+}
+
+export function discountExceedsRoleCap(discount: string, subtotal: string, role: MemberRole): boolean {
+  return money(discount).gt(money(maxDiscountForRole(subtotal, role)));
+}
+
+export function salePayloadExceedsDiscountCap(
+  payload: { discount: string; items: Array<{ quantity: number; unit_price: string; discount?: string }> },
+  role: MemberRole
+): boolean {
+  const totalDiscount = payload.items.reduce(
+    (acc, item) => acc.plus(money(item.discount ?? "0.00")),
+    money(payload.discount)
+  );
+  return discountExceedsRoleCap(totalDiscount.toFixed(2), itemsGrossSubtotal(payload.items), role);
+}
+
+export function discountLimitHttpStatus(exceeded: boolean): 403 | 200 {
+  return exceeded ? 403 : 200;
+}
+
+export function itemsGrossSubtotal(
+  items: Array<{ quantity: number; unit_price: string; discount?: string }>
+): string {
+  return items
+    .reduce((acc, item) => {
+      return acc.plus(money(multiplyMoney(item.unit_price, item.quantity)));
+    }, money(0))
+    .toFixed(2);
+}
+
+export function isLocalStockEmpty(stock: StockMap | null | undefined): boolean {
+  if (!stock) return true;
+  return Object.keys(stock).length === 0;
+}
 
 export function emptySaleState(): SaleState {
   return { lines: [], discount: "0.00", customerId: null };
@@ -73,6 +113,9 @@ export function addItem(
   quantity: number,
   stock?: StockMap | null
 ): SaleOpResult {
+  if (stock !== undefined && isLocalStockEmpty(stock)) {
+    return fail(state, "Estoque local vazio");
+  }
   if (!product.isActive) {
     return fail(state, `Produto inativo: ${product.name}`);
   }
@@ -155,6 +198,45 @@ export function applyDiscount(state: SaleState, discount: string, role: MemberRo
   return ok({ ...state, discount });
 }
 
+export function validateSaleAmounts(state: SaleState, role: MemberRole): string | null {
+  if (state.lines.length === 0) {
+    return "Carrinho vazio";
+  }
+
+  if (!MONEY_PATTERN.test(state.discount)) {
+    return "Desconto deve ser valor monetário 0.00";
+  }
+
+  const productIds = new Set<string>();
+  for (const line of state.lines) {
+    if (productIds.has(line.productId)) {
+      return `Produto duplicado no carrinho: ${line.name}`;
+    }
+    productIds.add(line.productId);
+
+    if (!isSupportedQuantity(line.quantity)) {
+      return `Quantidade inválida para ${line.name}`;
+    }
+    if (!MONEY_PATTERN.test(line.unitPrice) || !MONEY_PATTERN.test(line.discount)) {
+      return `Valores inválidos para ${line.name}`;
+    }
+    if (money(line.discount).gt(money(multiplyMoney(line.unitPrice, line.quantity)))) {
+      return `Desconto do item excede o total de ${line.name}`;
+    }
+  }
+
+  const discountCheck = applyDiscount({ ...state, discount: "0.00" }, state.discount, role);
+  if (!discountCheck.ok) {
+    return discountCheck.error;
+  }
+
+  const totals = calculateTotals(state);
+  if (money(totals.total).lt(0)) {
+    return "Total não pode ser negativo";
+  }
+  return null;
+}
+
 export function calculateTotals(state: SaleState): SaleTotals {
   const subtotal = cartSubtotal(state.lines);
   return {
@@ -173,10 +255,16 @@ export function validateSale(
     return fail(state, "Carrinho vazio");
   }
 
+  if (isLocalStockEmpty(options.stock)) {
+    return fail(state, "Estoque local vazio");
+  }
+
+  const amountError = validateSaleAmounts(state, options.role);
+  if (amountError) {
+    return fail(state, amountError);
+  }
+
   for (const line of state.lines) {
-    if (!(line.quantity > 0)) {
-      return fail(state, `Quantidade inválida para ${line.name}`);
-    }
     const catalogItem = options.products?.find((product) => product.productId === line.productId);
     if (catalogItem && !catalogItem.isActive) {
       return fail(state, `Produto inativo: ${line.name}`);
@@ -185,20 +273,6 @@ export function validateSale(
     if (available !== null && line.quantity > available) {
       return fail(state, `Estoque insuficiente para ${line.name}`);
     }
-    if (money(line.discount).gt(money(multiplyMoney(line.unitPrice, line.quantity)))) {
-      return fail(state, `Desconto do item excede o total de ${line.name}`);
-    }
-    void lineTotal(line);
-  }
-
-  const discountCheck = applyDiscount({ ...state, discount: "0.00" }, state.discount, options.role);
-  if (!discountCheck.ok) {
-    return fail(state, discountCheck.error);
-  }
-
-  const totals = calculateTotals(state);
-  if (money(totals.total).lt(0)) {
-    return fail(state, "Total não pode ser negativo");
   }
 
   return ok(state);

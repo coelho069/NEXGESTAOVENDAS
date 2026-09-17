@@ -3,6 +3,7 @@ export type SyncHttpClass = "success" | "end_session" | "transient" | "conflict"
 export function classifySyncHttpStatus(status: number): SyncHttpClass {
   if (status >= 200 && status < 300) return "success";
   if (status === 401) return "end_session";
+  if (status === 403) return "conflict";
   if (status === 408 || status === 429 || (status >= 500 && status <= 599)) return "transient";
   if (status === 409 || status === 422) return "conflict";
   return "fatal";

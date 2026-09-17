@@ -18,7 +18,8 @@ Regras:
 ## 2. Autenticação e autorização
 
 - Supabase Auth (email/senha).
-- `profiles.org_id` + `store_members.role` definem escopo.
+- `profiles.org_id` define apenas o contexto da organização; `store_members.role`, resolvida por `auth.uid()` + `store_id`, é a única autoridade de autorização.
+- `profiles.default_role` é metadado informativo e nunca participa de uma decisão de acesso.
 - RLS em todas as tabelas `public`.
 - `REVOKE ALL ... FROM anon` aplicado.
 - Cashier:
@@ -163,7 +164,7 @@ Uma única transação IndexedDB grava: venda + itens + pagamentos + estoque pro
 
 ## Backoff
 
-`1, 2, 4, 8, 16` segundos, teto 60s, jitter `[0.5, 1.0]`. 10 falhas transitórias → `failed`.
+`1, 2, 4, 8, 16` segundos, teto 60s, jitter `[0.5, 1.0]`. 10 falhas de transporte/resultado ambíguo → `conflict` com resultado incerto, mantendo a reserva até reconciliação autoritativa. Erros determinísticos → `failed`.
 
 ## HTTP
 
@@ -174,7 +175,8 @@ Uma única transação IndexedDB grava: venda + itens + pagamentos + estoque pro
 ## Concorrência
 
 - `startHeartbeat` — liveness/online. Não adquire lock.
-- `withMultiTabLock` — apenas uma aba sincroniza.
+- `withMultiTabLock` — apenas uma aba executa a região crítica do mesmo escopo; checkout e sync usam escopo por loja.
+- Fallback sem Web Locks usa lease com TTL, owner e heartbeat para recuperar locks após crash.
 
 ## Zustand
 
@@ -238,7 +240,9 @@ Estorno UI, cartão/pix real, NFC-e/SAT. Inventário, dashboard e RBAC: ver anex
 
 # Sprint 4 — Inventário, dashboard e RBAC
 
-Anexo. Contratos Sprint 1–3 permanecem. Nova migration `20250901000005_sprint4_inventory_dashboard_rbac.sql` apenas. Não altera `process_sale` nem Dexie/sync.
+Anexo. Contratos Sprint 1–3 permanecem. As migrations de inventário/RBAC são
+incrementais; `20260902201000_rbac_store_membership_authority.sql` consolida a
+autoridade em `store_members.role`. Não altera `process_sale` nem Dexie/sync.
 
 ## Inventário
 
@@ -257,6 +261,10 @@ Anexo. Contratos Sprint 1–3 permanecem. Nova migration `20250901000005_sprint4
 - SSR em `/dashboard` com estado degradado se Supabase estiver ausente.
 
 ## RBAC
+
+`store_members.role` é a fonte única de autoridade. Toda rota, loader, policy e RPC
+resolve o papel para a loja ativa usando `auth.uid()` + `store_id`; `PermissionGate`
+e seletores do cliente são somente UX. `profiles.default_role` não é fallback.
 
 | Papel | Inventário | Relatórios | Preço/custo |
 |-------|------------|------------|-------------|

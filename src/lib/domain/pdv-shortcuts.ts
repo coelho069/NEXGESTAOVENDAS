@@ -55,13 +55,36 @@ export function matchPdvShortcut(event: KeyLike): PdvShortcut | null {
   }
 }
 
-export function shouldHandleShortcut(shortcut: PdvShortcut, target: EventTarget | null): boolean {
-  if (shortcut === "qtyInc" || shortcut === "qtyDec") {
-    return !isEditableTarget(target);
-  }
+export function shouldHandleShortcut(
+  shortcut: PdvShortcut,
+  target: EventTarget | null,
+  modalOpen = false
+): boolean {
+  if (modalOpen && shortcut !== "cancel") return false;
+  const editable = isEditableTarget(target);
+  const search = isPdvSearchTarget(target);
+
   if (shortcut === "cancel") return true;
-  if (shortcut === "search" && isEditableTarget(target)) {
-    return true;
+  if (shortcut === "search") return true;
+  if (editable && !search) return false;
+  if (search) return false;
+  if (shortcut === "qtyInc" || shortcut === "qtyDec") {
+    return !editable;
   }
+  return true;
+}
+
+export const PDV_SEARCH_TEST_ID = "pdv-search-input";
+
+export function isPdvSearchTarget(target: EventTarget | null): boolean {
+  if (!target || typeof target !== "object") return false;
+  const el = target as { id?: string; getAttribute?: (name: string) => string | null };
+  if (el.id === "pdv-search-input") return true;
+  return el.getAttribute?.("data-testid") === PDV_SEARCH_TEST_ID;
+}
+
+export function shouldAcceptHidScan(target: EventTarget | null, modalOpen: boolean): boolean {
+  if (modalOpen) return false;
+  if (isEditableTarget(target) && !isPdvSearchTarget(target)) return false;
   return true;
 }

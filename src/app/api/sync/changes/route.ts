@@ -1,17 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { pullChangesQuerySchema } from "@/lib/validation/schemas";
+import { getAuthedContext } from "@/lib/auth/session";
 
 export async function GET(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const url = new URL(request.url);
   const parsed = pullChangesQuerySchema.safeParse({
     store_id: url.searchParams.get("store_id"),
@@ -26,7 +18,12 @@ export async function GET(request: Request) {
   }
 
   const { store_id, since } = parsed.data;
+  const auth = await getAuthedContext(store_id);
+  if (!auth?.role) {
+    return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
+  }
 
+  const supabase = await createClient();
   let inventoryQuery = supabase
     .from("inventory_balances")
     .select("store_id, product_id, quantity, updated_at")
@@ -47,10 +44,10 @@ export async function GET(request: Request) {
   const [inventory, sales] = await Promise.all([inventoryQuery, salesQuery]);
 
   if (inventory.error) {
-    return NextResponse.json({ error: inventory.error.message }, { status: 422 });
+    return NextResponse.json({ error: "inventory_sync_failed" }, { status: 422 });
   }
   if (sales.error) {
-    return NextResponse.json({ error: sales.error.message }, { status: 422 });
+    return NextResponse.json({ error: "sales_sync_failed" }, { status: 422 });
   }
 
   return NextResponse.json({

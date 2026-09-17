@@ -14,7 +14,11 @@ export type CartState = {
   discount: string;
   customerId: string | null;
   customerName: string | null;
+  checkoutAttemptId: string | null;
+  checkoutInFlight: boolean;
   setStoreId: (storeId: string) => void;
+  setCheckoutAttemptId: (checkoutAttemptId: string | null) => void;
+  setCheckoutInFlight: (checkoutInFlight: boolean) => void;
   addLine: (line: CartLine) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   removeLine: (productId: string) => void;
@@ -33,7 +37,11 @@ const createCartSlice: StateCreator<CartState> = (set, get) => ({
   discount: "0.00",
   customerId: null,
   customerName: null,
+  checkoutAttemptId: null,
+  checkoutInFlight: false,
   setStoreId: (storeId) => set({ storeId }),
+  setCheckoutAttemptId: (checkoutAttemptId) => set({ checkoutAttemptId }),
+  setCheckoutInFlight: (checkoutInFlight) => set({ checkoutInFlight }),
   addLine: (line) =>
     set((state) => {
       const existing = state.lines.find((item) => item.productId === line.productId);
@@ -61,7 +69,14 @@ const createCartSlice: StateCreator<CartState> = (set, get) => ({
   setDiscount: (discount) => set({ discount }),
   setLines: (lines) => set({ lines }),
   setCustomer: (customerId, customerName) => set({ customerId, customerName }),
-  clear: () => set({ lines: [], discount: "0.00", customerId: null, customerName: null }),
+  clear: () =>
+    set({
+      lines: [],
+      discount: "0.00",
+      customerId: null,
+      customerName: null,
+      checkoutAttemptId: null,
+    }),
   total: () => cartTotal(get().lines, get().discount),
 });
 
@@ -80,6 +95,7 @@ export function createCartStore(options?: { persist?: boolean }): CartStore {
           discount: state.discount,
           customerId: state.customerId,
           customerName: state.customerName,
+          checkoutAttemptId: state.checkoutAttemptId,
         }),
     })
   );

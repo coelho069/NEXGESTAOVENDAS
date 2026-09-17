@@ -51,10 +51,10 @@ export async function loadDashboard(params: {
     to,
   };
 
-  const auth = await getAuthedContext();
+  const auth = await getAuthedContext(params.storeId);
   const role = auth?.role ?? "cashier";
 
-  if (auth && !canViewReports(role)) {
+  if (!auth?.role || !canViewReports(auth.role)) {
     return { degraded: false, forbidden: true, role, payload: empty, message: "Caixa não pode ver relatórios." };
   }
 
