@@ -31,7 +31,7 @@ test("SKU -> quantidade -> desconto -> pagamento -> recibo", async ({ page }) =>
   await page.getByTestId("open-customer").click();
   await page.getByTestId("customer-55555555-5555-4555-8555-555555555502").click();
 
-  await page.keyboard.press("F6");
+  await page.keyboard.press("F4");
   await page.getByTestId("discount-input").fill("0.30");
   await page.getByTestId("discount-apply").click();
 
