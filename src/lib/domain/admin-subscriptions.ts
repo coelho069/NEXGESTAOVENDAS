@@ -3,6 +3,7 @@ import {
   gateTenantSubscriptionAccess,
   resolveSubscriptionCheck,
   subscriptionBlockTitle,
+  type SubscriptionCheckReason,
   type SubscriptionGateDecision,
 } from "@/lib/domain/subscription-access";
 
@@ -140,6 +141,14 @@ export const ADMIN_PDV_STATUS_LABELS: Record<AdminPdvStatus, string> = {
   unknown: "Indisponível",
 };
 
+export const SUBSCRIPTION_GATE_REASON_LABELS: Record<SubscriptionCheckReason, string> = {
+  ok: "Acesso liberado — assinatura válida",
+  unavailable: "Validação indisponível — PDV liberado (fail-open)",
+  expired: "Assinatura expirada — PDV bloqueado",
+  canceled: "Assinatura cancelada — PDV bloqueado",
+  none: "Sem assinatura cadastrada — PDV bloqueado",
+};
+
 const OPEN_STATUSES = new Set<AdminSubscriptionStatus>(["active", "trialing", "past_due"]);
 
 export function isOpenSubscriptionStatus(status: AdminSubscriptionStatus): boolean {
@@ -189,6 +198,16 @@ function accessMessageFor(decision: SubscriptionGateDecision): string {
       return _never;
     }
   }
+}
+
+export function formatAdminGateReason(
+  record: Pick<AdminSubscriptionRecord, "accessReason" | "accessMessage">
+): string {
+  const reason = record.accessReason as SubscriptionCheckReason;
+  if (reason in SUBSCRIPTION_GATE_REASON_LABELS) {
+    return SUBSCRIPTION_GATE_REASON_LABELS[reason];
+  }
+  return record.accessMessage.trim() || "Motivo desconhecido";
 }
 
 export function describeSubscriptionAccessForAdmin(
