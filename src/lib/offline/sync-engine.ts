@@ -33,6 +33,7 @@ import {
   toInventoryDifference,
   toInventoryQuantity,
 } from "@/lib/domain/quantity";
+import { notifySalesHistorySync } from "@/lib/pdv/sales-history-sync";
 import type { PdvLocalDatabase } from "@/lib/offline/pdv-local-db";
 import type {
   InventoryOutboxCommand,
@@ -459,6 +460,7 @@ export async function pullChanges(deps: SyncEngineDeps): Promise<PullChangesResp
     await applyPulledChanges(deps.db, deps.storeId, payload, cursorKey, nextCursorValue);
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("pdv:inventory-sync"));
+      notifySalesHistorySync();
     }
 
     if (!payload.hasMore || !payload.nextCursor) {
@@ -538,6 +540,7 @@ async function applyPushResponse(
       stockReconciled: body.stock_reconciled,
       fiscalStatus: body.fiscalStatus,
     }, expectedProcessingUpdatedAt);
+    notifySalesHistorySync();
     return;
   }
 
