@@ -120,6 +120,7 @@ export class NotConfiguredPaymentAdapter implements PaymentAdapter {
 
 let boundStripeCardAdapter: PaymentAdapter | null = null;
 let boundStripePixAdapter: PaymentAdapter | null = null;
+let boundMercadoPagoPixAdapter: PaymentAdapter | null = null;
 
 export function bindStripeCardAdapter(adapter: PaymentAdapter | null): void {
   boundStripeCardAdapter = adapter;
@@ -129,9 +130,14 @@ export function bindStripePixAdapter(adapter: PaymentAdapter | null): void {
   boundStripePixAdapter = adapter;
 }
 
+export function bindMercadoPagoPixAdapter(adapter: PaymentAdapter | null): void {
+  boundMercadoPagoPixAdapter = adapter;
+}
+
 export function getPaymentAdapter(method: Enums<"payment_method">): PaymentAdapter {
   if (method === "cash") return new CashPaymentAdapter();
   if (method === "card" && boundStripeCardAdapter) return boundStripeCardAdapter;
+  if (method === "pix" && boundMercadoPagoPixAdapter) return boundMercadoPagoPixAdapter;
   if (method === "pix" && boundStripePixAdapter) return boundStripePixAdapter;
   return new NotConfiguredPaymentAdapter(method);
 }
