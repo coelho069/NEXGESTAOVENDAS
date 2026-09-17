@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getPdvLocalDbForUser } from "@/lib/offline/pdv-local-db";
+import { getSessionPdvLocalDb } from "@/lib/offline/session-pdv-db";
 import { pdvFixturesEnabled, writeFixtureInventory } from "@/lib/pdv/fixtures";
 import { useSessionStore } from "@/stores/session-store";
 import { inventoryQuantityToNumber } from "@/lib/domain/quantity";
@@ -21,7 +21,7 @@ export function useProjectedStock(storeId: string | null, epoch = 0) {
     }
     setLoading(true);
     try {
-      const db = getPdvLocalDbForUser(userId);
+      const db = getSessionPdvLocalDb();
       if (pdvFixturesEnabled()) {
         const stock = await writeFixtureInventory(db, storeId);
         setBalances(stock);

@@ -45,7 +45,8 @@ export function usePdvSale(
   role: MemberRole,
   hasStoreContext: boolean,
   cashSessionId: string | null,
-  terminalId: string
+  terminalId: string,
+  stockLoading = false
 ) {
   const catalog = useMemo(() => products.map(toCatalogProduct), [products]);
   const { storeId, lines, discount, customerId, customerName, setCustomer, removeLine } = useCartStore();
@@ -83,6 +84,10 @@ export function usePdvSale(
   const addProduct = useCallback(
     (product: ProductRow) => {
       if (checkoutInFlight) return;
+      if (stockLoading) {
+        report("Carregando estoque local…");
+        return;
+      }
       if (!hasStoreContext) {
         report("Selecione uma loja autorizada antes de adicionar produtos.");
         return;
@@ -97,7 +102,7 @@ export function usePdvSale(
       setDraftReason(null);
       report(null);
     },
-    [checkoutInFlight, hasStoreContext, report, setDraftReason, setSelectedProductId, stock]
+    [checkoutInFlight, hasStoreContext, report, setDraftReason, setSelectedProductId, stock, stockLoading]
   );
 
   const scanCode = useCallback(
@@ -116,6 +121,10 @@ export function usePdvSale(
   const changeQty = useCallback(
     (productId: string, quantity: number) => {
       if (checkoutInFlight) return;
+      if (stockLoading) {
+        report("Carregando estoque local…");
+        return;
+      }
       const product = catalog.find((item) => item.productId === productId);
       const result = setQuantity(saleSnapshot(), productId, quantity, stock, product);
       if (!result.ok) {
@@ -125,7 +134,7 @@ export function usePdvSale(
       applyState(result.state);
       report(null);
     },
-    [catalog, checkoutInFlight, report, stock]
+    [catalog, checkoutInFlight, report, stock, stockLoading]
   );
 
   const removeCartLine = useCallback(
