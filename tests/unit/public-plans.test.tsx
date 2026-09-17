@@ -25,6 +25,18 @@ const samplePlan = {
   billingInterval: "monthly" as const,
 };
 
+const threeTierPlans = [
+  { ...samplePlan, id: "11111111-1111-4111-8111-111111111111", name: "Starter", amount: "49.90" },
+  {
+    ...samplePlan,
+    id: "22222222-2222-4222-8222-222222222222",
+    name: "Pro",
+    amount: "99.90",
+    description: "Plano intermediário.",
+  },
+  { ...samplePlan, id: "44444444-4444-4444-8444-444444444444", name: "Max", amount: "199.90" },
+];
+
 describe("public plans migration", () => {
   it("grants anon read of active plans only", () => {
     const sql = readFileSync(
@@ -159,14 +171,24 @@ describe("PlansSalesPage", () => {
 
     render(<PlansSalesPage plans={[samplePlan]} loadError={null} isAuthenticated={false} />);
 
-    expect(screen.getByRole("heading", { name: /PDV local-first/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /Pare de perder venda no caixa/i })
+    ).toBeInTheDocument();
+    expect(screen.getByText(/PDV offline-first, estoque e clientes/i)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Essencial" })).toBeInTheDocument();
     expect(screen.getByText(/R\$\s*99,90/)).toBeInTheDocument();
     expect(screen.getAllByText("Em breve").length).toBeGreaterThan(0);
-    expect(screen.getByRole("link", { name: "Entrar" })).toHaveAttribute("href", "/login");
+    expect(screen.getAllByRole("link", { name: "Entrar" }).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByRole("link", { name: "Entrar" })[0]).toHaveAttribute("href", "/login");
     expect(screen.getByRole("link", { name: "Abrir PDV" })).toHaveAttribute("href", "/pdv");
+    expect(screen.getByText(/Caixa lento/i)).toBeInTheDocument();
+    expect(screen.getByText(/StockMap/i)).toBeInTheDocument();
+    expect(screen.getByText("segundos")).toBeInTheDocument();
+    expect(screen.getByText("sync")).toBeInTheDocument();
     expect(screen.queryByText(/catálogo rápido/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/nenhuma loja/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Stripe/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Comprar/i)).not.toBeInTheDocument();
   });
 
   it("shows WhatsApp CTA when env is configured", () => {
@@ -174,10 +196,24 @@ describe("PlansSalesPage", () => {
 
     render(<PlansSalesPage plans={[samplePlan]} loadError={null} isAuthenticated={false} />);
 
-    expect(
-      screen.getByRole("link", { name: /Falar com vendas no WhatsApp/i })
-    ).toHaveAttribute("href", expect.stringContaining("https://wa.me/5511999999999"));
+    expect(screen.getByRole("link", { name: /Falar no WhatsApp/i })).toHaveAttribute(
+      "href",
+      expect.stringContaining("https://wa.me/5511999999999")
+    );
     expect(screen.getByRole("link", { name: /Contratar via WhatsApp/i })).toBeInTheDocument();
+    expect(screen.getByText(/Fale no WhatsApp — sem cartão na página/i)).toBeInTheDocument();
+  });
+
+  it("anchors the middle-priced plan as Crescimento with Mais Popular badge", () => {
+    delete process.env[ASSINATURAS_WHATSAPP_ENV];
+
+    render(<PlansSalesPage plans={threeTierPlans} loadError={null} isAuthenticated={false} />);
+
+    expect(screen.getByRole("heading", { name: "Essencial" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Crescimento" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Escala" })).toBeInTheDocument();
+    expect(screen.getByText("Mais Popular")).toBeInTheDocument();
+    expect(screen.getByText(/Hotkeys de caixa \(F12 finalizar\)/i)).toBeInTheDocument();
   });
 
   it("shows empty state without crashing", () => {
