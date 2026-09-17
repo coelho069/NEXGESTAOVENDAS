@@ -4,6 +4,11 @@ import type { StripePixQr } from "@/lib/domain/stripe-pix";
 
 export const MERCADOPAGO_CURRENCY = "BRL" as const;
 export const MERCADOPAGO_API_BASE = "https://api.mercadopago.com" as const;
+export const MERCADOPAGO_ORDER_REF_PATTERN = /^ORD[A-Z0-9]+$/;
+
+export function isMercadoPagoOrderRef(providerRef: string): boolean {
+  return MERCADOPAGO_ORDER_REF_PATTERN.test(providerRef);
+}
 
 export const MERCADOPAGO_WEBHOOK_EVENT_ALLOWLIST = [
   "order.created",

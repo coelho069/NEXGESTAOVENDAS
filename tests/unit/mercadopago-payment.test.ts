@@ -12,6 +12,7 @@ import {
 import { resolvePaymentAttempt } from "@/lib/domain/payment-attempt";
 import {
   isMercadoPagoCheckoutEnabledEnv,
+  isMercadoPagoOrderRef,
   isMercadoPagoWebhookEventAllowed,
   parseMercadoPagoOrderResponse,
   parseMercadoPagoWebhookNotification,
@@ -21,16 +22,63 @@ import {
 } from "@/lib/domain/mercadopago";
 import { verifyMercadoPagoWebhookSignature } from "@/lib/domain/mercadopago-webhook-signature";
 import {
-  applyMercadoPagoWebhookNotification,
+  applyMercadoPagoWebhookEvent,
+  executeMercadoPagoPixPayment,
+} from "@/lib/server/mercadopago-pix-payment";
+import {
   getMercadoPagoEnv,
   probeMercadoPagoPixHealth,
   resetMercadoPagoHealthCache,
-  resetMercadoPagoWebhookReplayCache,
+  resolveMercadoPagoPixPaymentAdapter,
 } from "@/lib/server/mercadopago";
+import { createAdminClient } from "@/lib/supabase/admin";
+import type { MercadoPagoPixPaymentInput } from "@/lib/validation/schemas";
+
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: vi.fn(),
+}));
+
+vi.mock("@/lib/server/mercadopago", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/server/mercadopago")>();
+  return {
+    ...actual,
+    probeMercadoPagoPixHealth: vi.fn(actual.probeMercadoPagoPixHealth),
+    resolveMercadoPagoPixPaymentAdapter: vi.fn(actual.resolveMercadoPagoPixPaymentAdapter),
+  };
+});
+
+const probeMercadoPagoPixHealthMock = vi.mocked(probeMercadoPagoPixHealth);
+const resolveMercadoPagoPixPaymentAdapterMock = vi.mocked(resolveMercadoPagoPixPaymentAdapter);
+
+const createAdminClientMock = vi.mocked(createAdminClient);
+
+const STORE = "11111111-1111-4111-8111-111111111111";
+const MUTATION = "22222222-2222-4222-8222-222222222222";
+const OPERATOR = "33333333-3333-4333-8333-333333333333";
+const SALE = "44444444-4444-4444-8444-444444444444";
+const MP_ORDER = "ORD01TEST123";
+
+function createInput(): MercadoPagoPixPaymentInput {
+  return {
+    action: "create",
+    store_id: STORE,
+    amount: "10.00",
+    client_mutation_id: MUTATION,
+    discount: "0.00",
+    items: [
+      {
+        product_id: "55555555-5555-4555-8555-555555555555",
+        quantity: 1,
+        unit_price: "10.00",
+        discount: "0.00",
+      },
+    ],
+  };
+}
 
 function orderSnapshot(overrides: Partial<MercadoPagoOrderSnapshot> = {}): MercadoPagoOrderSnapshot {
   return {
-    id: "ORD01TEST123",
+    id: MP_ORDER,
     status: "action_required",
     statusDetail: "waiting_transfer",
     amount: "10.00",
@@ -52,6 +100,14 @@ function fakeGateway(overrides: Partial<MercadoPagoPixGateway> = {}): MercadoPag
     retrieve: async () => orderSnapshot({ status: "processed", statusDetail: "accredited" }),
     ...overrides,
   };
+}
+
+function mockAdminRpc(
+  impl: (name: string, args?: unknown) => { data: unknown; error: unknown }
+) {
+  const rpc = vi.fn(async (name: string, args?: unknown) => impl(name, args));
+  createAdminClientMock.mockReturnValue({ rpc } as never);
+  return rpc;
 }
 
 function signMercadoPagoWebhook(input: {
@@ -121,27 +177,66 @@ describe("Mercado Pago PIX adapter", () => {
     bindMercadoPagoPixAdapter(mpAdapter);
 
     const authorized = await getPaymentAdapter("pix").authorize("10.00", {
-      clientMutationId: "11111111-1111-4111-8111-111111111111",
+      clientMutationId: MUTATION,
     });
     expect(authorized.status).toBe("pending");
-    expect(authorized.providerReference).toBe("ORD01TEST123");
+    expect(authorized.providerReference).toBe(MP_ORDER);
     expect(authorized.message).toContain("Venda não confirmada");
   });
 
   it("maps processed order to captured on reconcile", async () => {
     const adapter = new MercadoPagoPixPaymentAdapter(fakeGateway());
-    const reconciled = await adapter.reconcile("10.00", { providerReference: "ORD01TEST123" });
+    const reconciled = await adapter.reconcile("10.00", { providerReference: MP_ORDER });
     expect(reconciled.status).toBe("captured");
   });
 
   it("marks amount mismatch as unknown on reconcile", () => {
     const decision = reconcileMercadoPagoOrder({
-      expectedProviderRef: "ORD01TEST123",
+      expectedProviderRef: MP_ORDER,
       expectedAmount: "10.00",
       snapshot: orderSnapshot({ amount: "99.00", status: "processed", statusDetail: "accredited" }),
     });
     expect(decision.status).toBe("unknown");
     expect(decision.mismatch).toBe(true);
+  });
+
+  it("recognizes Mercado Pago order refs", () => {
+    expect(isMercadoPagoOrderRef(MP_ORDER)).toBe(true);
+    expect(isMercadoPagoOrderRef("pi_test_123")).toBe(false);
+  });
+});
+
+describe("Mercado Pago authorize persists provider_ref", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    bindMercadoPagoPixAdapter(null);
+    probeMercadoPagoPixHealthMock.mockReset();
+    resolveMercadoPagoPixPaymentAdapterMock.mockReset();
+  });
+
+  it("registers pix_payment_intent and never calls process_pix_sale on create", async () => {
+    vi.stubEnv("MERCADOPAGO_CHECKOUT_ENABLED", "true");
+    vi.stubEnv("MERCADOPAGO_ACCESS_TOKEN", "APP_USR_test");
+    vi.stubEnv("MERCADOPAGO_WEBHOOK_SECRET", "mp_whsec_test");
+    const adapter = new MercadoPagoPixPaymentAdapter(fakeGateway());
+    bindMercadoPagoPixAdapter(adapter);
+    probeMercadoPagoPixHealthMock.mockResolvedValue({
+      ok: true,
+      configured: true,
+      testmode: true,
+      message: "ok",
+    });
+    resolveMercadoPagoPixPaymentAdapterMock.mockResolvedValue(adapter);
+
+    const rpc = vi.fn().mockResolvedValue({ data: {}, error: null });
+    const result = await executeMercadoPagoPixPayment({ rpc } as never, createInput(), OPERATOR);
+
+    expect(result.status).toBe("pending");
+    expect(result.sale_confirmed).toBe(false);
+    expect(result.providerReference).toBe(MP_ORDER);
+    const rpcNames = rpc.mock.calls.map((call) => call[0]);
+    expect(rpcNames).toContain("register_pix_payment_intent");
+    expect(rpcNames).not.toContain("process_pix_sale");
   });
 });
 
@@ -174,7 +269,7 @@ describe("Mercado Pago webhook signature fail-closed", () => {
     const ts = "1704908010";
     const xSignature = signMercadoPagoWebhook({
       secret,
-      dataId: "ORD01TEST123",
+      dataId: MP_ORDER,
       xRequestId: "req-1",
       ts,
     });
@@ -182,7 +277,7 @@ describe("Mercado Pago webhook signature fail-closed", () => {
       verifyMercadoPagoWebhookSignature({
         xSignature,
         xRequestId: "req-1",
-        dataId: "ORD01TEST123",
+        dataId: MP_ORDER,
         secret,
       })
     ).not.toThrow();
@@ -194,7 +289,7 @@ describe("Mercado Pago webhook route", () => {
     vi.unstubAllEnvs();
     vi.resetModules();
     resetMercadoPagoHealthCache();
-    resetMercadoPagoWebhookReplayCache();
+    createAdminClientMock.mockReset();
   });
 
   it("rejects unsigned webhooks with 400", async () => {
@@ -204,13 +299,13 @@ describe("Mercado Pago webhook route", () => {
 
     const { POST } = await import("@/app/api/payments/mercadopago/webhook/route");
     const response = await POST(
-      new Request("http://localhost/api/payments/mercadopago/webhook?data.id=ORD01TEST123", {
+      new Request(`http://localhost/api/payments/mercadopago/webhook?data.id=${MP_ORDER}`, {
         method: "POST",
         body: JSON.stringify({
           id: 12345,
           type: "order",
           action: "order.processed",
-          data: { id: "ORD01TEST123" },
+          data: { id: MP_ORDER },
         }),
       })
     );
@@ -218,26 +313,35 @@ describe("Mercado Pago webhook route", () => {
     await expect(response.json()).resolves.toMatchObject({ error: "mercadopago_webhook_unsigned" });
   });
 
-  it("accepts signed webhooks and parses fixtures", async () => {
+  it("accepts signed webhooks and confirms sale via durable RPCs", async () => {
     vi.stubEnv("MERCADOPAGO_CHECKOUT_ENABLED", "true");
     vi.stubEnv("MERCADOPAGO_ACCESS_TOKEN", "APP_USR_test");
     vi.stubEnv("MERCADOPAGO_WEBHOOK_SECRET", "mp_webhook_secret_test");
 
+    const rpc = mockAdminRpc((name) => {
+      if (name === "apply_pix_provider_event") {
+        return { data: { store_id: STORE, client_mutation_id: MUTATION, sale_id: null }, error: null };
+      }
+      if (name === "process_pix_sale") {
+        return { data: { sale_id: SALE, status: "confirmed" }, error: null };
+      }
+      return { data: null, error: null };
+    });
+
     const secret = "mp_webhook_secret_test";
     const ts = "1704908010";
     const xRequestId = "req-fixture-1";
-    const dataId = "ORD01TEST123";
-    const xSignature = signMercadoPagoWebhook({ secret, dataId, xRequestId, ts });
+    const xSignature = signMercadoPagoWebhook({ secret, dataId: MP_ORDER, xRequestId, ts });
     const body = {
       id: 12345,
       type: "order",
       action: "order.processed",
-      data: { id: dataId },
+      data: { id: MP_ORDER },
     };
 
     const { POST } = await import("@/app/api/payments/mercadopago/webhook/route");
     const response = await POST(
-      new Request(`http://localhost/api/payments/mercadopago/webhook?data.id=${dataId}`, {
+      new Request(`http://localhost/api/payments/mercadopago/webhook?data.id=${MP_ORDER}`, {
         method: "POST",
         headers: {
           "x-signature": xSignature,
@@ -252,16 +356,95 @@ describe("Mercado Pago webhook route", () => {
       ok: true,
       action: "order.processed",
       status: "captured",
-      provider_reference: dataId,
+      sale_confirmed: true,
+      sale_id: SALE,
     });
+    expect(rpc.mock.calls.map((call) => call[0])).toEqual([
+      "apply_pix_provider_event",
+      "process_pix_sale",
+    ]);
   });
 });
 
-describe("Mercado Pago webhook parsing and idempotency", () => {
+describe("Mercado Pago webhook durable idempotency", () => {
   afterEach(() => {
-    resetMercadoPagoWebhookReplayCache();
+    createAdminClientMock.mockReset();
   });
 
+  it("confirms sale only after order.processed + process_pix_sale", async () => {
+    const rpc = mockAdminRpc((name) => {
+      if (name === "apply_pix_provider_event") {
+        return { data: { store_id: STORE, client_mutation_id: MUTATION, sale_id: null }, error: null };
+      }
+      if (name === "process_pix_sale") {
+        return { data: { sale_id: SALE, status: "confirmed" }, error: null };
+      }
+      return { data: null, error: null };
+    });
+
+    const notification = parseMercadoPagoWebhookNotification({
+      id: 999,
+      type: "order",
+      action: "order.processed",
+      data: { id: MP_ORDER },
+    });
+    expect(notification).not.toBeNull();
+
+    const result = await applyMercadoPagoWebhookEvent(notification!);
+    expect(result.status).toBe("captured");
+    expect(result.sale_confirmed).toBe(true);
+    expect(result.sale_id).toBe(SALE);
+    expect(rpc.mock.calls.map((call) => call[0])).toEqual([
+      "apply_pix_provider_event",
+      "process_pix_sale",
+    ]);
+  });
+
+  it("returns replay from DB without double process_pix_sale", async () => {
+    const rpc = mockAdminRpc((name) => {
+      if (name === "apply_pix_provider_event") {
+        return {
+          data: {
+            store_id: STORE,
+            client_mutation_id: MUTATION,
+            sale_id: SALE,
+            replay: true,
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    const notification = parseMercadoPagoWebhookNotification({
+      id: 1000,
+      type: "order",
+      action: "order.processed",
+      data: { id: MP_ORDER },
+    })!;
+
+    const result = await applyMercadoPagoWebhookEvent(notification);
+    expect(result.replay).toBe(true);
+    expect(result.sale_confirmed).toBe(true);
+    expect(rpc.mock.calls.map((call) => call[0])).toEqual(["apply_pix_provider_event"]);
+  });
+
+  it("skips process_pix_sale when intent is unmatched", async () => {
+    mockAdminRpc(() => ({ data: { status: "captured" }, error: null }));
+
+    const result = await applyMercadoPagoWebhookEvent({
+      id: 1001,
+      type: "order",
+      action: "order.processed",
+      data: { id: MP_ORDER },
+    });
+
+    expect(result.status).toBe("unknown");
+    expect(result.sale_confirmed).toBe(false);
+  });
+});
+
+describe("Mercado Pago webhook parsing fixtures", () => {
   it("allowlists order webhook actions", () => {
     expect(isMercadoPagoWebhookEventAllowed("order.processed")).toBe(true);
     expect(isMercadoPagoWebhookEventAllowed("payment.created")).toBe(false);
@@ -292,20 +475,5 @@ describe("Mercado Pago webhook parsing and idempotency", () => {
     expect(snapshot?.id).toBe("ORD01HRYFWNYRE1MR1E60MW3X0T2P");
     expect(snapshot?.qr?.data).toContain("000201");
     expect(snapshot?.amount).toBe("50.00");
-  });
-
-  it("deduplicates webhook events idempotently", () => {
-    const notification = parseMercadoPagoWebhookNotification({
-      id: 999,
-      type: "order",
-      action: "order.processed",
-      data: { id: "ORD01TEST123" },
-    });
-    expect(notification).not.toBeNull();
-
-    const first = applyMercadoPagoWebhookNotification(notification!);
-    const second = applyMercadoPagoWebhookNotification(notification!);
-    expect(first.replay).not.toBe(true);
-    expect(second.replay).toBe(true);
   });
 });
