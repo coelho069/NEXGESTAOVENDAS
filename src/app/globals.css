@@ -52,37 +52,16 @@
   --space-card-lg: 1rem; /* 16px */
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0b1220;
-    --foreground: #e5e7eb;
-    --card: #111827;
-    --card-foreground: #e5e7eb;
-
-    --primary: #2563eb;
-    --primary-foreground: #ffffff;
-
-    --success: #059669;
-    --success-foreground: #ffffff;
-    --warning: #d97706;
-    --warning-foreground: #ffffff;
-    --destructive: #dc2626;
-    --destructive-foreground: #ffffff;
-
-    --muted-foreground: #9ca3af;
-    --border: #1f2937;
-    --input: #1f2937;
-    --ring: #2563eb;
-  }
-}
+/*
+ * Dark-mode token overrides are disabled until components adopt tokens
+ * instead of hardcoded bg-white / text-slate-* classes (PR #33 follow-up).
+ */
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply antialiased;
+    background: var(--background);
+    color: var(--foreground);
     font-family: inherit;
   }
 }
