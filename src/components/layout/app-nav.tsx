@@ -46,7 +46,7 @@ export function AppNav({
       {isPlatformAdmin ? (
         <Link
           href="/admin/assinaturas"
-          className="rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 font-medium text-violet-900"
+          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-medium"
         >
           Assinaturas
         </Link>

@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { ProductSearch } from "@/components/features/ProductSearch";
-import { getPlatformAdminAccess } from "@/lib/auth/admin";
 import { getAuthedContext } from "@/lib/auth/session";
 import { fixtureStoreOptions, pdvFixturesEnabled } from "@/lib/pdv/fixtures";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [auth, platformAdmin] = await Promise.all([getAuthedContext(), getPlatformAdminAccess()]);
+  const auth = await getAuthedContext();
   const fixtureMode = !auth && pdvFixturesEnabled();
   const stores = auth?.stores.map(({ id, name }) => ({ id, name })) ?? (fixtureMode ? fixtureStoreOptions() : []);
   const activeStoreQuery = auth?.storeId ? `?store=${encodeURIComponent(auth.storeId)}` : "";
@@ -47,14 +46,6 @@ export default async function HomePage() {
           >
             Dashboard
           </Link>
-          {platformAdmin ? (
-            <Link
-              href="/admin/assinaturas"
-              className="rounded-lg border border-violet-300 bg-violet-50 px-4 py-2 font-semibold text-violet-900"
-            >
-              Assinaturas
-            </Link>
-          ) : null}
         </div>
       </section>
 
