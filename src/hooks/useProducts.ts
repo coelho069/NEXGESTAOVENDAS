@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { shouldReloadCatalogOnAuthEvent } from "@/lib/auth/auth-events";
 import { fetchProducts } from "@/lib/catalog-api";
 import {
   catalogLoadCauseFromUnknown,
@@ -32,9 +33,13 @@ export function useProducts(options: UseProductsOptions = {}) {
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<"catalog" | "fixtures" | null>(null);
   const debouncedQuery = useDebouncedValue(query, debounceMs);
+  const hasProductsRef = useRef(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (loadOptions: { background?: boolean } = {}) => {
+    const background = loadOptions.background ?? false;
+    if (!background) {
+      setLoading(true);
+    }
 
     if (!storeId && !pdvFixturesEnabled()) {
       setProducts([]);
@@ -49,6 +54,7 @@ export function useProducts(options: UseProductsOptions = {}) {
       setProducts(nextProducts);
       setSource("catalog");
       setError(null);
+      hasProductsRef.current = nextProducts.length > 0;
     } catch (cause) {
       const resolved = resolveCatalogLoad({
         failed: true,
@@ -60,6 +66,7 @@ export function useProducts(options: UseProductsOptions = {}) {
       setProducts(resolved.products);
       setSource(resolved.products.length > 0 ? "fixtures" : null);
       setError(resolved.error);
+      hasProductsRef.current = resolved.products.length > 0;
     } finally {
       setLoading(false);
     }
@@ -78,8 +85,11 @@ export function useProducts(options: UseProductsOptions = {}) {
       return;
     }
 
-    const { data } = supabase.auth.onAuthStateChange(() => {
-      void load();
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (!shouldReloadCatalogOnAuthEvent(event)) {
+        return;
+      }
+      void load({ background: hasProductsRef.current });
     });
 
     return () => {
