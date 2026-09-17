@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { AuthChangeEvent } from "@supabase/supabase-js";
 import { filterActiveProducts, type ProductRow } from "@/lib/domain/product";
 import {
   catalogLoadCauseFromUnknown,
@@ -9,6 +10,24 @@ import {
 } from "@/lib/domain/catalog-load";
 import { fixtureProducts, pdvFixturesEnabled } from "@/lib/pdv/fixtures";
 import { createClient } from "@/lib/supabase/client";
+
+export function shouldReloadCatalogOnAuthEvent(event: AuthChangeEvent): boolean {
+  switch (event) {
+    case "SIGNED_IN":
+    case "SIGNED_OUT":
+      return true;
+    case "INITIAL_SESSION":
+    case "TOKEN_REFRESHED":
+    case "USER_UPDATED":
+    case "PASSWORD_RECOVERY":
+    case "MFA_CHALLENGE_VERIFIED":
+      return false;
+    default: {
+      const _exhaustive: never = event;
+      return _exhaustive;
+    }
+  }
+}
 
 function applyCatalogResult(
   failed: boolean,
@@ -25,6 +44,10 @@ function applyCatalogResult(
   return resolved;
 }
 
+type LoadOptions = {
+  background?: boolean;
+};
+
 export function useProducts(options: { storeId?: string | null } = {}) {
   const { storeId = null } = options;
   const [products, setProducts] = useState<ProductRow[]>(() =>
@@ -33,13 +56,27 @@ export function useProducts(options: { storeId?: string | null } = {}) {
   const [loading, setLoading] = useState(() => !pdvFixturesEnabled());
   const [error, setError] = useState<string | null>(null);
   const [fromCatalog, setFromCatalog] = useState(false);
+  const loadGenerationRef = useRef(0);
+  const hasProductsRef = useRef(
+    pdvFixturesEnabled() ? filterActiveProducts(fixtureProducts()).length > 0 : false
+  );
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (loadOptions: LoadOptions = {}) => {
+    const generation = ++loadGenerationRef.current;
+    const background = loadOptions.background ?? false;
+
+    if (!background) {
+      setLoading(true);
+    }
+
     if (!storeId && !pdvFixturesEnabled()) {
+      if (generation !== loadGenerationRef.current) {
+        return;
+      }
       setProducts([]);
       setFromCatalog(false);
       setError("Selecione uma loja autorizada");
+      hasProductsRef.current = false;
       setLoading(false);
       return;
     }
@@ -51,6 +88,10 @@ export function useProducts(options: { storeId?: string | null } = {}) {
         .select("id, sku, name, unit_price, barcode, category_id, is_active")
         .order("name");
 
+      if (generation !== loadGenerationRef.current) {
+        return;
+      }
+
       const resolved = applyCatalogResult(
         Boolean(queryError) || !data,
         (data as ProductRow[] | null) ?? null,
@@ -59,13 +100,20 @@ export function useProducts(options: { storeId?: string | null } = {}) {
       setProducts(resolved.products);
       setFromCatalog(false);
       setError(resolved.error);
+      hasProductsRef.current = resolved.products.length > 0;
     } catch (cause) {
+      if (generation !== loadGenerationRef.current) {
+        return;
+      }
       const resolved = applyCatalogResult(true, null, catalogLoadCauseFromUnknown(cause));
       setProducts(resolved.products);
       setFromCatalog(false);
       setError(resolved.error);
+      hasProductsRef.current = resolved.products.length > 0;
     } finally {
-      setLoading(false);
+      if (generation === loadGenerationRef.current) {
+        setLoading(false);
+      }
     }
   }, [storeId]);
 
@@ -82,8 +130,11 @@ export function useProducts(options: { storeId?: string | null } = {}) {
       return;
     }
 
-    const { data } = supabase.auth.onAuthStateChange(() => {
-      void load();
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (!shouldReloadCatalogOnAuthEvent(event)) {
+        return;
+      }
+      void load({ background: hasProductsRef.current });
     });
 
     return () => {
