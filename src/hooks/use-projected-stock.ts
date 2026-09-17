@@ -19,6 +19,9 @@ export function useProjectedStock(storeId: string | null, epoch = 0) {
       setLoading(false);
       return;
     }
+    if (!userId && !pdvFixturesEnabled()) {
+      return;
+    }
     setLoading(true);
     try {
       const db = getPdvLocalDbForUser(userId);
@@ -50,5 +53,5 @@ export function useProjectedStock(storeId: string | null, epoch = 0) {
     return () => window.removeEventListener("pdv:inventory-sync", handleInventorySync);
   }, [reload, epoch]);
 
-  return { balances, loading: Boolean(storeId) && (loading || loadedStoreId !== storeId), reload };
+  return { balances, loading: Boolean(storeId) && Boolean(userId || pdvFixturesEnabled()) && (loading || loadedStoreId !== storeId), reload };
 }
