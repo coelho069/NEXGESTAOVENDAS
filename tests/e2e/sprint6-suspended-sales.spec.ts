@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { payCashNoChange } from "./pdv-cash-helpers";
 
 const STORE_ID = "22222222-2222-4222-8222-222222222201";
 
@@ -30,8 +31,7 @@ test("suspende, recupera após reload e conclui o checkout", async ({ page }) =>
 
   await expect(page.getByTestId("cart-line-BEV-001")).toBeVisible();
   await expect(page.getByTestId("store-context-message")).toContainText("recuperada");
-  await page.getByTestId("open-payment").click();
-  await page.getByTestId("pdv-payment-sheet").getByTestId("checkout-cash").click();
+  await payCashNoChange(page);
   await expect(page.getByTestId("receipt")).toBeVisible();
 });
 
