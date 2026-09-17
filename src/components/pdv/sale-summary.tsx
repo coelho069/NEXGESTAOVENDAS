@@ -94,87 +94,94 @@ export function SaleSummary({
   return (
     <aside
       data-testid="pdv-summary"
-      className="flex h-full min-h-0 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+      className="flex h-full max-h-[calc(100vh-8rem)] min-h-0 flex-col rounded-2xl border border-slate-200 bg-white shadow-sm lg:sticky lg:top-4"
     >
-      <h2 className="text-lg font-semibold text-slate-900">Resumo da venda</h2>
-      <div className="mt-4 space-y-2 text-sm">
-        <div className="flex justify-between text-slate-600">
-          <span>Itens</span>
-          <span>{totals.itemCount}</span>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <h2 className="text-lg font-semibold text-slate-900">Resumo da venda</h2>
+        <div className="mt-4 space-y-2 text-sm tabular-nums">
+          <div className="flex justify-between text-slate-600">
+            <span>Itens</span>
+            <span>{totals.itemCount}</span>
+          </div>
+          <div className="flex justify-between text-slate-600">
+            <span>Subtotal</span>
+            <span>{formatBRL(totals.subtotal)}</span>
+          </div>
+          <div className="flex justify-between text-slate-600">
+            <span>Desconto</span>
+            <span>{formatBRL(discountLabel)}</span>
+          </div>
         </div>
-        <div className="flex justify-between text-slate-600">
-          <span>Subtotal</span>
-          <span>{formatBRL(totals.subtotal)}</span>
+        <div className="mt-4 flex items-end justify-between gap-3 border-t border-slate-100 pt-4">
+          <span className="text-base font-semibold text-slate-700">Total</span>
+          <span
+            data-testid="sale-total"
+            className="text-[clamp(1.75rem,4vw,2.25rem)] font-bold leading-none text-slate-900 tabular-nums"
+          >
+            {formatBRL(totals.total)}
+          </span>
         </div>
-        <div className="flex justify-between text-slate-600">
-          <span>Desconto</span>
-          <span>{formatBRL(discountLabel)}</span>
+        <div className="mt-4 space-y-2">
+          <button
+            type="button"
+            data-testid="open-customer"
+            onClick={onCustomer}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm transition hover:border-indigo-300"
+          >
+            Cliente (F6): {customerName ?? (customerRequired ? "Obrigatório" : "Não informado")}
+          </button>
+          <button
+            type="button"
+            data-testid="open-discount"
+            onClick={onDiscount}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm transition hover:border-indigo-300"
+          >
+            Desconto (F4)
+          </button>
         </div>
-        <div className="flex justify-between text-lg font-bold text-slate-900">
-          <span>Total</span>
-          <span data-testid="sale-total">{formatBRL(totals.total)}</span>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            data-testid="suspend-sale"
+            disabled={suspendDisabled}
+            onClick={onSuspend}
+            className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Suspender venda
+          </button>
+          <button
+            type="button"
+            data-testid="open-suspended-sales"
+            onClick={onOpenSuspended}
+            className="rounded-xl border border-indigo-200 px-3 py-2 text-sm font-semibold text-indigo-700 hover:border-indigo-400"
+          >
+            Vendas suspensas
+          </button>
+          <button
+            type="button"
+            data-testid="open-sales-history"
+            onClick={onOpenSalesHistory}
+            className="col-span-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-indigo-300"
+          >
+            Consultar vendas
+          </button>
         </div>
+        {!online ? (
+          <p data-testid="suspend-offline-message" className="mt-2 text-xs text-amber-700">
+            Suspender venda exige conexão. O carrinho atual será preservado.
+          </p>
+        ) : null}
       </div>
-      <div className="mt-4 space-y-2">
-        <button
-          type="button"
-          data-testid="open-customer"
-          onClick={onCustomer}
-          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm transition hover:border-indigo-300"
-        >
-          Cliente (F4): {customerName ?? (customerRequired ? "Obrigatório" : "Não informado")}
-        </button>
-        <button
-          type="button"
-          data-testid="open-discount"
-          onClick={onDiscount}
-          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm transition hover:border-indigo-300"
-        >
-          Desconto (F6)
-        </button>
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          data-testid="suspend-sale"
-          disabled={suspendDisabled}
-          onClick={onSuspend}
-          className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Suspender venda
-        </button>
-        <button
-          type="button"
-          data-testid="open-suspended-sales"
-          onClick={onOpenSuspended}
-          className="rounded-xl border border-indigo-200 px-3 py-2 text-sm font-semibold text-indigo-700 hover:border-indigo-400"
-        >
-          Vendas suspensas
-        </button>
-        <button
-          type="button"
-          data-testid="open-sales-history"
-          onClick={onOpenSalesHistory}
-          className="col-span-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-indigo-300"
-        >
-          Consultar vendas
-        </button>
-      </div>
-      {!online ? (
-        <p data-testid="suspend-offline-message" className="mt-2 text-xs text-amber-700">
-          Suspender venda exige conexão. O carrinho atual será preservado.
-        </p>
-      ) : null}
-      <div className="mt-auto border-t border-slate-100 pt-4">
+      <div className="shrink-0 border-t border-slate-100 bg-white p-4">
         <button
           type="button"
           data-testid="open-payment"
           disabled={checkoutDisabled}
           onClick={onOpenPayment}
-          className="flex w-full items-center justify-between rounded-2xl bg-indigo-600 px-4 py-4 text-lg font-bold text-white shadow-lg shadow-indigo-100 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+          className="flex w-full items-center justify-between rounded-2xl bg-success px-4 py-4 text-lg font-bold text-success-foreground shadow-lg shadow-emerald-100 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none"
         >
-          <span>Finalizar venda</span>
-          <span>{formatBRL(totals.total)}</span>
+          <span>Finalizar venda (F12)</span>
+          <span className="tabular-nums">{formatBRL(totals.total)}</span>
         </button>
       </div>
     </aside>

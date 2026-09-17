@@ -2,9 +2,13 @@ export type PdvShortcut =
   | "search"
   | "customer"
   | "discount"
-  | "payment"
-  | "receipt"
+  | "payCash"
+  | "payCard"
+  | "payPix"
+  | "finalize"
+  | "salesHistory"
   | "cancel"
+  | "removeLine"
   | "qtyInc"
   | "qtyDec";
 
@@ -29,21 +33,29 @@ export function matchPdvShortcut(event: KeyLike): PdvShortcut | null {
   const mod = event.ctrlKey || event.metaKey;
 
   if (mod && (key === "k" || key === "K")) return "search";
+  if (mod && (key === "h" || key === "H")) return "salesHistory";
   if (event.altKey) return null;
 
   switch (key) {
     case "F2":
       return "search";
     case "F4":
-      return "customer";
-    case "F6":
       return "discount";
+    case "F6":
+      return "customer";
     case "F8":
-      return "payment";
+      return "payCash";
     case "F9":
-      return "receipt";
+      return "payCard";
+    case "F10":
+      return "payPix";
+    case "F12":
+      return "finalize";
     case "Escape":
       return "cancel";
+    case "Delete":
+    case "Backspace":
+      return "removeLine";
     case "+":
     case "=":
       return "qtyInc";
@@ -55,12 +67,14 @@ export function matchPdvShortcut(event: KeyLike): PdvShortcut | null {
   }
 }
 
+const MODAL_ALLOWED_SHORTCUTS = new Set<PdvShortcut>(["cancel", "payCash", "payCard", "payPix"]);
+
 export function shouldHandleShortcut(
   shortcut: PdvShortcut,
   target: EventTarget | null,
   modalOpen = false
 ): boolean {
-  if (modalOpen && shortcut !== "cancel") return false;
+  if (modalOpen && !MODAL_ALLOWED_SHORTCUTS.has(shortcut)) return false;
   const editable = isEditableTarget(target);
   const search = isPdvSearchTarget(target);
 
@@ -68,7 +82,7 @@ export function shouldHandleShortcut(
   if (shortcut === "search") return true;
   if (editable && !search) return false;
   if (search) return false;
-  if (shortcut === "qtyInc" || shortcut === "qtyDec") {
+  if (shortcut === "qtyInc" || shortcut === "qtyDec" || shortcut === "removeLine") {
     return !editable;
   }
   return true;

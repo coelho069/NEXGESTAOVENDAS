@@ -10,6 +10,7 @@ import { PixQrSheet } from "@/components/pdv/pix-qr-sheet";
 import { CustomerDialog } from "@/components/pdv/customer-dialog";
 import { DiscountDialog } from "@/components/pdv/discount-dialog";
 import { ReceiptDialog } from "@/components/pdv/receipt-dialog";
+import { PdvHotkeysBar } from "@/components/pdv/pdv-hotkeys-bar";
 import { ConflictBanner } from "@/components/pdv/conflict-banner";
 import { SyncStatusBadge } from "@/components/pdv/sync-status-badge";
 import { SuspendedSalesPanel } from "@/components/pdv/suspended-sales-panel";
@@ -216,38 +217,6 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     stores,
   ]);
 
-  useHidScanner(sale.scanCode, true, openPanel !== "none");
-
-  usePdvShortcuts({
-    search: () => {
-      setOpenPanel("none");
-      focusPdvSearch();
-    },
-    customer: () => setOpenPanel("customer"),
-    discount: () => {
-      sale.setDiscountDraft(sale.discount);
-      setOpenPanel("discount");
-    },
-    payment: () => {
-      setOpenPanel("payment");
-      document.querySelector<HTMLButtonElement>("[data-testid=checkout-cash]")?.focus();
-    },
-    receipt: () => {
-      if (lastReceipt) setOpenPanel("receipt");
-    },
-    cancel: () => setOpenPanel("none"),
-    qtyInc: () => {
-      const id = sale.selectedProductId ?? sale.lines.at(-1)?.productId;
-      const line = sale.lines.find((item) => item.productId === id);
-      if (line) sale.changeQty(line.productId, line.quantity + 1);
-    },
-    qtyDec: () => {
-      const id = sale.selectedProductId ?? sale.lines.at(-1)?.productId;
-      const line = sale.lines.find((item) => item.productId === id);
-      if (line) sale.changeQty(line.productId, line.quantity - 1);
-    },
-  }, openPanel !== "none");
-
   const checkoutDisabled =
     !hasStoreContext ||
     sessionEnded ||
@@ -259,11 +228,81 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     Object.keys(balances).length === 0 ||
     !cash.canSell;
 
+  useHidScanner(
+    sale.scanCode,
+    true,
+    openPanel !== "none" || showSuspendedSales || showSalesHistory || showSaleReturn
+  );
+
+  const modalOpen =
+    openPanel !== "none" || showSuspendedSales || showSalesHistory || showSaleReturn;
+
+  const closeAllPanels = () => {
+    setOpenPanel("none");
+    setShowSuspendedSales(false);
+    setShowSalesHistory(false);
+    setShowSaleReturn(false);
+  };
+
+  const openPaymentSheet = () => {
+    if (checkoutDisabled) return;
+    setOpenPanel("payment");
+  };
+
+  const triggerPaymentMethod = (testId: "checkout-cash" | "checkout-card" | "checkout-pix") => {
+    if (checkoutDisabled) return;
+    setOpenPanel("payment");
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLButtonElement>(`[data-testid=${testId}]`)?.click();
+    });
+  };
+
+  usePdvShortcuts({
+    search: () => {
+      closeAllPanels();
+      focusPdvSearch();
+    },
+    customer: () => setOpenPanel("customer"),
+    discount: () => {
+      sale.setDiscountDraft(sale.discount);
+      setOpenPanel("discount");
+    },
+    finalize: openPaymentSheet,
+    payCash: () => triggerPaymentMethod("checkout-cash"),
+    payCard: () => {
+      if (!cardSelectable) return;
+      triggerPaymentMethod("checkout-card");
+    },
+    payPix: () => {
+      // Fail-closed: PIX remains disabled until explicitly configured.
+      return;
+    },
+    salesHistory: () => {
+      closeAllPanels();
+      openSalesHistory();
+    },
+    cancel: closeAllPanels,
+    removeLine: () => {
+      const id = sale.selectedProductId ?? sale.lines.at(-1)?.productId;
+      if (id) sale.removeLine(id);
+    },
+    qtyInc: () => {
+      const id = sale.selectedProductId ?? sale.lines.at(-1)?.productId;
+      const line = sale.lines.find((item) => item.productId === id);
+      if (line) sale.changeQty(line.productId, line.quantity + 1);
+    },
+    qtyDec: () => {
+      const id = sale.selectedProductId ?? sale.lines.at(-1)?.productId;
+      const line = sale.lines.find((item) => item.productId === id);
+      if (line) sale.changeQty(line.productId, line.quantity - 1);
+    },
+  }, modalOpen);
+
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-900">
       <PdvSidebar storeId={storeId} onOpenSalesHistory={openSalesHistory} />
-      <div className="min-w-0 flex-1 overflow-hidden">
-        <div className="mx-auto flex min-h-screen max-w-[1600px] flex-col gap-4 p-4 lg:p-6">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col gap-4 overflow-y-auto p-4 lg:p-6">
           <header className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 font-bold text-white lg:hidden">
@@ -534,6 +573,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             onClose={() => setShowSaleReturn(false)}
           />
         </div>
+        <PdvHotkeysBar />
       </div>
     </div>
   );

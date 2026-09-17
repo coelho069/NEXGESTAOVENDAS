@@ -26,8 +26,14 @@ export function ProductSearch({
   stock,
   cartQty,
 }: ProductSearchProps) {
-  const debouncedQuery = useDebouncedValue(query, 300);
+  const debouncedQuery = useDebouncedValue(query, 150);
   const filtered = useMemo(() => searchProducts(products, debouncedQuery), [products, debouncedQuery]);
+
+  const pickFirstResult = () => {
+    const match = findProductByScan(products.map(toCatalogProduct), query);
+    const row = match ? products.find((item) => item.id === match.productId) : filtered[0];
+    if (row) onPick(row);
+  };
 
   return (
     <section
@@ -37,9 +43,18 @@ export function ProductSearch({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Produtos</h2>
-          <p className="text-xs text-slate-500">F2 / Ctrl+K · scanner HID adiciona sem limpar o carrinho</p>
+          <p className="text-xs text-slate-500">F2 · Enter adiciona o 1º resultado · scanner HID</p>
         </div>
-        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-500">Catálogo</span>
+        {loading ? (
+          <span
+            data-testid="pdv-search-loading"
+            className="rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700"
+          >
+            Atualizando…
+          </span>
+        ) : (
+          <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-500">Catálogo</span>
+        )}
       </div>
       <div className="relative mt-3">
         <Search
@@ -57,18 +72,12 @@ export function ProductSearch({
           onKeyDown={(event) => {
             if (event.key !== "Enter") return;
             event.preventDefault();
-            const match = findProductByScan(products.map(toCatalogProduct), query);
-            const row = match ? products.find((item) => item.id === match.productId) : filtered[0];
-            if (row) onPick(row);
+            pickFirstResult();
           }}
         />
       </div>
       <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
-        {loading ? (
-          <p className="text-slate-500">Carregando produtos...</p>
-        ) : (
-          <ProductGrid products={filtered} onAdd={onPick} stock={stock} cartQty={cartQty} />
-        )}
+        <ProductGrid products={filtered} onAdd={onPick} stock={stock} cartQty={cartQty} />
       </div>
     </section>
   );
