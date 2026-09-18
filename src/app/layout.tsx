@@ -9,8 +9,16 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Nex Gestão Vendas — Planos PDV",
-  description: "Planos de assinatura do PDV local-first Nex Gestão Vendas para varejo brasileiro.",
+  title: "Nex Gestão Vendas | Sistema de Gestão, Vendas e Estoque",
+  description:
+    "PDV local-first, inventário auditado e dashboard de métricas para varejo brasileiro. Controle vendas, estoque e resultados em um só lugar.",
+  openGraph: {
+    title: "Nex Gestão Vendas | Sistema de Gestão, Vendas e Estoque",
+    description:
+      "PDV local-first, inventário auditado e dashboard de métricas para varejo brasileiro. Controle vendas, estoque e resultados em um só lugar.",
+    locale: "pt_BR",
+    type: "website",
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
