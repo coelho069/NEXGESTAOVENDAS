@@ -1,20 +1,19 @@
 import Link from "next/link";
-import { Check, MessageCircle, Minus } from "lucide-react";
+import { Check, MessageCircle } from "lucide-react";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
 import {
   BENEFITS,
-  COMPARISON_CRITERIA,
   DEMO_MOCKS,
   FAQ_ITEMS,
   FEATURES,
   HERO,
   HOW_IT_WORKS_STEPS,
   NAV_LINKS,
+  PLANS_PARITY_NOTE,
   PROBLEM_INTRO,
   PROBLEM_ITEMS,
+  SHARED_PLAN_FEATURES,
   SOLUTION_INTRO,
-  TIER_COMPARISON,
-  TIER_FALLBACK_FEATURES,
 } from "@/components/marketing/marketing-content";
 import { MarketingDemoMock, MarketingHeroVisual } from "@/components/marketing/marketing-visual-mocks";
 import { SubscribePlanButton } from "@/components/marketing/subscribe-plan-button";
@@ -28,8 +27,6 @@ import { formatBRL } from "@/lib/money";
 
 const THIN_DESCRIPTION_MAX_LENGTH = 40;
 
-type TierPosition = "entry" | "middle" | "enterprise";
-
 function parsePlanAmount(amount: string): number {
   const normalized = amount.replace(",", ".");
   const parsed = Number.parseFloat(normalized);
@@ -40,28 +37,11 @@ function sortPlansByPrice(plans: PublicPlanRecord[]): PublicPlanRecord[] {
   return [...plans].sort((left, right) => parsePlanAmount(left.amount) - parsePlanAmount(right.amount));
 }
 
-function resolveTierMeta(
-  index: number,
-  total: number
-): { position: TierPosition | null; isPopular: boolean } {
-  if (total === 1) {
-    return { position: "entry", isPopular: false };
+function resolvePlanHighlight(index: number, total: number): { isPopular: boolean } {
+  if (total >= 3 && index === Math.floor(total / 2)) {
+    return { isPopular: true };
   }
-  if (total === 2) {
-    return index === 0
-      ? { position: "entry", isPopular: false }
-      : { position: "enterprise", isPopular: false };
-  }
-  if (index === 0) {
-    return { position: "entry", isPopular: false };
-  }
-  if (index === total - 1) {
-    return { position: "enterprise", isPopular: false };
-  }
-  if (index === Math.floor(total / 2)) {
-    return { position: "middle", isPopular: true };
-  }
-  return { position: null, isPopular: false };
+  return { isPopular: false };
 }
 
 function isThinDescription(description: string): boolean {
@@ -111,29 +91,29 @@ function FeatureList({ features }: { features: readonly string[] }) {
 
 function PlanCard({
   plan,
-  tierMeta,
+  isPopular,
   whatsAppConfigured,
   checkoutEnabled,
   isAuthenticated,
 }: {
   plan: PublicPlanRecord;
-  tierMeta: ReturnType<typeof resolveTierMeta>;
+  isPopular: boolean;
   whatsAppConfigured: boolean;
   checkoutEnabled: boolean;
   isAuthenticated: boolean;
 }) {
   const planWhatsAppUrl = getAssinaturasWhatsAppUrl(plan.name);
-  const showTierFeatures = tierMeta.position !== null && isThinDescription(plan.description);
+  const showSharedFeatures = isThinDescription(plan.description);
 
   return (
     <article
       className={`relative flex h-full flex-col rounded-[var(--radius-card)] border bg-[var(--card)] p-6 shadow-sm ${
-        tierMeta.isPopular
+        isPopular
           ? "z-10 scale-[1.02] border-[var(--primary)] shadow-md ring-1 ring-[var(--primary)]/30 md:scale-[1.03]"
           : "border-[var(--border)]"
       }`}
     >
-      {tierMeta.isPopular ? (
+      {isPopular ? (
         <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[var(--primary)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--primary-foreground)]">
           Mais Popular
         </span>
@@ -142,8 +122,8 @@ function PlanCard({
       <p className="mt-2 text-2xl font-bold tabular-nums text-[var(--primary)]">
         {formatPlanPrice(plan.amount, plan.billingInterval)}
       </p>
-      {showTierFeatures && tierMeta.position ? (
-        <FeatureList features={TIER_FALLBACK_FEATURES[tierMeta.position]} />
+      {showSharedFeatures ? (
+        <FeatureList features={SHARED_PLAN_FEATURES} />
       ) : plan.description ? (
         <p className="mt-4 flex-1 text-sm leading-relaxed text-[var(--muted-foreground)]">{plan.description}</p>
       ) : (
@@ -161,71 +141,6 @@ function PlanCard({
         ) : null}
       </div>
     </article>
-  );
-}
-
-function ComparisonCell({ included }: { included: boolean }) {
-  if (included) {
-    return (
-      <span className="inline-flex items-center justify-center text-[var(--success)]" aria-label="Incluído">
-        <Check size={18} aria-hidden="true" />
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center justify-center text-[var(--muted-foreground)]" aria-label="Não incluído">
-      <Minus size={18} aria-hidden="true" />
-    </span>
-  );
-}
-
-function PlansComparisonTable({ sortedPlans }: { sortedPlans: PublicPlanRecord[] }) {
-  if (sortedPlans.length < 2) {
-    return null;
-  }
-
-  const tierColumns = sortedPlans.map((plan, index) => ({
-    plan,
-    meta: resolveTierMeta(index, sortedPlans.length),
-  }));
-
-  return (
-    <div className="overflow-x-auto rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)]">
-      <table className="w-full min-w-[640px] text-left text-sm">
-        <caption className="sr-only">Comparação de planos Nex Gestão Vendas</caption>
-        <thead>
-          <tr className="border-b border-[var(--border)]">
-            <th scope="col" className="px-4 py-3 font-semibold text-[var(--foreground)]">
-              Recurso
-            </th>
-            {tierColumns.map(({ plan }) => (
-              <th key={plan.id} scope="col" className="px-4 py-3 text-center font-semibold text-[var(--foreground)]">
-                {plan.name}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {COMPARISON_CRITERIA.map((criterion) => (
-            <tr key={criterion.key} className="border-b border-[var(--border)] last:border-b-0">
-              <th scope="row" className="px-4 py-3 font-medium text-[var(--muted-foreground)]">
-                {criterion.label}
-              </th>
-              {tierColumns.map(({ plan, meta }) => (
-                <td key={`${plan.id}-${criterion.key}`} className="px-4 py-3 text-center">
-                  <ComparisonCell
-                    included={meta.position ? TIER_COMPARISON[meta.position][criterion.key] : false}
-                  />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="border-t border-[var(--border)] px-4 py-3 text-xs text-[var(--muted-foreground)]">
-        Comparação qualitativa com base nos planos publicados. Detalhes contratuais podem variar.
-      </p>
-    </div>
   );
 }
 
@@ -472,7 +387,7 @@ export function PlansSalesPage({
                   <li key={plan.id} className="h-full">
                     <PlanCard
                       plan={plan}
-                      tierMeta={resolveTierMeta(index, sortedPlans.length)}
+                      isPopular={resolvePlanHighlight(index, sortedPlans.length).isPopular}
                       whatsAppConfigured={whatsAppConfigured}
                       checkoutEnabled={checkoutEnabled}
                       isAuthenticated={isAuthenticated}
@@ -487,12 +402,9 @@ export function PlansSalesPage({
                     ? "Fale no WhatsApp — checkout online em breve."
                     : "Checkout online em breve."}
               </p>
-              <div className="mt-10">
-                <h3 className="text-lg font-semibold text-[var(--foreground)]">Comparação de planos</h3>
-                <div className="mt-4">
-                  <PlansComparisonTable sortedPlans={sortedPlans} />
-                </div>
-              </div>
+              <p className="mt-10 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm leading-relaxed text-[var(--muted-foreground)]">
+                {PLANS_PARITY_NOTE}
+              </p>
             </>
           )}
         </section>

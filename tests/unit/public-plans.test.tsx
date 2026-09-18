@@ -194,6 +194,8 @@ describe("PlansSalesPage", () => {
     expect(screen.queryByText(/Stripe/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Comprar/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Métricas ilustrativas/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Comparação de planos/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/mesmos módulos do produto/i)).toBeInTheDocument();
   });
 
   it("shows WhatsApp CTA when env is configured", () => {
@@ -218,7 +220,9 @@ describe("PlansSalesPage", () => {
     expect(screen.getByRole("heading", { name: "Pro" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Max" })).toBeInTheDocument();
     expect(screen.getByText("Mais Popular")).toBeInTheDocument();
-    expect(screen.getByText(/Hotkeys de caixa para fluxo rápido/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/PDV offline-first com sync automático/i).length).toBeGreaterThanOrEqual(3);
+    expect(screen.queryByText(/Tudo do Essencial/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tudo do Profissional/i)).not.toBeInTheDocument();
   });
 
   it("shows empty state without crashing", () => {

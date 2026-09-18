@@ -113,67 +113,16 @@ export const DEMO_MOCKS = [
   { id: "dashboard", title: "Dashboard", caption: "Receita, margem e KPIs" },
 ] as const;
 
-export const COMPARISON_CRITERIA = [
-  { key: "pdv", label: "PDV offline-first" },
-  { key: "estoque", label: "Estoque auditado" },
-  { key: "clientes", label: "Clientes e produtos" },
-  { key: "hotkeys", label: "Hotkeys de caixa" },
-  { key: "stockmap", label: "StockMap em tempo real" },
-  { key: "dashboard", label: "Dashboard e métricas" },
-  { key: "csv", label: "Importação CSV de estoque" },
+/** Shared product modules — same for all published price tiers (no per-plan entitlements in DB). */
+export const SHARED_PLAN_FEATURES = [
+  "PDV offline-first com sync automático",
+  "Controle de estoque e inventário auditado",
+  "Clientes, produtos e dashboard de métricas",
+  "Controle de acesso por papéis (owner, manager, cashier)",
 ] as const;
 
-/** Qualitative tier coverage when plan descriptions are thin (no invented numeric limits). */
-export const TIER_COMPARISON: Record<
-  "entry" | "middle" | "enterprise",
-  Record<(typeof COMPARISON_CRITERIA)[number]["key"], boolean>
-> = {
-  entry: {
-    pdv: true,
-    estoque: true,
-    clientes: true,
-    hotkeys: false,
-    stockmap: false,
-    dashboard: false,
-    csv: false,
-  },
-  middle: {
-    pdv: true,
-    estoque: true,
-    clientes: true,
-    hotkeys: true,
-    stockmap: true,
-    dashboard: false,
-    csv: false,
-  },
-  enterprise: {
-    pdv: true,
-    estoque: true,
-    clientes: true,
-    hotkeys: true,
-    stockmap: true,
-    dashboard: true,
-    csv: true,
-  },
-};
-
-export const TIER_FALLBACK_FEATURES: Record<"entry" | "middle" | "enterprise", readonly string[]> = {
-  entry: [
-    "PDV offline-first com sync automático",
-    "Controle de estoque auditado",
-    "Cadastro de clientes e produtos",
-  ],
-  middle: [
-    "Tudo do Essencial",
-    "Hotkeys de caixa para fluxo rápido",
-    "StockMap em tempo real",
-  ],
-  enterprise: [
-    "Tudo do Profissional",
-    "Dashboard e métricas de rentabilidade",
-    "Importação CSV de estoque",
-  ],
-};
+export const PLANS_PARITY_NOTE =
+  "Todos os planos publicados incluem os mesmos módulos do produto (PDV, estoque, clientes, produtos, dashboard e controle de acesso). A diferença entre planos está nos termos comerciais publicados — preço, descrição e condições de suporte ou contrato.";
 
 export const FAQ_ITEMS = [
   {
