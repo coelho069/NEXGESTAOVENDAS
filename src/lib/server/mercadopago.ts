@@ -27,6 +27,7 @@ function isMercadoPagoAcceptablePayerEmail(value: string): boolean {
   return !domain.endsWith(".local");
 }
 
+/** Orders API rejects the code default (invalid_users_involved) and .local domains; set MERCADOPAGO_PAYER_EMAIL. */
 export function resolveMercadoPagoPayerEmail(
   envSource: Record<string, string | undefined> = process.env
 ): string {
