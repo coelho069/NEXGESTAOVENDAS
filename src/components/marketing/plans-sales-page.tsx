@@ -7,6 +7,7 @@ import {
 import type { PublicPlanRecord } from "@/lib/domain/public-plans";
 import { getAssinaturasWhatsAppUrl } from "@/lib/assinaturas/whatsapp";
 import { formatBRL } from "@/lib/money";
+import { SubscribePlanButton } from "@/components/marketing/subscribe-plan-button";
 
 const FAQ_ITEMS = [
   {
@@ -162,10 +163,14 @@ function PlanCard({
   plan,
   tierMeta,
   whatsAppConfigured,
+  checkoutEnabled,
+  isAuthenticated,
 }: {
   plan: PublicPlanRecord;
   tierMeta: ReturnType<typeof resolveTierMeta>;
   whatsAppConfigured: boolean;
+  checkoutEnabled: boolean;
+  isAuthenticated: boolean;
 }) {
   const displayName = tierMeta.displayLabel || plan.name;
   const planWhatsAppUrl = getAssinaturasWhatsAppUrl(displayName);
@@ -195,17 +200,16 @@ function PlanCard({
       ) : (
         <p className="mt-4 flex-1 text-sm text-slate-400">Plano PDV Nex Gestão Vendas.</p>
       )}
-      <div className="mt-6">
+      <div className="mt-6 flex flex-col gap-3">
+        <SubscribePlanButton
+          planId={plan.id}
+          planLabel={displayName}
+          checkoutEnabled={checkoutEnabled}
+          isAuthenticated={isAuthenticated}
+        />
         {whatsAppConfigured && planWhatsAppUrl ? (
           <WhatsAppCta href={planWhatsAppUrl} label="Contratar via WhatsApp" className="w-full" />
-        ) : (
-          <span
-            aria-disabled="true"
-            className="inline-flex w-full cursor-not-allowed items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-400"
-          >
-            Em breve
-          </span>
-        )}
+        ) : null}
       </div>
     </article>
   );
@@ -215,11 +219,13 @@ export function PlansSalesPage({
   plans,
   loadError,
   isAuthenticated,
+  checkoutEnabled = false,
   pdvHref = "/pdv",
 }: {
   plans: PublicPlanRecord[];
   loadError: string | null;
   isAuthenticated: boolean;
+  checkoutEnabled?: boolean;
   pdvHref?: string;
 }) {
   const heroWhatsAppUrl = getAssinaturasWhatsAppUrl();
@@ -357,12 +363,16 @@ export function PlansSalesPage({
                     plan={plan}
                     tierMeta={resolveTierMeta(index, sortedPlans.length)}
                     whatsAppConfigured={whatsAppConfigured}
+                    checkoutEnabled={checkoutEnabled}
+                    isAuthenticated={isAuthenticated}
                   />
                 </li>
               ))}
             </ul>
             <p className="text-center text-sm font-medium text-slate-600">
-              Fale no WhatsApp — sem cartão na página.
+              {checkoutEnabled
+                ? "Assine online com Mercado Pago ou fale conosco pelo WhatsApp."
+                : "Fale no WhatsApp — checkout online em breve."}
             </p>
           </>
         )}

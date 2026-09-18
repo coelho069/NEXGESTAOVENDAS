@@ -852,7 +852,9 @@ export type Database = {
           description: string
           id: string
           is_active: boolean
+          mp_preapproval_plan_id: string | null
           name: string
+          slug: string | null
           updated_at: string
         }
         Insert: {
@@ -863,7 +865,9 @@ export type Database = {
           description?: string
           id?: string
           is_active?: boolean
+          mp_preapproval_plan_id?: string | null
           name: string
+          slug?: string | null
           updated_at?: string
         }
         Update: {
@@ -874,7 +878,9 @@ export type Database = {
           description?: string
           id?: string
           is_active?: boolean
+          mp_preapproval_plan_id?: string | null
           name?: string
+          slug?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -900,13 +906,61 @@ export type Database = {
         }
         Relationships: []
       }
+      subscription_provider_events: {
+        Row: {
+          created_at: string
+          event_id: string
+          event_type: string
+          org_id: string | null
+          payload: Json
+          provider_ref: string | null
+          subscription_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          event_type: string
+          org_id?: string | null
+          payload?: Json
+          provider_ref?: string | null
+          subscription_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          event_type?: string
+          org_id?: string | null
+          payload?: Json
+          provider_ref?: string | null
+          subscription_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_provider_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_provider_events_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscriptions: {
         Row: {
           cancelled_at: string | null
+          checkout_client_mutation_id: string | null
           contracted_amount: number
           created_at: string
           currency: string
           id: string
+          mp_payer_email: string | null
+          mp_preapproval_id: string | null
           org_id: string
           period_end: string
           period_start: string
@@ -916,10 +970,13 @@ export type Database = {
         }
         Insert: {
           cancelled_at?: string | null
+          checkout_client_mutation_id?: string | null
           contracted_amount: number
           created_at?: string
           currency?: string
           id?: string
+          mp_payer_email?: string | null
+          mp_preapproval_id?: string | null
           org_id: string
           period_end: string
           period_start: string
@@ -929,10 +986,13 @@ export type Database = {
         }
         Update: {
           cancelled_at?: string | null
+          checkout_client_mutation_id?: string | null
           contracted_amount?: number
           created_at?: string
           currency?: string
           id?: string
+          mp_payer_email?: string | null
+          mp_preapproval_id?: string | null
           org_id?: string
           period_end?: string
           period_start?: string
@@ -1674,6 +1734,19 @@ export type Database = {
       apply_card_provider_status: { Args: { p_payload: Json }; Returns: Json }
       apply_pix_provider_event: { Args: { p_payload: Json }; Returns: Json }
       apply_pix_provider_status: { Args: { p_payload: Json }; Returns: Json }
+      apply_subscription_mercadopago_event: {
+        Args: {
+          p_event_id: string
+          p_event_type: string
+          p_org_id: string
+          p_payload?: Json
+          p_period_end: string
+          p_period_start: string
+          p_provider_ref: string
+          p_subscription_status: Database["public"]["Enums"]["subscription_status"]
+        }
+        Returns: Json
+      }
       adjust_inventory: { Args: { p_payload: Json }; Returns: Json }
       append_fiscal_audit: {
         Args: { p_action: string; p_document_id: string; p_payload: Json }

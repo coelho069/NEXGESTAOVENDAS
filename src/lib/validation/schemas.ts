@@ -795,3 +795,16 @@ export const adminSubscriptionListQuerySchema = z
   });
 
 export type AdminSubscriptionListQuery = z.infer<typeof adminSubscriptionListQuerySchema>;
+
+// ---------------------------------------------------------------------------
+// SaaS Assinaturas — Mercado Pago checkout (isolated from PDV MERCADOPAGO_CHECKOUT_ENABLED)
+// ---------------------------------------------------------------------------
+
+export const mercadoPagoAssinaturasCheckoutInputSchema = z.object({
+  plan_id: z.string().uuid(),
+  client_mutation_id: z.string().uuid().optional(),
+});
+
+export type MercadoPagoAssinaturasCheckoutInput = z.infer<
+  typeof mercadoPagoAssinaturasCheckoutInputSchema
+>;
