@@ -11,10 +11,9 @@ type PaymentSheetProps = {
   total: string;
   disabled: boolean;
   cardSelectable?: boolean;
-  pixSelectable?: boolean;
   onCash: () => void;
   onCard: () => void;
-  onPix?: () => void;
+  onPixManual: () => void;
   onClose: () => void;
 };
 
@@ -27,6 +26,7 @@ export function PaymentSheet({
   cardSelectable = false,
   onCash,
   onCard,
+  onPixManual,
   onClose,
 }: PaymentSheetProps) {
   const [cashStep, setCashStep] = useState<CashStep>("methods");
@@ -105,13 +105,13 @@ export function PaymentSheet({
             <PaymentActions
               disabled={disabled}
               cardSelectable={cardSelectable}
-              pixSelectable={false}
               onCash={() => {
                 setChangeError(null);
                 setReceivedRaw("");
                 setCashStep("ask-change");
               }}
               onCard={onCard}
+              onPixManual={onPixManual}
             />
           ) : null}
 

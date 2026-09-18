@@ -31,6 +31,45 @@ export interface PaymentAdapter {
   reconcile(amount: string, context?: PaymentOperationContext): PaymentOperationResultOrPromise;
 }
 
+export class PixManualPaymentAdapter implements PaymentAdapter {
+  readonly method = "pix_manual" as const;
+
+  process(amount: string): PaymentAdapterResult {
+    void amount;
+    return { status: "configured", message: "PIX próprio registrado." };
+  }
+
+  authorize(amount: string, context?: PaymentOperationContext): PaymentOperationResult {
+    void amount;
+    void context;
+    return { status: "captured", message: "PIX próprio confirmado no servidor." };
+  }
+
+  capture(amount: string, context?: PaymentOperationContext): PaymentOperationResult {
+    void amount;
+    void context;
+    return { status: "captured", message: "PIX próprio confirmado no servidor." };
+  }
+
+  cancel(amount: string, context?: PaymentOperationContext): PaymentOperationResult {
+    void amount;
+    void context;
+    return {
+      status: "not_configured",
+      message: "Cancelamento de PIX próprio exige o fluxo de estorno do caixa.",
+    };
+  }
+
+  reconcile(amount: string, context?: PaymentOperationContext): PaymentOperationResult {
+    void amount;
+    void context;
+    return {
+      status: "unknown",
+      message: "A reconciliação deve consultar o registro server-side do pagamento.",
+    };
+  }
+}
+
 export class CashPaymentAdapter implements PaymentAdapter {
   readonly method = "cash" as const;
 
@@ -71,7 +110,7 @@ export class CashPaymentAdapter implements PaymentAdapter {
 }
 
 export class NotConfiguredPaymentAdapter implements PaymentAdapter {
-  constructor(readonly method: Exclude<Enums<"payment_method">, "cash">) {}
+  constructor(readonly method: Exclude<Enums<"payment_method">, "cash" | "pix_manual">) {}
 
   process(amount: string): PaymentAdapterResult {
     void amount;
@@ -136,6 +175,7 @@ export function bindMercadoPagoPixAdapter(adapter: PaymentAdapter | null): void 
 
 export function getPaymentAdapter(method: Enums<"payment_method">): PaymentAdapter {
   if (method === "cash") return new CashPaymentAdapter();
+  if (method === "pix_manual") return new PixManualPaymentAdapter();
   if (method === "card" && boundStripeCardAdapter) return boundStripeCardAdapter;
   if (method === "pix" && boundMercadoPagoPixAdapter) return boundMercadoPagoPixAdapter;
   if (method === "pix" && boundStripePixAdapter) return boundStripePixAdapter;
