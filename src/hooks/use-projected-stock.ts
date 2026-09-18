@@ -20,6 +20,9 @@ export function useProjectedStock(storeId: string | null, epoch = 0) {
       return;
     }
     if (!userId && !pdvFixturesEnabled()) {
+      setBalances({});
+      setLoadedStoreId(null);
+      setLoading(false);
       return;
     }
     setLoading(true);
