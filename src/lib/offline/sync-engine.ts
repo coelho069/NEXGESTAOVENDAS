@@ -1394,26 +1394,26 @@ function parsePullChangesPayload(value: unknown): PullChangesResponse | null {
       return null;
     }
     if (
-      row.client_mutation_id !== undefined &&
+      row.client_mutation_id != null &&
       (typeof row.client_mutation_id !== "string" ||
         !validateUuid(row.client_mutation_id))
     ) {
       return null;
     }
     if (
-      row.terminal_id !== undefined &&
+      row.terminal_id != null &&
       (typeof row.terminal_id !== "string" || !validateUuid(row.terminal_id))
     ) {
       return null;
     }
     if (
-      row.import_id !== undefined &&
+      row.import_id != null &&
       (typeof row.import_id !== "string" || !validateUuid(row.import_id))
     ) {
       return null;
     }
     if (
-      row.import_row !== undefined &&
+      row.import_row != null &&
       (typeof row.import_row !== "number" ||
         !Number.isInteger(row.import_row) ||
         row.import_row <= 0)
