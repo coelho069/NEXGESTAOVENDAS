@@ -90,9 +90,10 @@ describe("sale domain", () => {
 });
 
 describe("adapters", () => {
-  it("marks card/pix as not configured", () => {
+  it("marks card/pix as not configured and pix_manual as configured", () => {
     expect(getPaymentAdapter("card").process("10.00").status).toBe("not_configured");
     expect(getPaymentAdapter("pix").process("10.00").status).toBe("not_configured");
+    expect(getPaymentAdapter("pix_manual").process("10.00").status).toBe("configured");
   });
 
   it("marks fiscal adapter as not configured", () => {

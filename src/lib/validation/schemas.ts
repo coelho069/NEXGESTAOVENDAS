@@ -25,8 +25,18 @@ export const saleItemInputSchema = z.object({
     .default("0.00"),
 });
 
+export const directCheckoutPaymentMethods = ["cash", "pix_manual"] as const;
+
+export type DirectCheckoutPaymentMethod = (typeof directCheckoutPaymentMethods)[number];
+
+export function isDirectCheckoutPaymentMethod(
+  method: string
+): method is DirectCheckoutPaymentMethod {
+  return (directCheckoutPaymentMethods as readonly string[]).includes(method);
+}
+
 export const paymentInputSchema = z.object({
-  method: z.enum(["cash", "card", "pix", "voucher", "other"]),
+  method: z.enum(["cash", "card", "pix", "pix_manual", "voucher", "other"]),
   amount: z.string().regex(moneyPattern, "amount must be numeric(12,2) string"),
 });
 

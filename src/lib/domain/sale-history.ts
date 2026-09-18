@@ -98,6 +98,8 @@ export function paymentMethodLabel(method: string | null): string {
       return "Cartão";
     case "pix":
       return "PIX";
+    case "pix_manual":
+      return "PIX próprio";
     case "voucher":
       return "Vale";
     case "other":

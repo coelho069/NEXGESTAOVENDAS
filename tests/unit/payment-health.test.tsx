@@ -257,53 +257,49 @@ describe("PDV payment actions", () => {
     cleanup();
   });
 
-  it("disables card and PIX and keeps cash available when health is unknown", () => {
+  it("disables card and keeps cash and pix_manual available when health is unknown", () => {
     const onCard = vi.fn();
-    const onPix = vi.fn();
+    const onPixManual = vi.fn();
     render(
       <PaymentActions
         disabled={false}
         cardSelectable={false}
-        pixSelectable={false}
         onCash={() => undefined}
         onCard={onCard}
-        onPix={onPix}
+        onPixManual={onPixManual}
       />
     );
 
     const card = screen.getByTestId("checkout-card");
-    const pix = screen.getByTestId("checkout-pix");
+    const pixManual = screen.getByTestId("checkout-pix-manual");
     const cash = screen.getByTestId("checkout-cash");
     expect(card).toBeDisabled();
-    expect(pix).toBeDisabled();
+    expect(pixManual).toBeEnabled();
     expect(cash).toBeEnabled();
     expect(card).toHaveTextContent("não configurado");
-    expect(pix).toHaveTextContent("não configurado");
-    expect(pix).toHaveAttribute("aria-label", "PIX — não configurado");
+    expect(pixManual).toHaveTextContent("PIX próprio");
     card.click();
-    pix.click();
+    pixManual.click();
     expect(onCard).not.toHaveBeenCalled();
-    expect(onPix).not.toHaveBeenCalled();
+    expect(onPixManual).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps PIX as a disabled placeholder even if pixSelectable is passed true", () => {
-    const onPix = vi.fn();
+  it("keeps pix_manual enabled alongside card when card health is configured", () => {
+    const onPixManual = vi.fn();
     render(
       <PaymentActions
         disabled={false}
         cardSelectable={true}
-        pixSelectable={true}
         onCash={() => undefined}
         onCard={() => undefined}
-        onPix={onPix}
+        onPixManual={onPixManual}
       />
     );
 
-    const pix = screen.getByTestId("checkout-pix");
-    expect(pix).toBeDisabled();
-    expect(pix).toHaveTextContent("não configurado");
-    expect(pix).toHaveAttribute("aria-label", "PIX — não configurado");
-    pix.click();
-    expect(onPix).not.toHaveBeenCalled();
+    const pixManual = screen.getByTestId("checkout-pix-manual");
+    expect(pixManual).toBeEnabled();
+    expect(pixManual).toHaveTextContent("PIX próprio");
+    pixManual.click();
+    expect(onPixManual).toHaveBeenCalledTimes(1);
   });
 });
