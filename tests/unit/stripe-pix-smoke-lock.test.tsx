@@ -449,6 +449,7 @@ describe("PIX smoke lock — Gate 4 cash + card regression", () => {
         onCash={onCash}
         onCard={onCard}
         onPixManual={onPixManual}
+        onVoucher={() => undefined}
       />
     );
 

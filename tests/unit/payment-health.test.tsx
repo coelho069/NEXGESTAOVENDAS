@@ -237,7 +237,7 @@ describe("card payment health fail-closed", () => {
         jsonResponse({ configured: true, testmode: false, method: "pix" })
       )
     ).resolves.toBe(false);
-    await expect(isCheckoutPaymentSelectable("voucher")).resolves.toBe(false);
+    await expect(isCheckoutPaymentSelectable("voucher")).resolves.toBe(true);
     await expect(isCheckoutPaymentSelectable("other")).resolves.toBe(false);
     await expect(
       isCheckoutPaymentSelectable("card", async () =>
@@ -267,6 +267,7 @@ describe("PDV payment actions", () => {
         onCash={() => undefined}
         onCard={onCard}
         onPixManual={onPixManual}
+        onVoucher={() => undefined}
       />
     );
 
@@ -293,6 +294,7 @@ describe("PDV payment actions", () => {
         onCash={() => undefined}
         onCard={() => undefined}
         onPixManual={onPixManual}
+        onVoucher={() => undefined}
       />
     );
 

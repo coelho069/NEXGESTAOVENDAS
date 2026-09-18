@@ -25,7 +25,7 @@ export const saleItemInputSchema = z.object({
     .default("0.00"),
 });
 
-export const directCheckoutPaymentMethods = ["cash", "pix_manual"] as const;
+export const directCheckoutPaymentMethods = ["cash", "pix_manual", "voucher"] as const;
 
 export type DirectCheckoutPaymentMethod = (typeof directCheckoutPaymentMethods)[number];
 

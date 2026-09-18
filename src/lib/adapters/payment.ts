@@ -31,6 +31,45 @@ export interface PaymentAdapter {
   reconcile(amount: string, context?: PaymentOperationContext): PaymentOperationResultOrPromise;
 }
 
+export class VoucherPaymentAdapter implements PaymentAdapter {
+  readonly method = "voucher" as const;
+
+  process(amount: string): PaymentAdapterResult {
+    void amount;
+    return { status: "configured", message: "Vale registrado." };
+  }
+
+  authorize(amount: string, context?: PaymentOperationContext): PaymentOperationResult {
+    void amount;
+    void context;
+    return { status: "captured", message: "Vale confirmado no servidor." };
+  }
+
+  capture(amount: string, context?: PaymentOperationContext): PaymentOperationResult {
+    void amount;
+    void context;
+    return { status: "captured", message: "Vale confirmado no servidor." };
+  }
+
+  cancel(amount: string, context?: PaymentOperationContext): PaymentOperationResult {
+    void amount;
+    void context;
+    return {
+      status: "not_configured",
+      message: "Cancelamento de vale exige o fluxo de estorno do caixa.",
+    };
+  }
+
+  reconcile(amount: string, context?: PaymentOperationContext): PaymentOperationResult {
+    void amount;
+    void context;
+    return {
+      status: "unknown",
+      message: "A reconciliação deve consultar o registro server-side do pagamento.",
+    };
+  }
+}
+
 export class PixManualPaymentAdapter implements PaymentAdapter {
   readonly method = "pix_manual" as const;
 
@@ -110,7 +149,9 @@ export class CashPaymentAdapter implements PaymentAdapter {
 }
 
 export class NotConfiguredPaymentAdapter implements PaymentAdapter {
-  constructor(readonly method: Exclude<Enums<"payment_method">, "cash" | "pix_manual">) {}
+  constructor(
+    readonly method: Exclude<Enums<"payment_method">, "cash" | "pix_manual" | "voucher">
+  ) {}
 
   process(amount: string): PaymentAdapterResult {
     void amount;
@@ -176,13 +217,14 @@ export function bindMercadoPagoPixAdapter(adapter: PaymentAdapter | null): void 
 export function getPaymentAdapter(method: Enums<"payment_method">): PaymentAdapter {
   if (method === "cash") return new CashPaymentAdapter();
   if (method === "pix_manual") return new PixManualPaymentAdapter();
+  if (method === "voucher") return new VoucherPaymentAdapter();
   if (method === "card" && boundStripeCardAdapter) return boundStripeCardAdapter;
   if (method === "pix" && boundMercadoPagoPixAdapter) return boundMercadoPagoPixAdapter;
   if (method === "pix" && boundStripePixAdapter) return boundStripePixAdapter;
   return new NotConfiguredPaymentAdapter(method);
 }
 
-export const ELECTRONIC_PAYMENT_METHODS = ["card", "pix", "voucher", "other"] as const;
+export const ELECTRONIC_PAYMENT_METHODS = ["card", "pix", "other"] as const;
 
 export type ElectronicPaymentMethod = (typeof ELECTRONIC_PAYMENT_METHODS)[number];
 

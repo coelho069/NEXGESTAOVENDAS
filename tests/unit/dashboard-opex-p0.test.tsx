@@ -195,9 +195,9 @@ describe("dashboard OPEX P0", () => {
 });
 
 describe("electronic payment adapter alerts", () => {
-  it("reports card/pix/voucher/other as not_configured without Stripe KPIs", () => {
+  it("reports card/pix/other as not_configured without Stripe KPIs", () => {
     const alerts = getElectronicPaymentAdapterAlerts();
-    expect(alerts.map((alert) => alert.method)).toEqual(["card", "pix", "voucher", "other"]);
+    expect(alerts.map((alert) => alert.method)).toEqual(["card", "pix", "other"]);
     for (const alert of alerts) {
       expect(alert.adapterStatus).toBe("not_configured");
       expect(alert.operationStatus).toBe("not_configured");

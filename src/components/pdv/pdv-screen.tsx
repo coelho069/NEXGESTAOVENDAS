@@ -250,7 +250,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
   };
 
   const triggerPaymentMethod = (
-    testId: "checkout-cash" | "checkout-card" | "checkout-pix-manual"
+    testId: "checkout-cash" | "checkout-card" | "checkout-pix-manual" | "checkout-voucher"
   ) => {
     if (checkoutDisabled) return;
     setOpenPanel("payment");
@@ -477,6 +477,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             onCash={() => void sale.pay("cash")}
             onCard={() => void sale.pay("card")}
             onPixManual={() => void sale.pay("pix_manual")}
+            onVoucher={() => void sale.pay("voucher")}
             onClose={() => setOpenPanel("none")}
           />
           <PixQrSheet

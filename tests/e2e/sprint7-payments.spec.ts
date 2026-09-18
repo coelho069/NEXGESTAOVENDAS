@@ -57,15 +57,25 @@ test("pagamento cash finaliza uma vez mesmo com retry de clique", async ({ page 
   expect(counts).toEqual({ sales: 1, payments: 1 });
 });
 
-test("adapter card não configurado mantém o carrinho como rascunho; pix_manual habilitado", async ({ page }) => {
+test("adapter card não configurado mantém o carrinho como rascunho; pix_manual e vale habilitados", async ({ page }) => {
   await openCart(page);
   const card = page.getByTestId("checkout-card");
   const pixManual = page.getByTestId("checkout-pix-manual");
+  const voucher = page.getByTestId("checkout-voucher");
   await expect(card).toBeDisabled();
   await expect(card).toContainText("não configurado");
   await expect(pixManual).toBeEnabled();
   await expect(pixManual).toContainText("PIX próprio");
+  await expect(voucher).toBeEnabled();
+  await expect(voucher).toContainText("Vale");
   await expect(page.getByTestId("checkout-cash")).toBeEnabled();
   await expect(page.getByTestId("cart-line-BEV-001")).toBeVisible();
   await expect(page.getByTestId("receipt")).toHaveCount(0);
+});
+
+test("pagamento voucher finaliza venda direta", async ({ page }) => {
+  await openCart(page);
+  await page.getByTestId("checkout-voucher").click();
+  await expect(page.getByTestId("receipt")).toHaveCount(1);
+  await expect(page.getByTestId("receipt-sync-status")).toContainText(/pending|synced/);
 });
