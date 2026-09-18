@@ -249,7 +249,9 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     setOpenPanel("payment");
   };
 
-  const triggerPaymentMethod = (testId: "checkout-cash" | "checkout-card" | "checkout-pix") => {
+  const triggerPaymentMethod = (
+    testId: "checkout-cash" | "checkout-card" | "checkout-pix-manual"
+  ) => {
     if (checkoutDisabled) return;
     setOpenPanel("payment");
     requestAnimationFrame(() => {
@@ -273,10 +275,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
       if (!cardSelectable) return;
       triggerPaymentMethod("checkout-card");
     },
-    payPix: () => {
-      // Fail-closed: PIX remains disabled until explicitly configured.
-      return;
-    },
+    payPix: () => triggerPaymentMethod("checkout-pix-manual"),
     salesHistory: () => {
       closeAllPanels();
       openSalesHistory();
@@ -475,9 +474,9 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             total={sale.totals.total}
             disabled={checkoutDisabled}
             cardSelectable={cardSelectable}
-            pixSelectable={false}
             onCash={() => void sale.pay("cash")}
             onCard={() => void sale.pay("card")}
+            onPixManual={() => void sale.pay("pix_manual")}
             onClose={() => setOpenPanel("none")}
           />
           <PixQrSheet

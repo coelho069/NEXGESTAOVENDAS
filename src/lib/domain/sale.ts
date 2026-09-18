@@ -1,4 +1,4 @@
-import type { ProcessSaleInput } from "@/lib/validation/schemas";
+import type { DirectCheckoutPaymentMethod, ProcessSaleInput } from "@/lib/validation/schemas";
 import { money, multiplyMoney, subtractMoney, sumMoney, toMoneyString } from "@/lib/money";
 
 export type CartLine = {
@@ -27,7 +27,7 @@ export function buildProcessSalePayload(
   storeId: string,
   clientMutationId: string,
   lines: CartLine[],
-  paymentMethod: ProcessSaleInput["payments"][number]["method"],
+  paymentMethod: DirectCheckoutPaymentMethod,
   options?: {
     customerId?: string;
     discount?: string;
@@ -41,8 +41,8 @@ export function buildProcessSalePayload(
   const discount = options?.discount ?? "0.00";
   const total = cartTotal(lines, discount);
 
-  if (paymentMethod !== "cash") {
-    throw new Error("Only cash payments are supported in Sprint 1 MVP");
+  if (paymentMethod !== "cash" && paymentMethod !== "pix_manual") {
+    throw new Error("Only direct checkout payments (cash, pix_manual) are supported");
   }
 
   return {

@@ -1,7 +1,12 @@
 import { v4 as uuidv4 } from "uuid";
 import { buildProcessSalePayload, cartSubtotal, cartTotal, lineTotal } from "@/lib/domain/sale";
 import { validateSaleAmounts } from "@/lib/domain/sale-ops";
-import { processSaleInputSchema, type ProcessSaleInput } from "@/lib/validation/schemas";
+import {
+  isDirectCheckoutPaymentMethod,
+  processSaleInputSchema,
+  type DirectCheckoutPaymentMethod,
+  type ProcessSaleInput,
+} from "@/lib/validation/schemas";
 import { money } from "@/lib/money";
 import {
   compareInventoryQuantities,
@@ -13,10 +18,15 @@ import { assertNoSecrets } from "@/lib/offline/secrets";
 import type { PdvLocalDatabase } from "@/lib/offline/pdv-local-db";
 import type { CloseSaleInput, CloseSaleResult, LocalSale, OutboxCommand } from "@/lib/offline/types";
 
-function assertCashOnlyAndNoSecrets(input: CloseSaleInput): void {
+function assertDirectCheckoutAndNoSecrets(input: CloseSaleInput): void {
   assertNoSecrets(input, "closeSale");
-  if (input.payments.length !== 1 || input.payments[0]?.method !== "cash") {
-    throw new Error("Only one cash payment is supported in Sprint 1 MVP");
+  const payment = input.payments[0];
+  if (
+    input.payments.length !== 1 ||
+    !payment ||
+    !isDirectCheckoutPaymentMethod(payment.method)
+  ) {
+    throw new Error("Only one direct checkout payment (cash or pix_manual) is supported");
   }
 }
 
@@ -27,7 +37,7 @@ function comparablePayload(payload: ProcessSaleInput): string {
 }
 
 export async function closeSale(db: PdvLocalDatabase, input: CloseSaleInput): Promise<CloseSaleResult> {
-  assertCashOnlyAndNoSecrets(input);
+  assertDirectCheckoutAndNoSecrets(input);
 
   const discount = input.discount ?? "0.00";
   const amountError = validateSaleAmounts(
@@ -52,11 +62,12 @@ export async function closeSale(db: PdvLocalDatabase, input: CloseSaleInput): Pr
     throw new Error("Pagamento deve corresponder ao total da venda");
   }
 
+  const paymentMethod = input.payments[0]!.method as DirectCheckoutPaymentMethod;
   const payload = buildProcessSalePayload(
     input.storeId,
     input.clientMutationId,
     input.lines,
-    "cash",
+    paymentMethod,
     {
       discount,
       customerId: input.customerId,

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { processSaleInputSchema, storeIdSchema } from "@/lib/validation/schemas";
+import {
+  isDirectCheckoutPaymentMethod,
+  processSaleInputSchema,
+  storeIdSchema,
+} from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
 import { discountLimitHttpStatus, salePayloadExceedsDiscountCap } from "@/lib/domain/sale-ops";
 import { mapProcessSaleRpcError, rpcFailureLogFields } from "@/lib/domain/sale-process-error";
@@ -52,8 +56,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const hasNonCash = parsed.data.payments.some((payment) => payment.method !== "cash");
-  if (hasNonCash) {
+  const hasUnsupportedDirectCheckout = parsed.data.payments.some(
+    (payment) => !isDirectCheckoutPaymentMethod(payment.method)
+  );
+  if (hasUnsupportedDirectCheckout) {
     return NextResponse.json(
       { error: "payment_method_not_configured", adapter_status: "not_configured" },
       { status: 422 }
