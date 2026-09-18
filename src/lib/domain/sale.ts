@@ -41,8 +41,12 @@ export function buildProcessSalePayload(
   const discount = options?.discount ?? "0.00";
   const total = cartTotal(lines, discount);
 
-  if (paymentMethod !== "cash" && paymentMethod !== "pix_manual") {
-    throw new Error("Only direct checkout payments (cash, pix_manual) are supported");
+  if (
+    paymentMethod !== "cash" &&
+    paymentMethod !== "pix_manual" &&
+    paymentMethod !== "voucher"
+  ) {
+    throw new Error("Only direct checkout payments (cash, pix_manual, voucher) are supported");
   }
 
   return {

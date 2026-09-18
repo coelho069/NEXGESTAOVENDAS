@@ -14,6 +14,7 @@ type PaymentSheetProps = {
   onCash: () => void;
   onCard: () => void;
   onPixManual: () => void;
+  onVoucher: () => void;
   onClose: () => void;
 };
 
@@ -27,6 +28,7 @@ export function PaymentSheet({
   onCash,
   onCard,
   onPixManual,
+  onVoucher,
   onClose,
 }: PaymentSheetProps) {
   const [cashStep, setCashStep] = useState<CashStep>("methods");
@@ -112,6 +114,7 @@ export function PaymentSheet({
               }}
               onCard={onCard}
               onPixManual={onPixManual}
+              onVoucher={onVoucher}
             />
           ) : null}
 
