@@ -207,5 +207,5 @@ export function cardRefundStatusPendingExternal(): "pending_external" {
 }
 
 export function mustNotInventRefundCash(method: string): boolean {
-  return method === "card" || method === "pix" || method === "voucher" || method === "other";
+  return method === "card" || method === "pix" || method === "other";
 }

@@ -1,4 +1,4 @@
-import { Banknote, CreditCard, QrCode } from "lucide-react";
+import { Banknote, CreditCard, QrCode, Ticket } from "lucide-react";
 import { formatBRL } from "@/lib/money";
 import type { SaleTotals } from "@/lib/domain/sale-ops";
 
@@ -8,6 +8,7 @@ type PaymentActionsProps = {
   onCash: () => void;
   onCard: () => void;
   onPixManual: () => void;
+  onVoucher: () => void;
 };
 
 export function PaymentActions({
@@ -16,11 +17,12 @@ export function PaymentActions({
   onCash,
   onCard,
   onPixManual,
+  onVoucher,
 }: PaymentActionsProps) {
   const cardDisabled = disabled || !cardSelectable;
 
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       <button
         type="button"
         data-testid="checkout-cash"
@@ -55,6 +57,18 @@ export function PaymentActions({
       >
         <QrCode size={24} aria-hidden="true" />
         <span>PIX próprio</span>
+      </button>
+      <button
+        type="button"
+        data-testid="checkout-voucher"
+        disabled={disabled}
+        aria-label="Vale"
+        title="Vale"
+        onClick={onVoucher}
+        className="flex flex-col items-center gap-2 rounded-2xl border-2 border-violet-100 bg-violet-50 p-4 font-semibold text-violet-800 transition hover:border-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <Ticket size={24} aria-hidden="true" />
+        <span>Vale</span>
       </button>
     </div>
   );

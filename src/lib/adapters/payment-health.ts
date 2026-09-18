@@ -99,11 +99,12 @@ export async function isCheckoutPaymentSelectable(
       return getPaymentAdapter("cash").process("0.00").status === "configured";
     case "pix_manual":
       return getPaymentAdapter("pix_manual").process("0.00").status === "configured";
+    case "voucher":
+      return getPaymentAdapter("voucher").process("0.00").status === "configured";
     case "card":
       return fetchCardPaymentSelectable(fetchFn);
     case "pix":
       return fetchPixPaymentSelectable(fetchFn);
-    case "voucher":
     case "other":
       return getPaymentAdapter(method).process("0.00").status === "configured";
     default: {

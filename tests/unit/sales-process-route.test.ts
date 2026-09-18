@@ -131,6 +131,22 @@ describe("POST /api/sales/process cash RPC failures", () => {
     );
   });
 
+  it("forwards voucher direct checkout to process_sale_with_cash RPC", async () => {
+    rpc.mockResolvedValue({
+      data: { sale_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", status: "confirmed" },
+      error: null,
+    });
+
+    const response = await POST(
+      request({
+        ...salePayload(),
+        payments: [{ method: "voucher", amount: "3.50" }],
+      })
+    );
+    expect(response.status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith("process_sale_with_cash", expect.any(Object));
+  });
+
   it("forwards walk-in cash (no customer_id) to RPC instead of blocking", async () => {
     rpc.mockResolvedValue({
       data: { sale_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", status: "confirmed" },
