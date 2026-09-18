@@ -35,8 +35,8 @@ const contentSecurityPolicy = [
   "form-action 'self'",
   "img-src 'self' data: blob: https://estaovendas.com.br https://nexgestaovendas.com.br",
   "font-src 'self' data:",
-  `connect-src 'self' ${configuredSupabaseOrigin ?? ""} https://*.supabase.co wss://*.supabase.co${isDevelopment ? " ws://localhost:3000" : ""}`,
-  `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""}`,
+  `connect-src 'self' ${configuredSupabaseOrigin ?? ""} https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com${isDevelopment ? " ws://localhost:3000" : ""}`,
+  `script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com${isDevelopment ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   ...(isDevelopment ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
