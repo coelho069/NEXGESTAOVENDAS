@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbo",
-    "build": "next build",
+    "build": "next build && bash scripts/nex-standalone-finalize.sh",
     "start": "next start",
     "start:prod": "NODE_ENV=production next start",
     "check:prod": "tsx scripts/check-production-config.ts",
