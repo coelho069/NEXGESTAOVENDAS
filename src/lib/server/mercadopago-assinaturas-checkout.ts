@@ -3,8 +3,8 @@ import type { Database } from "@/lib/db/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   addBillingPeriodStart,
-  buildAssinaturasExternalReference,
   formatDateOnlyUtc,
+  type MercadoPagoPreapprovalPlanSnapshot,
 } from "@/lib/domain/mercadopago-assinaturas";
 import type { SubscriptionBillingInterval } from "@/lib/domain/admin-subscriptions";
 import {
@@ -13,7 +13,6 @@ import {
   isMercadoPagoAssinaturasCheckoutEnabled,
   mercadoPagoAssinaturasCheckoutHoldHealth,
   resolveAssinaturasBackUrl,
-  resolveMercadoPagoAssinaturasPayerEmail,
 } from "@/lib/server/mercadopago-assinaturas";
 
 type DbClient = SupabaseClient<Database>;
@@ -21,8 +20,11 @@ type DbClient = SupabaseClient<Database>;
 export type MercadoPagoAssinaturasCheckoutResult =
   | {
       ok: true;
+      /** Hosted checkout URL do Mercado Pago (init_point do preapproval_plan). O MP coleta o pagamento. */
       init_point: string;
-      preapproval_id: string;
+      /** mp_preapproval_plan_id do plano no Mercado Pago. */
+      preapproval_plan_id: string;
+      /** Assinatura local pendente, criada agora para o webhook casar o evento do MP. */
       subscription_id: string;
       client_mutation_id: string;
     }
@@ -78,17 +80,21 @@ async function ensureMercadoPagoPreapprovalPlan(
   admin: NonNullable<ReturnType<typeof createAdminClient>>,
   plan: PlanRow,
   backUrl: string
-): Promise<string> {
-  if (plan.mp_preapproval_plan_id) {
-    return plan.mp_preapproval_plan_id;
-  }
-
+): Promise<MercadoPagoPreapprovalPlanSnapshot> {
   const env = getMercadoPagoAssinaturasEnv();
   if (!env.configured) {
     throw new Error("mercadopago_assinaturas_not_configured");
   }
 
   const gateway = createMercadoPagoAssinaturasGateway(env);
+
+  // Plano já vinculado no banco: apenas buscar o snapshot atual (com init_point) no MP.
+  if (plan.mp_preapproval_plan_id) {
+    const existing = await gateway.getPreapprovalPlan(plan.mp_preapproval_plan_id);
+    if (existing) return existing;
+    // Plano sumiu do MP (removido manualmente): recriar e atualizar o vínculo abaixo.
+  }
+
   const snapshot = await gateway.createPreapprovalPlan({
     reason: plan.name,
     amount: asAmountString(plan.amount),
@@ -105,7 +111,25 @@ async function ensureMercadoPagoPreapprovalPlan(
     throw new Error("mercadopago_assinaturas_plan_persist_failed");
   }
 
-  return snapshot.id;
+  return snapshot;
+}
+
+export type MercadoPagoAssinaturasPlanResolution = {
+  snapshot: MercadoPagoPreapprovalPlanSnapshot;
+};
+
+/**
+ * Resolves (or creates) the MP preapproval_plan for a plan row and returns its
+ * snapshot with init_point. Shared by the authenticated checkout and the
+ * public visitor checkout.
+ */
+export async function executeMercadoPagoAssinaturasPlanResolution(input: {
+  admin: NonNullable<ReturnType<typeof createAdminClient>>;
+  plan: PlanRow;
+  backUrl: string;
+}): Promise<MercadoPagoAssinaturasPlanResolution> {
+  const snapshot = await ensureMercadoPagoPreapprovalPlan(input.admin, input.plan, input.backUrl);
+  return { snapshot };
 }
 
 export async function executeMercadoPagoAssinaturasCheckout(input: {
@@ -161,36 +185,22 @@ export async function executeMercadoPagoAssinaturasCheckout(input: {
   }
 
   const backUrl = resolveAssinaturasBackUrl();
-  let preapprovalPlanId: string;
+  let planSnapshot: MercadoPagoPreapprovalPlanSnapshot;
   try {
-    preapprovalPlanId = await ensureMercadoPagoPreapprovalPlan(admin, plan as PlanRow, backUrl);
+    planSnapshot = await ensureMercadoPagoPreapprovalPlan(admin, plan as PlanRow, backUrl);
   } catch {
     return { ok: false, error: "mercadopago_assinaturas_plan_failed", status: 502 };
   }
 
-  const payerEmail = resolveMercadoPagoAssinaturasPayerEmail();
-  const externalReference = buildAssinaturasExternalReference(input.orgId, input.clientMutationId);
-  const gateway = createMercadoPagoAssinaturasGateway(env);
-
-  let preapproval;
-  try {
-    preapproval = await gateway.createPreapproval({
-      preapprovalPlanId,
-      reason: plan.name,
-      externalReference,
-      payerEmail,
-      backUrl,
-      clientMutationId: input.clientMutationId,
-    });
-  } catch {
-    return { ok: false, error: "mercadopago_assinaturas_preapproval_failed", status: 502 };
-  }
-
-  const initPoint = preapproval.sandboxInitPoint ?? preapproval.initPoint;
+  // Hosted checkout: o Mercado Pago coleta os dados de pagamento do assinante na URL init_point
+  // do preapproval_plan e cria o preapproval lá. Sem card_token_id (API pura rejeita com 400).
+  const initPoint = planSnapshot.initPoint;
   if (!initPoint) {
     return { ok: false, error: "mercadopago_assinaturas_missing_init_point", status: 502 };
   }
 
+  // Assinatura local pendente: ancora o webhook (RPC casa por org_id + checkout_client_mutation_id
+  // e anexa o mp_preapproval_id real do evento do MP). Status efetivo só após confirmação do MP.
   const periodStart = new Date();
   const periodEnd = addBillingPeriodStart(
     periodStart,
@@ -207,9 +217,7 @@ export async function executeMercadoPagoAssinaturasCheckout(input: {
       currency: plan.currency,
       period_start: formatDateOnlyUtc(periodStart),
       period_end: formatDateOnlyUtc(periodEnd),
-      mp_preapproval_id: preapproval.id,
       checkout_client_mutation_id: input.clientMutationId,
-      mp_payer_email: payerEmail,
     })
     .select("id")
     .single();
@@ -221,7 +229,7 @@ export async function executeMercadoPagoAssinaturasCheckout(input: {
   return {
     ok: true,
     init_point: initPoint,
-    preapproval_id: preapproval.id,
+    preapproval_plan_id: planSnapshot.id,
     subscription_id: subscription.id,
     client_mutation_id: input.clientMutationId,
   };

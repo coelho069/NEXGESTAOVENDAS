@@ -23,6 +23,7 @@ const samplePlan = {
   amount: "99.90",
   currency: "BRL",
   billingInterval: "monthly" as const,
+  stripeEnabled: false,
 };
 
 const threeTierPlans = [

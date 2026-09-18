@@ -23,6 +23,9 @@ export type MercadoPagoPreapprovalPlanSnapshot = {
   id: string;
   status: string;
   reason: string;
+  /** Hosted checkout URL returned by Mercado Pago (www.mercadopago.com/...). Null when absent. */
+  initPoint: string | null;
+  externalReference: string | null;
 };
 
 export type MercadoPagoPreapprovalSnapshot = {
@@ -34,6 +37,13 @@ export type MercadoPagoPreapprovalSnapshot = {
   externalReference: string | null;
   payerEmail: string | null;
   preapprovalPlanId: string | null;
+};
+
+export type MercadoPagoAuthorizedPaymentSnapshot = {
+  id: string;
+  preapprovalId: string | null;
+  status: string | null;
+  paymentStatus: string | null;
 };
 
 export type MercadoPagoAssinaturasSubscriptionStatus =
@@ -71,13 +81,13 @@ export function parseMercadoPagoAssinaturasWebhookNotification(
   ) {
     return null;
   }
-  const dataId = (data as Record<string, unknown>).id;
+  const dataId = normalizeProviderId((data as Record<string, unknown>).id);
   return {
     id,
     type,
     action,
     live_mode: typeof record.live_mode === "boolean" ? record.live_mode : undefined,
-    data: { id: typeof dataId === "string" ? dataId : undefined },
+    data: { id: dataId ?? undefined },
   };
 }
 
@@ -92,6 +102,8 @@ export function parseMercadoPagoPreapprovalPlanResponse(body: unknown): MercadoP
     id,
     status,
     reason: typeof reason === "string" ? reason : "",
+    initPoint: typeof record.init_point === "string" ? record.init_point : null,
+    externalReference: normalizeExternalReference(record.external_reference),
   };
 }
 
@@ -115,12 +127,53 @@ export function parseMercadoPagoPreapprovalResponse(body: unknown): MercadoPagoP
     reason: typeof reason === "string" ? reason : "",
     initPoint: typeof record.init_point === "string" ? record.init_point : null,
     sandboxInitPoint: typeof record.sandbox_init_point === "string" ? record.sandbox_init_point : null,
-    externalReference:
-      typeof record.external_reference === "string" ? record.external_reference : null,
+    externalReference: normalizeExternalReference(record.external_reference),
     payerEmail,
     preapprovalPlanId:
       typeof record.preapproval_plan_id === "string" ? record.preapproval_plan_id : null,
   };
+}
+
+export function parseMercadoPagoAuthorizedPaymentResponse(
+  body: unknown
+): MercadoPagoAuthorizedPaymentSnapshot | null {
+  if (!body || typeof body !== "object") return null;
+  const record = body as Record<string, unknown>;
+  const id = normalizeProviderId(record.id);
+  if (!id) return null;
+
+  const preapprovalId =
+    normalizeProviderId(record.preapproval_id) ??
+    (record.preapproval &&
+    typeof record.preapproval === "object" &&
+    normalizeProviderId((record.preapproval as Record<string, unknown>).id)
+      ? normalizeProviderId((record.preapproval as Record<string, unknown>).id)
+      : null);
+
+  const payment = record.payment;
+  const paymentStatus =
+    payment && typeof payment === "object" && typeof (payment as Record<string, unknown>).status === "string"
+      ? ((payment as Record<string, unknown>).status as string)
+      : null;
+
+  return {
+    id,
+    preapprovalId,
+    status: typeof record.status === "string" ? record.status : null,
+    paymentStatus,
+  };
+}
+
+function normalizeExternalReference(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return null;
+}
+
+function normalizeProviderId(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" && Number.isSafeInteger(value)) return String(value);
+  return null;
 }
 
 export function billingIntervalToMercadoPagoRecurring(interval: SubscriptionBillingInterval): {
