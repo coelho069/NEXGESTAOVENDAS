@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 
 const { createClient } = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -166,29 +166,34 @@ describe("PlansSalesPage", () => {
     }
   });
 
-  it("renders active plans and header links for visitors", () => {
+  it("renders conversion landing with plans and navigation for visitors", () => {
     delete process.env[ASSINATURAS_WHATSAPP_ENV];
 
     render(<PlansSalesPage plans={[samplePlan]} loadError={null} isAuthenticated={false} />);
 
     expect(
-      screen.getByRole("heading", { name: /Pare de perder venda no caixa/i })
+      screen.getByRole("heading", {
+        level: 1,
+        name: /Controle suas vendas, estoque e resultados em um só lugar/i,
+      })
     ).toBeInTheDocument();
-    expect(screen.getByText(/PDV offline-first, estoque e clientes/i)).toBeInTheDocument();
+    expect(screen.getByText(/PDV local-first, inventário auditado e dashboard/i)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Essencial" })).toBeInTheDocument();
     expect(screen.getByText(/R\$\s*99,90/)).toBeInTheDocument();
     expect(screen.getAllByText("Em breve").length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("link", { name: "Entrar" }).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByRole("link", { name: "Entrar" }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByRole("link", { name: "Entrar" })[0]).toHaveAttribute("href", "/login");
-    expect(screen.getByRole("link", { name: "Abrir PDV" })).toHaveAttribute("href", "/pdv");
-    expect(screen.getByText(/Caixa lento/i)).toBeInTheDocument();
-    expect(screen.getByText(/StockMap/i)).toBeInTheDocument();
-    expect(screen.getByText("segundos")).toBeInTheDocument();
-    expect(screen.getByText("sync")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Começar agora" })[0]).toHaveAttribute("href", "#planos");
+    expect(screen.getByRole("heading", { name: /Recursos pensados para o varejo/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Como funciona/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Escolha o plano ideal/i })).toBeInTheDocument();
+    expect(screen.getByText(/Caixa lento e fila/i)).toBeInTheDocument();
+    expect(screen.getByText(/Estoque desatualizado/i)).toBeInTheDocument();
     expect(screen.queryByText(/catálogo rápido/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/nenhuma loja/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Stripe/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Comprar/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Métricas ilustrativas/i)).not.toBeInTheDocument();
   });
 
   it("shows WhatsApp CTA when env is configured", () => {
@@ -196,24 +201,24 @@ describe("PlansSalesPage", () => {
 
     render(<PlansSalesPage plans={[samplePlan]} loadError={null} isAuthenticated={false} />);
 
-    expect(screen.getByRole("link", { name: /Falar no WhatsApp/i })).toHaveAttribute(
-      "href",
-      expect.stringContaining("https://wa.me/5511999999999")
+    const whatsAppLinks = screen.getAllByRole("link", { name: /WhatsApp/i });
+    expect(whatsAppLinks.some((link) => link.getAttribute("href")?.includes("https://wa.me/5511999999999"))).toBe(
+      true
     );
     expect(screen.getByRole("link", { name: /Contratar via WhatsApp/i })).toBeInTheDocument();
     expect(screen.getByText(/Fale no WhatsApp — checkout online em breve/i)).toBeInTheDocument();
   });
 
-  it("anchors the middle-priced plan as Crescimento with Mais Popular badge", () => {
+  it("anchors the middle-priced plan with Mais Popular badge using plan names", () => {
     delete process.env[ASSINATURAS_WHATSAPP_ENV];
 
     render(<PlansSalesPage plans={threeTierPlans} loadError={null} isAuthenticated={false} />);
 
-    expect(screen.getByRole("heading", { name: "Essencial" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Crescimento" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Escala" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Starter" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Pro" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Max" })).toBeInTheDocument();
     expect(screen.getByText("Mais Popular")).toBeInTheDocument();
-    expect(screen.getByText(/Hotkeys de caixa \(F12 finalizar\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Hotkeys de caixa para fluxo rápido/i)).toBeInTheDocument();
   });
 
   it("shows empty state without crashing", () => {
@@ -232,8 +237,7 @@ describe("PlansSalesPage", () => {
       />
     );
 
-    const headerNav = screen.getByRole("navigation");
-    expect(within(headerNav).getByRole("link", { name: "Abrir PDV" })).toHaveAttribute(
+    expect(screen.getAllByRole("link", { name: "Abrir PDV" })[0]).toHaveAttribute(
       "href",
       "/pdv?store=store-1"
     );
