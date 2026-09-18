@@ -201,7 +201,7 @@ describe("PlansSalesPage", () => {
       expect.stringContaining("https://wa.me/5511999999999")
     );
     expect(screen.getByRole("link", { name: /Contratar via WhatsApp/i })).toBeInTheDocument();
-    expect(screen.getByText(/Fale no WhatsApp — sem cartão na página/i)).toBeInTheDocument();
+    expect(screen.getByText(/Fale no WhatsApp — checkout online em breve/i)).toBeInTheDocument();
   });
 
   it("anchors the middle-priced plan as Crescimento with Mais Popular badge", () => {
