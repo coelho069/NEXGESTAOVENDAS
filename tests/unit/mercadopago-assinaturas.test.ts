@@ -7,6 +7,7 @@ import {
   isMercadoPagoAssinaturasCheckoutEnabledEnv,
   isMercadoPagoAssinaturasWebhookTypeAllowed,
   mapMercadoPagoPreapprovalStatusToSubscriptionStatus,
+  parseMercadoPagoAuthorizedPaymentResponse,
   parseAssinaturasExternalReference,
   parseMercadoPagoAssinaturasWebhookNotification,
   parseMercadoPagoPreapprovalResponse,
@@ -140,6 +141,44 @@ describe("Mercado Pago Assinaturas domain", () => {
     ).toMatchObject({
       id: "preapproval-id",
       initPoint: "https://mp.test/init",
+    });
+  });
+
+  it("parses a Mercado Pago authorized payment back to its preapproval", () => {
+    expect(
+      parseMercadoPagoAuthorizedPaymentResponse({
+        id: "authorized-payment-id",
+        preapproval_id: "preapproval-id",
+      })
+    ).toEqual({
+      id: "authorized-payment-id",
+      preapprovalId: "preapproval-id",
+      status: null,
+      paymentStatus: null,
+    });
+    expect(
+      parseMercadoPagoAuthorizedPaymentResponse({
+        id: "authorized-payment-id",
+        preapproval: { id: "preapproval-id" },
+      })
+    ).toEqual({
+      id: "authorized-payment-id",
+      preapprovalId: "preapproval-id",
+      status: null,
+      paymentStatus: null,
+    });
+    expect(
+      parseMercadoPagoAuthorizedPaymentResponse({
+        id: 6114264375,
+        preapproval_id: "preapproval-id",
+        status: "processed",
+        payment: { id: 19951521071, status: "approved" },
+      })
+    ).toEqual({
+      id: "6114264375",
+      preapprovalId: "preapproval-id",
+      status: "processed",
+      paymentStatus: "approved",
     });
   });
 

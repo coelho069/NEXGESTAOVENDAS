@@ -8,6 +8,11 @@ export type PublicPlanRecord = {
   amount: string;
   currency: string;
   billingInterval: SubscriptionBillingInterval;
+  /**
+   * Only plans with an explicit STRIPE_PRICE_PLAN_<SLUG> mapping enable the
+   * Stripe subscription option; unmapped plans offer no subscription.
+   */
+  stripeEnabled: boolean;
 };
 
 export function comparePublicPlans(

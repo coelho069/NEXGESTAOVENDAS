@@ -808,3 +808,23 @@ export const mercadoPagoAssinaturasCheckoutInputSchema = z.object({
 export type MercadoPagoAssinaturasCheckoutInput = z.infer<
   typeof mercadoPagoAssinaturasCheckoutInputSchema
 >;
+
+// ---------------------------------------------------------------------------
+// SaaS Assinaturas — public visitor checkout (no login; email-only start)
+// ---------------------------------------------------------------------------
+
+const checkoutEmailSchema = z
+  .string()
+  .trim()
+  .min(3)
+  .max(254)
+  .email()
+  .transform((value) => value.toLowerCase());
+
+export const publicCheckoutInputSchema = z.object({
+  plan_id: z.string().uuid(),
+  payer_email: checkoutEmailSchema,
+  client_mutation_id: z.string().uuid().optional(),
+});
+
+export type PublicCheckoutInput = z.infer<typeof publicCheckoutInputSchema>;

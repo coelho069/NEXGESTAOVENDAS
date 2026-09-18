@@ -101,15 +101,15 @@ export async function POST(request: Request) {
   }
 
   observeApiResult(obs, "ok", {
-    preapprovalId: result.preapproval_id,
-    subscriptionId: result.subscription_id,
+    preapproval_plan_id: result.preapproval_plan_id,
+    subscription_id: result.subscription_id,
   });
 
   return obs.withHeaders(
     NextResponse.json({
       ok: true,
       init_point: result.init_point,
-      preapproval_id: result.preapproval_id,
+      preapproval_plan_id: result.preapproval_plan_id,
       subscription_id: result.subscription_id,
       client_mutation_id: result.client_mutation_id,
     })

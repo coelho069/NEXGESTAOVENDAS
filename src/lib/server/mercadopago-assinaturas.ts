@@ -3,13 +3,57 @@ import {
   isMercadoPagoAssinaturasCheckoutEnabledEnv,
   MERCADOPAGO_ASSINATURAS_API_BASE,
   normalizeMercadoPagoAssinaturasAmount,
+  parseMercadoPagoAuthorizedPaymentResponse,
   parseMercadoPagoPreapprovalPlanResponse,
   parseMercadoPagoPreapprovalResponse,
+  type MercadoPagoAuthorizedPaymentSnapshot,
   type MercadoPagoPreapprovalPlanSnapshot,
   type MercadoPagoPreapprovalSnapshot,
 } from "@/lib/domain/mercadopago-assinaturas";
 import { verifyMercadoPagoWebhookSignature } from "@/lib/domain/mercadopago-webhook-signature";
 import type { SubscriptionBillingInterval } from "@/lib/domain/admin-subscriptions";
+import { createLogger } from "@/lib/observability/logger";
+
+/** Logger sem request (gateway roda fora do contexto de rota). correlationId é propagado pelo chamador via contexto de rota. */
+const gatewayLogger = createLogger({ service: "nexgestaovendas", component: "mercadopago-assinaturas-gateway" });
+
+/**
+ * Log sanitizado do corpo de erro do Mercado Pago.
+ * Preserva status HTTP e mensagem/cause; nunca registra Authorization/token/secret/card data.
+ */
+function logMercadoPagoAssinaturasApiError(
+  operation: string,
+  status: number,
+  body: unknown
+): void {
+  gatewayLogger.warn("mercadopago_assinaturas_api_error", {
+    operation,
+    mp_http_status: status,
+    mp_error: sanitizeMercadoPagoErrorBody(body),
+  });
+}
+
+function sanitizeMercadoPagoErrorBody(body: unknown): unknown {
+  if (!body || typeof body !== "object") return body;
+  const scrub = (value: unknown, depth = 0): unknown => {
+    if (depth > 4) return "[truncated]";
+    if (Array.isArray(value)) return value.slice(0, 5).map((v) => scrub(v, depth + 1));
+    if (value && typeof value === "object") {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        const key = k.toLowerCase();
+        if (key.includes("token") || key.includes("secret") || key.includes("authorization") || key.includes("card")) {
+          out[k] = "[redacted]";
+        } else {
+          out[k] = scrub(v, depth + 1);
+        }
+      }
+      return out;
+    }
+    return value;
+  };
+  return scrub(body);
+}
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_MERCADOPAGO_ASSINATURAS_PAYER_EMAIL = "buyer@testuser.com";
@@ -109,6 +153,12 @@ export type MercadoPagoAssinaturasGateway = {
     billingInterval: SubscriptionBillingInterval;
     backUrl: string;
   }): Promise<MercadoPagoPreapprovalPlanSnapshot>;
+  /** Busca um preapproval_plan existente no Mercado Pago (somente leitura). */
+  getPreapprovalPlan(planId: string): Promise<MercadoPagoPreapprovalPlanSnapshot | null>;
+  /**
+   * Cria preapproval via API pura. Exige card_token_id na prática (MP 400 "card_token_id is required")
+   * — NÃO usar no checkout público da landing. Mantido para fluxos internos futuros com pagador tokenizado.
+   */
   createPreapproval(input: {
     preapprovalPlanId: string;
     reason: string;
@@ -118,6 +168,9 @@ export type MercadoPagoAssinaturasGateway = {
     clientMutationId: string;
   }): Promise<MercadoPagoPreapprovalSnapshot>;
   getPreapproval(preapprovalId: string): Promise<MercadoPagoPreapprovalSnapshot | null>;
+  getAuthorizedPayment(
+    authorizedPaymentId: string
+  ): Promise<MercadoPagoAuthorizedPaymentSnapshot | null>;
 };
 
 async function mercadoPagoAssinaturasFetch(
@@ -182,11 +235,35 @@ export function createMercadoPagoAssinaturasGateway(
       });
       const body = await response.json();
       if (!response.ok) {
+        logMercadoPagoAssinaturasApiError("create_preapproval_plan", response.status, body);
         throw new Error("mercadopago_assinaturas_create_plan_failed");
       }
       const snapshot = parseMercadoPagoPreapprovalPlanResponse(body);
       if (!snapshot) {
+        logMercadoPagoAssinaturasApiError("create_preapproval_plan_parse", response.status, body);
         throw new Error("mercadopago_assinaturas_create_plan_invalid_response");
+      }
+      return snapshot;
+    },
+    async getPreapprovalPlan(planId) {
+      const response = await mercadoPagoAssinaturasFetch(
+        `/preapproval_plan/${encodeURIComponent(planId)}`,
+        {
+          method: "GET",
+          accessToken: env.accessToken,
+          timeoutMs: env.timeoutMs,
+        }
+      );
+      if (response.status === 404) return null;
+      const body = await response.json();
+      if (!response.ok) {
+        logMercadoPagoAssinaturasApiError("get_preapproval_plan", response.status, body);
+        throw new Error("mercadopago_assinaturas_get_plan_failed");
+      }
+      const snapshot = parseMercadoPagoPreapprovalPlanResponse(body);
+      if (!snapshot) {
+        logMercadoPagoAssinaturasApiError("get_preapproval_plan_parse", response.status, body);
+        throw new Error("mercadopago_assinaturas_get_plan_invalid_response");
       }
       return snapshot;
     },
@@ -207,6 +284,7 @@ export function createMercadoPagoAssinaturasGateway(
       });
       const body = await response.json();
       if (!response.ok) {
+        logMercadoPagoAssinaturasApiError("create_preapproval", response.status, body);
         throw new Error("mercadopago_assinaturas_create_preapproval_failed");
       }
       const snapshot = parseMercadoPagoPreapprovalResponse(body);
@@ -227,9 +305,27 @@ export function createMercadoPagoAssinaturasGateway(
       if (response.status === 404) return null;
       const body = await response.json();
       if (!response.ok) {
+        logMercadoPagoAssinaturasApiError("get_preapproval", response.status, body);
         throw new Error("mercadopago_assinaturas_get_preapproval_failed");
       }
       return parseMercadoPagoPreapprovalResponse(body);
+    },
+    async getAuthorizedPayment(authorizedPaymentId) {
+      const response = await mercadoPagoAssinaturasFetch(
+        `/authorized_payments/${encodeURIComponent(authorizedPaymentId)}`,
+        {
+          method: "GET",
+          accessToken: env.accessToken,
+          timeoutMs: env.timeoutMs,
+        }
+      );
+      if (response.status === 404) return null;
+      const body = await response.json();
+      if (!response.ok) {
+        logMercadoPagoAssinaturasApiError("get_authorized_payment", response.status, body);
+        throw new Error("mercadopago_assinaturas_get_authorized_payment_failed");
+      }
+      return parseMercadoPagoAuthorizedPaymentResponse(body);
     },
   };
 }

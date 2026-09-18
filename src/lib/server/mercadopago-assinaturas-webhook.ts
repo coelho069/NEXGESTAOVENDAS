@@ -8,10 +8,13 @@ import {
   type MercadoPagoAssinaturasWebhookNotification,
 } from "@/lib/domain/mercadopago-assinaturas";
 import type { SubscriptionBillingInterval } from "@/lib/domain/admin-subscriptions";
+import { parseCheckoutSessionExternalReference } from "@/lib/domain/onboarding-visitor";
 import {
   createMercadoPagoAssinaturasGateway,
   getMercadoPagoAssinaturasEnv,
 } from "@/lib/server/mercadopago-assinaturas";
+import { resolvePublicCheckoutSession } from "@/lib/server/public-checkout-sessions";
+import { runVisitorOnboarding } from "@/lib/server/visitor-onboarding";
 
 function asJson(value: unknown): Json {
   return value as Json;
@@ -23,13 +26,47 @@ export type MercadoPagoAssinaturasWebhookApplyResult = {
   subscription_id?: string;
   status?: string;
   ignored?: boolean;
+  ignored_reason?: string;
+  retryable?: boolean;
 };
 
+async function retrievePreapprovalForNotification(input: {
+  gateway: ReturnType<typeof createMercadoPagoAssinaturasGateway>;
+  notification: MercadoPagoAssinaturasWebhookNotification;
+}): Promise<{
+  preapproval: Awaited<ReturnType<ReturnType<typeof createMercadoPagoAssinaturasGateway>["getPreapproval"]>>;
+  ignoredReason?: string;
+}> {
+  const dataId = input.notification.data.id?.trim();
+  if (!dataId) return { preapproval: null, ignoredReason: "preapproval_id_missing" };
+
+  if (input.notification.type === "subscription_authorized_payment") {
+    const authorizedPayment = await input.gateway.getAuthorizedPayment(dataId);
+    if (!authorizedPayment?.preapprovalId) {
+      return { preapproval: null, ignoredReason: "authorized_payment_preapproval_missing" };
+    }
+    if (
+      (authorizedPayment.status &&
+        authorizedPayment.status.trim().toLowerCase() !== "processed") ||
+      (authorizedPayment.paymentStatus &&
+        !["approved", "authorized"].includes(
+          authorizedPayment.paymentStatus.trim().toLowerCase()
+        ))
+    ) {
+      return { preapproval: null, ignoredReason: "authorized_payment_not_processed" };
+    }
+    return { preapproval: await input.gateway.getPreapproval(authorizedPayment.preapprovalId) };
+  }
+
+  return { preapproval: await input.gateway.getPreapproval(dataId) };
+}
+
 export async function applyMercadoPagoAssinaturasWebhookEvent(
-  notification: MercadoPagoAssinaturasWebhookNotification
+  notification: MercadoPagoAssinaturasWebhookNotification,
+  options: { correlationId?: string } = {}
 ): Promise<MercadoPagoAssinaturasWebhookApplyResult> {
-  const preapprovalId = notification.data.id?.trim();
-  if (!preapprovalId) {
+  const dataId = notification.data.id?.trim();
+  if (!dataId) {
     return {
       replay: false,
       event_id: String(notification.id),
@@ -48,16 +85,95 @@ export async function applyMercadoPagoAssinaturasWebhookEvent(
   }
 
   const gateway = createMercadoPagoAssinaturasGateway(env);
-  const preapproval = await gateway.getPreapproval(preapprovalId);
+  const retrieved = await retrievePreapprovalForNotification({ gateway, notification });
+  const preapproval = retrieved.preapproval;
   if (!preapproval) {
     return {
       replay: false,
       event_id: String(notification.id),
       ignored: true,
+      ignored_reason: retrieved.ignoredReason ?? "preapproval_not_found",
+    };
+  }
+  const preapprovalId = preapproval.id;
+
+  // Confirm the current provider state after retrieving the resource. A
+  // notification itself is only a hint and never authorizes onboarding.
+  const checkoutSession = parseCheckoutSessionExternalReference(preapproval.externalReference);
+  const legacyExternal = parseAssinaturasExternalReference(preapproval.externalReference);
+  const confirmed = preapproval.status.trim().toLowerCase() === "authorized";
+  if (!confirmed && checkoutSession) {
+    return {
+      replay: false,
+      event_id: String(notification.id),
+      ignored: true,
+      ignored_reason: "preapproval_not_authorized",
     };
   }
 
-  const external = parseAssinaturasExternalReference(preapproval.externalReference);
+  // Public visitor checkout: use the exact reference when MP returns one,
+  // otherwise resolve by provider id or by a unique plan+email candidate.
+  // Legacy authenticated checkouts keep their original branch.
+  if (!legacyExternal) {
+    if (!confirmed) {
+      return {
+        replay: false,
+        event_id: String(notification.id),
+        ignored: true,
+        ignored_reason: "preapproval_not_authorized",
+      };
+    }
+
+    const resolved = await resolvePublicCheckoutSession({
+      admin,
+      preapprovalId,
+      clientMutationId: checkoutSession?.clientMutationId,
+      preapprovalPlanId: preapproval.preapprovalPlanId,
+      payerEmail: preapproval.payerEmail,
+      correlationId: options.correlationId,
+    });
+    if (!resolved.ok) {
+      if (resolved.reason === "database") {
+        throw new Error(resolved.error);
+      }
+      return {
+        replay: false,
+        event_id: String(notification.id),
+        ignored: true,
+        ignored_reason: resolved.error,
+      };
+    }
+
+    const onboarding = await runVisitorOnboarding({
+      clientMutationId: resolved.session.client_mutation_id,
+      providerRef: preapprovalId,
+      correlationId: options.correlationId,
+    });
+    return {
+      replay: onboarding.status === "replayed",
+      event_id: String(notification.id),
+      ...(onboarding.status === "completed" || onboarding.status === "replayed"
+        ? {
+            ...(onboarding.subscriptionId ? { subscription_id: onboarding.subscriptionId } : {}),
+            status: "active",
+          }
+        : {}),
+      ...(onboarding.status === "session_not_found" ||
+      onboarding.status === "missing_email" ||
+      onboarding.status === "degraded" ||
+      onboarding.status === "failed"
+        ? { ignored: true }
+        : {}),
+      ...(onboarding.status === "degraded" || onboarding.status === "failed"
+        ? {
+            ...(onboarding.retryable !== false ? { retryable: true } : {}),
+            ignored_reason: onboarding.status,
+          }
+        : {}),
+    };
+  }
+
+  const external = legacyExternal;
   if (!external) {
     return {
       replay: false,

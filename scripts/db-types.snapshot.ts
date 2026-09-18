@@ -383,6 +383,98 @@ export type Database = {
         }
         Relationships: []
       }
+      checkout_sessions: {
+        Row: {
+          client_mutation_id: string
+          created_at: string
+          id: string
+          onboarding_completed_at: string | null
+          onboarding_email_sent_at: string | null
+          onboarding_error: string | null
+          onboarding_organization_id: string | null
+          onboarding_status: string | null
+          onboarding_subscription_id: string | null
+          onboarding_user_id: string | null
+          payer_email: string
+          pix_order_id: string | null
+          pix_order_amount: number | null
+          pix_order_status: string | null
+          pix_paid_at: string | null
+          plan_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          client_mutation_id: string
+          created_at?: string
+          id?: string
+          onboarding_completed_at?: string | null
+          onboarding_email_sent_at?: string | null
+          onboarding_error?: string | null
+          onboarding_organization_id?: string | null
+          onboarding_status?: string | null
+          onboarding_subscription_id?: string | null
+          onboarding_user_id?: string | null
+          payer_email: string
+          pix_order_id?: string | null
+          pix_order_amount?: number | null
+          pix_order_status?: string | null
+          pix_paid_at?: string | null
+          plan_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          client_mutation_id?: string
+          created_at?: string
+          id?: string
+          onboarding_completed_at?: string | null
+          onboarding_email_sent_at?: string | null
+          onboarding_error?: string | null
+          onboarding_organization_id?: string | null
+          onboarding_status?: string | null
+          onboarding_subscription_id?: string | null
+          onboarding_user_id?: string | null
+          payer_email?: string
+          pix_order_id?: string | null
+          pix_order_amount?: number | null
+          pix_order_status?: string | null
+          pix_paid_at?: string | null
+          plan_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkout_sessions_onboarding_organization_id_fkey"
+            columns: ["onboarding_organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkout_sessions_onboarding_subscription_id_fkey"
+            columns: ["onboarding_subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkout_sessions_onboarding_user_id_fkey"
+            columns: ["onboarding_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkout_sessions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           created_at: string
@@ -1553,6 +1645,16 @@ export type Database = {
     }
     Functions: {
       apply_card_provider_event: { Args: { p_payload: Json }; Returns: Json }
+      mark_checkout_session_onboarded: {
+        Args: {
+          p_client_mutation_id: string
+          p_organization_id: string | null
+          p_subscription_id: string | null
+          p_user_id: string | null
+          p_onboarding_error?: string | null
+        }
+        Returns: Json
+      }
       apply_card_provider_status: { Args: { p_payload: Json }; Returns: Json }
       apply_pix_provider_event: { Args: { p_payload: Json }; Returns: Json }
       apply_pix_provider_status: { Args: { p_payload: Json }; Returns: Json }

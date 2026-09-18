@@ -99,7 +99,48 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await applyMercadoPagoAssinaturasWebhookEvent(notification);
+  let result: Awaited<ReturnType<typeof applyMercadoPagoAssinaturasWebhookEvent>>;
+  try {
+    result = await applyMercadoPagoAssinaturasWebhookEvent(notification, {
+      correlationId: obs.correlationId,
+    });
+  } catch {
+    observeApiResult(obs, "server_error", {
+      eventId: notification.id,
+      type: notification.type,
+      error: "mercadopago_assinaturas_webhook_processing_failed",
+    });
+    return obs.withHeaders(
+      NextResponse.json(
+        {
+          error: "mercadopago_assinaturas_webhook_processing_failed",
+          event_id: notification.id,
+          retryable: true,
+        },
+        { status: 503 }
+      )
+    );
+  }
+
+  if (result.retryable) {
+    observeApiResult(obs, "server_error", {
+      eventId: notification.id,
+      type: notification.type,
+      error: "mercadopago_assinaturas_webhook_retryable",
+    });
+    return obs.withHeaders(
+      NextResponse.json(
+        {
+          error: "mercadopago_assinaturas_webhook_retryable",
+          event_id: notification.id,
+          type: notification.type,
+          retryable: true,
+        },
+        { status: 503 }
+      )
+    );
+  }
+
   observeApiResult(obs, "ok", {
     eventId: notification.id,
     type: notification.type,

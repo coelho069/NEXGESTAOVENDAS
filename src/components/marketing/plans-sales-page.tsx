@@ -345,8 +345,8 @@ function PlanCard({ plan, tierMeta, checkoutEnabled, isAuthenticated }: PlanCard
         <SubscribePlanButton
           planId={plan.id}
           planLabel={displayName}
-          checkoutEnabled={checkoutEnabled}
-          isAuthenticated={isAuthenticated}
+          stripeEnabled={plan.stripeEnabled}
+          subscriptionEnabled={checkoutEnabled}
         />
       </div>
     </article>
