@@ -18,6 +18,25 @@ import { verifyMercadoPagoWebhookSignature } from "@/lib/domain/mercadopago-webh
 
 const HEALTH_TTL_MS = 30_000;
 const DEFAULT_TIMEOUT_MS = 15_000;
+const DEFAULT_MERCADOPAGO_PAYER_EMAIL = "buyer@testuser.com";
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isMercadoPagoAcceptablePayerEmail(value: string): boolean {
+  if (!EMAIL_PATTERN.test(value)) return false;
+  const domain = value.split("@")[1]?.toLowerCase() ?? "";
+  return !domain.endsWith(".local");
+}
+
+export function resolveMercadoPagoPayerEmail(
+  envSource: Record<string, string | undefined> = process.env
+): string {
+  const candidate =
+    envSource.MERCADOPAGO_PAYER_EMAIL?.trim() || envSource.MP_PAYER_EMAIL?.trim() || "";
+  if (candidate && isMercadoPagoAcceptablePayerEmail(candidate)) {
+    return candidate;
+  }
+  return DEFAULT_MERCADOPAGO_PAYER_EMAIL;
+}
 
 type MercadoPagoEnv =
   | {
@@ -150,13 +169,7 @@ export function createMercadoPagoPixGateway(env: Extract<MercadoPagoEnv, { confi
             ],
           },
           payer: {
-            email: "pdv@nexgestaovendas.local",
-          },
-          metadata: {
-            store_id: input.storeId ?? "",
-            client_mutation_id: input.clientMutationId ?? "",
-            app: "nex-gestaovendas",
-            rail: "mercadopago-pix",
+            email: resolveMercadoPagoPayerEmail(),
           },
         }),
       });
