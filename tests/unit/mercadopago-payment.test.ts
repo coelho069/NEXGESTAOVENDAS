@@ -26,9 +26,11 @@ import {
   executeMercadoPagoPixPayment,
 } from "@/lib/server/mercadopago-pix-payment";
 import {
+  createMercadoPagoPixGateway,
   getMercadoPagoEnv,
   probeMercadoPagoPixHealth,
   resetMercadoPagoHealthCache,
+  resolveMercadoPagoPayerEmail,
   resolveMercadoPagoPixPaymentAdapter,
 } from "@/lib/server/mercadopago";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -120,6 +122,94 @@ function signMercadoPagoWebhook(input: {
   const v1 = createHmac("sha256", input.secret).update(manifest).digest("hex");
   return `ts=${input.ts},v1=${v1}`;
 }
+
+describe("Mercado Pago payer email", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("defaults to a non-.local test email", () => {
+    expect(resolveMercadoPagoPayerEmail({})).toBe("buyer@testuser.com");
+    expect(resolveMercadoPagoPayerEmail({})).not.toContain(".local");
+  });
+
+  it("prefers MERCADOPAGO_PAYER_EMAIL then MP_PAYER_EMAIL when valid", () => {
+    expect(
+      resolveMercadoPagoPayerEmail({
+        MERCADOPAGO_PAYER_EMAIL: "store@example.com",
+        MP_PAYER_EMAIL: "ignored@example.com",
+      })
+    ).toBe("store@example.com");
+    expect(resolveMercadoPagoPayerEmail({ MP_PAYER_EMAIL: "mp@example.com" })).toBe(
+      "mp@example.com"
+    );
+  });
+
+  it("falls back when env value is not a valid email", () => {
+    expect(resolveMercadoPagoPayerEmail({ MERCADOPAGO_PAYER_EMAIL: "not-an-email" })).toBe(
+      "buyer@testuser.com"
+    );
+    expect(resolveMercadoPagoPayerEmail({ MERCADOPAGO_PAYER_EMAIL: "pdv@nexgestaovendas.local" })).toBe(
+      "buyer@testuser.com"
+    );
+  });
+});
+
+describe("Mercado Pago Orders create payload", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("omits metadata and uses external_reference + payer email", async () => {
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      expect(body).not.toHaveProperty("metadata");
+      expect(body.external_reference).toBe(MUTATION);
+      expect(body.payer.email).toBe("buyer@testuser.com");
+      expect(body.payer.email).not.toContain(".local");
+      return new Response(
+        JSON.stringify({
+          id: MP_ORDER,
+          status: "action_required",
+          status_detail: "waiting_transfer",
+          total_amount: "10.00",
+          transactions: {
+            payments: [
+              {
+                payment_method: {
+                  id: "pix",
+                  qr_code: "00020126580014br.gov.bcb.pix0136test",
+                },
+              },
+            ],
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const gateway = createMercadoPagoPixGateway({
+      configured: true,
+      accessToken: "APP_USR_test",
+      webhookSecret: "mp_whsec_test",
+      timeoutMs: 15_000,
+    });
+
+    await gateway.create({
+      amount: "10.00",
+      clientMutationId: MUTATION,
+      storeId: STORE,
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(String(init?.headers && (init.headers as Record<string, string>)["X-Idempotency-Key"])).toBe(
+      MUTATION
+    );
+  });
+});
 
 describe("Mercado Pago checkout flag", () => {
   afterEach(() => {
