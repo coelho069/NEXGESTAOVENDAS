@@ -5,10 +5,9 @@ import type { SaleTotals } from "@/lib/domain/sale-ops";
 type PaymentActionsProps = {
   disabled: boolean;
   cardSelectable?: boolean;
-  pixSelectable?: boolean;
   onCash: () => void;
   onCard: () => void;
-  onPix?: () => void;
+  onPixManual: () => void;
 };
 
 export function PaymentActions({
@@ -16,6 +15,7 @@ export function PaymentActions({
   cardSelectable = false,
   onCash,
   onCard,
+  onPixManual,
 }: PaymentActionsProps) {
   const cardDisabled = disabled || !cardSelectable;
 
@@ -46,15 +46,15 @@ export function PaymentActions({
       </button>
       <button
         type="button"
-        data-testid="checkout-pix"
-        disabled
-        aria-label="PIX — não configurado"
-        title="PIX — não configurado"
-        className="flex flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-teal-300 bg-teal-50 p-4 font-semibold text-teal-800 disabled:cursor-not-allowed"
+        data-testid="checkout-pix-manual"
+        disabled={disabled}
+        aria-label="PIX próprio"
+        title="PIX próprio"
+        onClick={onPixManual}
+        className="flex flex-col items-center gap-2 rounded-2xl border-2 border-teal-100 bg-teal-50 p-4 font-semibold text-teal-800 transition hover:border-teal-500 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <QrCode size={24} aria-hidden="true" />
-        <span>PIX</span>
-        <small className="font-normal text-teal-700">não configurado</small>
+        <span>PIX próprio</span>
       </button>
     </div>
   );

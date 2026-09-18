@@ -57,14 +57,14 @@ test("pagamento cash finaliza uma vez mesmo com retry de clique", async ({ page 
   expect(counts).toEqual({ sales: 1, payments: 1 });
 });
 
-test("adapter card/PIX não configurado mantém o carrinho como rascunho", async ({ page }) => {
+test("adapter card não configurado mantém o carrinho como rascunho; pix_manual habilitado", async ({ page }) => {
   await openCart(page);
   const card = page.getByTestId("checkout-card");
-  const pix = page.getByTestId("checkout-pix");
+  const pixManual = page.getByTestId("checkout-pix-manual");
   await expect(card).toBeDisabled();
   await expect(card).toContainText("não configurado");
-  await expect(pix).toBeDisabled();
-  await expect(pix).toContainText("não configurado");
+  await expect(pixManual).toBeEnabled();
+  await expect(pixManual).toContainText("PIX próprio");
   await expect(page.getByTestId("checkout-cash")).toBeEnabled();
   await expect(page.getByTestId("cart-line-BEV-001")).toBeVisible();
   await expect(page.getByTestId("receipt")).toHaveCount(0);

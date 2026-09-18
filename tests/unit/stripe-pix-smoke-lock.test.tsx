@@ -154,16 +154,17 @@ describe("PIX smoke lock — flag never defaults true", () => {
 
     expect(pdvScreen).not.toContain("usePixPaymentHealth");
     expect(pdvScreen).not.toMatch(/sale\.pay\(\s*["']pix["']\s*\)/);
-    expect(pdvScreen).toContain("pixSelectable={false}");
+    expect(pdvScreen).toContain('sale.pay("pix_manual")');
     expect(pdvScreen).not.toMatch(/onPix=\{/);
 
-    expect(paymentSheet).toContain("pixSelectable={false}");
+    expect(paymentSheet).toContain("onPixManual=");
     expect(paymentSheet).not.toMatch(/onPix=\{/);
 
-    expect(paymentActions).toContain('data-testid="checkout-pix"');
-    expect(paymentActions).toContain("não configurado");
-    expect(paymentActions).not.toMatch(/onClick=\{[^}]*onPix/);
+    expect(paymentActions).toContain('data-testid="checkout-pix-manual"');
+    expect(paymentActions).toContain("PIX próprio");
+    expect(paymentActions).not.toContain('data-testid="checkout-pix"');
     expect(paymentActions).not.toMatch(/stripe/i);
+    expect(paymentActions).not.toMatch(/mercadopago/i);
   });
 });
 
@@ -437,28 +438,26 @@ describe("PIX smoke lock — Gate 4 cash + card regression", () => {
     expect(cardExec.status).toBe("not_configured");
   });
 
-  it("keeps cash and card buttons usable while PIX stays disabled", () => {
+  it("keeps provider pix out of checkout while pix_manual is enabled", () => {
     const onCard = vi.fn();
-    const onPix = vi.fn();
+    const onPixManual = vi.fn();
     const onCash = vi.fn();
     render(
       <PaymentActions
         disabled={false}
         cardSelectable={true}
-        pixSelectable={false}
         onCash={onCash}
         onCard={onCard}
-        onPix={onPix}
+        onPixManual={onPixManual}
       />
     );
 
     expect(screen.getByTestId("checkout-cash")).toBeEnabled();
     expect(screen.getByTestId("checkout-card")).toBeEnabled();
-    expect(screen.getByTestId("checkout-pix")).toBeDisabled();
-    expect(screen.getByTestId("checkout-pix")).toHaveTextContent("não configurado");
-    expect(screen.getByTestId("checkout-pix")).toHaveAttribute("aria-label", "PIX — não configurado");
-    screen.getByTestId("checkout-pix").click();
-    expect(onPix).not.toHaveBeenCalled();
+    expect(screen.getByTestId("checkout-pix-manual")).toBeEnabled();
+    expect(screen.getByTestId("checkout-pix-manual")).toHaveTextContent("PIX próprio");
+    screen.getByTestId("checkout-pix-manual").click();
+    expect(onPixManual).toHaveBeenCalledTimes(1);
   });
 
   it("routes card PaymentIntents to card RPCs, not process_pix_sale", async () => {
