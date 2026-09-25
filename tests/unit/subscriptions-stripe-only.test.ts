@@ -14,14 +14,14 @@ import {
 } from "@/lib/advisor/plan-slug";
 import type { PublicPlanRecord } from "@/lib/domain/public-plans";
 
-// ---------------------------------------------------------------------------
-// Testes da mudança "assinaturas = Stripe only":
+// ---------------------------------------------------------------------------//  Testes da mudança "assinaturas = checkout online nos trilhos Stripe,
+//  cobrança comunicada via Mercado Pago":
 //  1. Plano com Stripe Price mostra assinatura Stripe.      (gating test)
 //  2. Plano sem Stripe Price não permite checkout.          (gating + query)
 //  3. Checkout utiliza Stripe.                              (public-stripe-checkout)
-//  4. Mercado Pago não aparece como opção de assinatura.    (source guard)
-//  5. Endpoint público Mercado Pago de assinatura não é chamado. (source guard)
-//  6. Pix não aparece como método da assinatura.            (source guard)
+//  4. Botão de assinatura aponta para o checkout Stripe.    (source guard)
+//  5. Trilhos públicos presentes: checkout MP + webhook MP. (source guard)
+//  6. Página de planos comunica cobrança via Mercado Pago.  (source guard)
 //  7. JEV pode retornar plan_slug.                          (plan-slug)
 //  8. plan_slug é convertido no Stripe Price correto.       (plan-slug)
 //  9. Price ID é resolvido no servidor.                     (query: sem Nextpublic)
@@ -135,7 +135,7 @@ describe("gating público (loadPublicPlans + checkout gate)", () => {
   });
 });
 
-describe("4–6. Mercado Pago/Pix removidos do fluxo público de assinatura", () => {
+describe("4–6. Assinatura: checkout online nos trilhos Stripe, cobrança via Mercado Pago", () => {
   it("4. nenhuma UI de planos chama endpoint Mercado Pago de assinatura", () => {
     const button = readFileSync(
       join(process.cwd(), "src/components/marketing/subscribe-plan-button.tsx"),
@@ -146,11 +146,11 @@ describe("4–6. Mercado Pago/Pix removidos do fluxo público de assinatura", ()
     expect(button).not.toContain("pix");
   });
 
-  it("5. a rota pública de checkout Mercado Pago de assinatura não existe mais", () => {
+  it("5. trilhos públicos de assinatura presentes: checkout MP (novo rail) e webhook MP de legado", () => {
     const { existsSync } = require("node:fs") as { existsSync: (p: string) => boolean };
     expect(
       existsSync(join(process.cwd(), "src/app/api/subscriptions/mercadopago/checkout/route.ts"))
-    ).toBe(false);
+    ).toBe(true);
     // Webhook MP de assinatura é preservado para legado.
     expect(
       existsSync(join(process.cwd(), "src/app/api/subscriptions/mercadopago/webhook/route.ts"))
@@ -167,22 +167,21 @@ describe("4–6. Mercado Pago/Pix removidos do fluxo público de assinatura", ()
       expect(true).toBe(true);
       return;
     }
-    expect(readdirSync(mpDir).sort()).toEqual(["webhook"]);
+    expect(readdirSync(mpDir).sort()).toEqual(["checkout", "webhook"]);
   });
 
-  it("6. a página de planos não oferece Pix como método de assinatura", () => {
+  it("6. a página de planos comunica a cobrança recorrente via Mercado Pago", () => {
     const page = readFileSync(
       join(process.cwd(), "src/components/marketing/plans-sales-page.tsx"),
       "utf8"
     );
-    expect(page.toLowerCase()).not.toMatch(/pague com pix|pix por assinatura|checkout pix/);
-    expect(page).not.toContain("Mercado Pago");
+    expect(page.toLowerCase()).toContain("mercado pago");
   });
 
-  it("4b. copy comercial não menciona Mercado Pago na assinatura", () => {
+  it("4b. .env.example documenta os segredos de cobrança sem publicá-los", () => {
     const envExample = readFileSync(join(process.cwd(), ".env.example"), "utf8");
-    expect(envExample).toContain("Stripe-only");
-    expect(envExample).toContain("no Mercado Pago fallback");
+    expect(envExample).toContain("MERCADOPAGO_WEBHOOK_SECRET");
+    expect(envExample).not.toMatch(/NEXT_PUBLIC_STRIPE_SECRET/);
   });
 });
 

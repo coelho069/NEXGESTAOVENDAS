@@ -638,6 +638,13 @@ export function PlansSalesPage({
             </p>
           ) : null}
 
+          {/* Empty state: sem planos ativos, oferta clara de canal humano */}
+          {!loadError && sortedPlans.length === 0 ? (
+            <p className="mx-auto mt-8 max-w-xl rounded-2xl border border-slate-200 bg-white px-5 py-4 text-center text-sm font-medium text-slate-600">
+              Nenhum plano disponível no momento. Fale conosco pelo WhatsApp.
+            </p>
+          ) : null}
+
           <div className="mt-12 grid grid-cols-1 items-stretch gap-6 lg:grid-cols-3 lg:gap-8">
             {sortedPlans.map((plan) => {
               const tierMeta = resolveTierMeta(plan.name, sortedPlans.length);

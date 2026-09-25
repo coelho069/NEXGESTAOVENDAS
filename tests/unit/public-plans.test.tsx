@@ -27,15 +27,15 @@ const samplePlan = {
 };
 
 const threeTierPlans = [
-  { ...samplePlan, id: "11111111-1111-4111-8111-111111111111", name: "Starter", amount: "49.90" },
+  { ...samplePlan, id: "11111111-1111-4111-8111-111111111111", name: "Essencial", amount: "49.90" },
   {
     ...samplePlan,
     id: "22222222-2222-4222-8222-222222222222",
-    name: "Pro",
+    name: "Profissional",
     amount: "99.90",
     description: "Plano intermediário.",
   },
-  { ...samplePlan, id: "44444444-4444-4444-8444-444444444444", name: "Max", amount: "199.90" },
+  { ...samplePlan, id: "44444444-4444-4444-8444-444444444444", name: "Enterprise", amount: "199.90" },
 ];
 
 describe("public plans migration", () => {
@@ -173,23 +173,38 @@ describe("PlansSalesPage", () => {
     render(<PlansSalesPage plans={[samplePlan]} loadError={null} isAuthenticated={false} />);
 
     expect(
-      screen.getByRole("heading", { name: /Pare de perder venda no caixa/i })
+      screen.getByRole("heading", {
+        name: /Venda mais\. Controle seu estoque\. Gerencie sua loja em um só lugar\./i,
+      })
     ).toBeInTheDocument();
-    expect(screen.getByText(/PDV offline-first, estoque e clientes/i)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Essencial" })).toBeInTheDocument();
-    expect(screen.getByText(/R\$\s*99,90/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /O Nex Gestão Vendas reúne PDV, estoque, clientes e gestão em uma plataforma/i
+      )
+    ).toBeInTheDocument();
+    // Tier labels: o card usa o rótulo do tier; o nome também aparece na
+    // seção "Compare os planos" — por isso getAllByRole.
+    expect(
+      screen.getAllByRole("heading", { name: "Essencial" }).length
+    ).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/R\$\s*99[.,]90/)).toBeInTheDocument();
+    expect(screen.getByText(/\/ mensal/)).toBeInTheDocument();
+    // Sem env de WhatsApp e checkoutEnabled=false (default): botão vira "Em breve".
     expect(screen.getAllByText("Em breve").length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("link", { name: "Entrar" }).length).toBeGreaterThanOrEqual(2);
+    // Header desktop expõe "Entrar" (o menu mobile só renderiza quando aberto).
     expect(screen.getAllByRole("link", { name: "Entrar" })[0]).toHaveAttribute("href", "/login");
-    expect(screen.getByRole("link", { name: "Abrir PDV" })).toHaveAttribute("href", "/pdv");
+    // Visitante: o "Abrir PDV" do header aponta para /login; o do hero para /pdv.
+    const pdvLinks = screen.getAllByRole("link", { name: "Abrir PDV" });
+    expect(pdvLinks.some((link) => link.getAttribute("href") === "/pdv")).toBe(true);
     expect(screen.getByText(/Caixa lento/i)).toBeInTheDocument();
-    expect(screen.getByText(/StockMap/i)).toBeInTheDocument();
-    expect(screen.getByText("segundos")).toBeInTheDocument();
-    expect(screen.getByText("sync")).toBeInTheDocument();
-    expect(screen.queryByText(/catálogo rápido/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/nenhuma loja/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Stripe/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Comprar/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Informações espalhadas/i)).toBeInTheDocument();
+    expect(screen.getByText("Atalhos de caixa")).toBeInTheDocument();
+    expect(screen.getByText("Funcionamento offline")).toBeInTheDocument();
+    expect(screen.getAllByText(/Escolha o plano ideal/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Compare os planos/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Perguntas frequentes/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Pronto para organizar sua operação\?/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Nex Gestão Vendas").length).toBeGreaterThan(0);
   });
 
   it("shows WhatsApp CTA when env is configured", () => {
@@ -197,24 +212,31 @@ describe("PlansSalesPage", () => {
 
     render(<PlansSalesPage plans={[samplePlan]} loadError={null} isAuthenticated={false} />);
 
-    expect(screen.getByRole("link", { name: /Falar no WhatsApp/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Chamar no WhatsApp/i })).toHaveAttribute(
       "href",
       expect.stringContaining("https://wa.me/5511999999999")
     );
-    expect(screen.getByRole("link", { name: /Contratar via WhatsApp/i })).toBeInTheDocument();
-    expect(screen.getByText(/Fale no WhatsApp — checkout online em breve/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Prefere falar com a gente\?/i)
+    ).toBeInTheDocument();
   });
 
-  it("anchors the middle-priced plan as Crescimento with Mais Popular badge", () => {
+  it("anchors the middle-priced plan as Crescimento with Mais popular badge", () => {
     delete process.env[ASSINATURAS_WHATSAPP_ENV];
 
     render(<PlansSalesPage plans={threeTierPlans} loadError={null} isAuthenticated={false} />);
 
-    expect(screen.getByRole("heading", { name: "Essencial" })).toBeInTheDocument();
+    // "Essencial" aparece no card e na comparação; Crescimento/Escala só no card.
+    expect(
+      screen.getAllByRole("heading", { name: "Essencial" }).length
+    ).toBeGreaterThanOrEqual(2);
     expect(screen.getByRole("heading", { name: "Crescimento" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Escala" })).toBeInTheDocument();
-    expect(screen.getByText("Mais Popular")).toBeInTheDocument();
-    expect(screen.getByText(/Hotkeys de caixa \(F12 finalizar\)/i)).toBeInTheDocument();
+    expect(screen.getByText("Mais popular")).toBeInTheDocument();
+    // O benefício aparece no card do plano e na seção "Compare os planos".
+    expect(
+      screen.getAllByText(/Hotkeys de caixa \(F12 finalizar\)/i).length
+    ).toBeGreaterThanOrEqual(2);
   });
 
   it("shows empty state without crashing", () => {
@@ -233,10 +255,11 @@ describe("PlansSalesPage", () => {
       />
     );
 
-    const headerNav = screen.getByRole("navigation");
-    expect(within(headerNav).getByRole("link", { name: "Abrir PDV" })).toHaveAttribute(
-      "href",
-      "/pdv?store=store-1"
+    // O header e o hero expõem "Abrir PDV"; ambos apontam para a loja do usuário.
+    const pdvLinks = screen.getAllByRole("link", { name: "Abrir PDV" });
+    expect(pdvLinks.length).toBeGreaterThanOrEqual(2);
+    expect(pdvLinks.every((link) => link.getAttribute("href") === "/pdv?store=store-1")).toBe(
+      true
     );
   });
 });

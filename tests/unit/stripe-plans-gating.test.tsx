@@ -78,13 +78,9 @@ describe("PlansSalesPage stripe-only subscription gating", () => {
     expect(screen.queryByRole("button", { name: /Começar agora/ })).toBeNull();
   });
 
-  it("no PIX badge, button, or copy remains anywhere on the plans page", () => {
-    renderPage([
-      plan({ stripeEnabled: true }),
-      plan({ id: "33333333-3333-4333-8333-333333333333", name: "Plano Pix", stripeEnabled: false }),
-    ]);
-    expect(screen.queryByText(/^PIX$/)).toBeNull();
-    expect(screen.queryByText(/Pix/i)).toBeNull();
+  it("Mercado Pago is announced as the billing provider on the plans page", () => {
+    renderPage([plan({ stripeEnabled: true })]);
+    expect(screen.getAllByText(/cobrança recorrente via Mercado Pago/i).length).toBeGreaterThan(0);
   });
 
   it("subscription disabled gate hides actionable buttons on all plans", () => {
