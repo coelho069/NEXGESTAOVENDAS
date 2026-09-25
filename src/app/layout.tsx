@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { SyncProvider } from "@/components/providers/sync-provider";
+// [BUG-NEX-HYDRATION-418] widget do Hermes montado apenas no client
+// (dynamic import com ssr:false) — sem SSR, não há mismatch de hidratação.
+import { HermesChatWidgetLazyMount } from "@/components/hermes/chat-widget-client";
 import "./globals.css";
 
 const inter = Inter({
@@ -18,6 +21,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="pt-BR">
       <body className={inter.className}>
         <SyncProvider>{children}</SyncProvider>
+        {/* [BUG-NEX-HYDRATION-418] montagem client-only, fora do fluxo SSR */}
+        <HermesChatWidgetLazyMount />
       </body>
     </html>
   );
