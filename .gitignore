@@ -45,3 +45,6 @@ next-env.d.ts
 # IDE
 .idea
 .vscode
+
+# Build artifacts (nunca versionar; causaram blob de 142MB no push)
+/.next*/
