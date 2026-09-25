@@ -3,6 +3,7 @@ import { resolveSyncBadge } from "@/stores/sync-store";
 type SyncStatusBadgeProps = {
   online: boolean;
   pendingCount: number;
+  failedCount?: number;
   syncing: boolean;
   conflictCount?: number;
 };
@@ -19,10 +20,13 @@ const labels = {
 export function SyncStatusBadge({
   online,
   pendingCount,
+  failedCount = 0,
   syncing,
   conflictCount = 0,
 }: SyncStatusBadgeProps) {
-  const status = syncing ? "processing" : resolveSyncBadge(online, pendingCount, { conflictCount });
+  const status = syncing
+    ? "processing"
+    : resolveSyncBadge(online, pendingCount, { conflictCount, failed: failedCount > 0 });
   const tone =
     status === "synced"
       ? "bg-emerald-100 text-emerald-800"

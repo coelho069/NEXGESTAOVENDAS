@@ -73,6 +73,11 @@ export class PdvLocalDatabase extends Dexie {
   }
 }
 
+export function getPdvLocalDbName(userId?: string | null): string {
+  const normalizedUserId = userId?.trim();
+  return normalizedUserId ? `${PDV_LOCAL_DB_NAME}:${normalizedUserId}` : PDV_LOCAL_DB_NAME;
+}
+
 const singletons = new Map<string, PdvLocalDatabase>();
 
 export function createPdvLocalDb(name = PDV_LOCAL_DB_NAME): PdvLocalDatabase {
@@ -90,6 +95,10 @@ export function getPdvLocalDb(name = PDV_LOCAL_DB_NAME): PdvLocalDatabase {
   return db;
 }
 
+export function getPdvLocalDbForUser(userId?: string | null): PdvLocalDatabase {
+  return getPdvLocalDb(getPdvLocalDbName(userId));
+}
+
 export async function deletePdvLocalDb(name = PDV_LOCAL_DB_NAME): Promise<void> {
   const existing = singletons.get(name);
   if (existing) {
@@ -97,4 +106,8 @@ export async function deletePdvLocalDb(name = PDV_LOCAL_DB_NAME): Promise<void> 
     singletons.delete(name);
   }
   await Dexie.delete(name);
+}
+
+export async function deletePdvLocalDbForUser(userId?: string | null): Promise<void> {
+  await deletePdvLocalDb(getPdvLocalDbName(userId));
 }

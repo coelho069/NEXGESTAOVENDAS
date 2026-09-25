@@ -22,8 +22,6 @@ export default defineConfig({
     url: "http://localhost:3000",
     // In CI always start a dedicated server. Locally reuse only when already up.
     reuseExistingServer: !process.env.CI,
-<<<<<<< HEAD
-=======
     env: {
       ...process.env,
       NEX_NEXT_DIST_DIR: e2eDistDir,
@@ -31,6 +29,5 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "",
       NEXT_PUBLIC_PDV_FIXTURES: "1",
     },
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
   },
 });

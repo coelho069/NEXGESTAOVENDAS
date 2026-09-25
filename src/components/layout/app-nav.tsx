@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Ticket } from "lucide-react";
 import { canManageInventory, canViewReports, type MemberRole } from "@/lib/domain/rbac";
 
 function storeHref(path: string, storeId?: string | null): string {
@@ -51,6 +52,14 @@ export function AppNav({
           Assinaturas
         </Link>
       ) : null}
+      {/* [TASK: Módulo de Suporte] entrada fixa de suporte na navegação */}
+      <Link
+        href={storeHref("/suporte/tickets", storeId)}
+        className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-medium transition-colors hover:bg-slate-50"
+      >
+        <Ticket size={16} className="text-slate-500" />
+        Suporte
+      </Link>
     </nav>
   );
 }

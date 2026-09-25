@@ -2,5 +2,5 @@ export type {
   Database,
   Tables,
   Enums,
-  ProcessSaleResult,
 } from "@/lib/db/types";
+export type { ProcessSaleResult } from "@/lib/db/rpc-types";

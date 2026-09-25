@@ -5,10 +5,7 @@ import { formatBRL, multiplyMoney, sumMoney } from "@/lib/money";
 import { getPaymentAdapter } from "@/lib/adapters/payment";
 import { fiscalAdapter } from "@/lib/adapters/fiscal";
 import { searchProducts } from "@/lib/domain/product";
-<<<<<<< HEAD
-=======
 import { processSaleInputSchema } from "@/lib/validation/schemas";
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 
 const sampleLines: CartLine[] = [
   {
@@ -42,13 +39,6 @@ describe("sale domain", () => {
       "99999999-9999-4999-8999-999999999999",
       sampleLines,
       "cash",
-<<<<<<< HEAD
-      { discount: "0.00" }
-    );
-
-    expect(payload.payments).toEqual([{ method: "cash", amount: "7.00" }]);
-    expect(payload.items[0].unit_price).toBe("3.50");
-=======
       { discount: "0.00", saleId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }
     );
 
@@ -85,7 +75,6 @@ describe("sale domain", () => {
         items: [{ ...payload.items[0], unit_price: "10000000000.00" }],
       }).success
     ).toBe(false);
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
   });
 });
 

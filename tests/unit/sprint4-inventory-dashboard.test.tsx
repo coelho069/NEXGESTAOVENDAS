@@ -152,10 +152,7 @@ describe("Zod inventory and dashboard", () => {
     ).toBe(true);
     expect(
       productWriteSchema.safeParse({
-<<<<<<< HEAD
-=======
         store_id: storeId,
->>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
         sku: "NEW-001",
         name: "Novo",
         unit_price: "1.50",
