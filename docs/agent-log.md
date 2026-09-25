@@ -1,5 +1,68 @@
+<<<<<<< HEAD
 # Agent Log — Sprint 4
 
+=======
+# Agent Log — Correções de integridade do fluxo de venda
+
+---
+
+# Agent Log — Autoridade RBAC por loja
+
+**Data:** 2026-09-02
+**Escopo:** unificação da autorização em `store_members.role`, resolvida por usuário e loja.
+
+1. `getAuthedContext(storeId)` deixou de ler `profiles.default_role`; ausência de membership retorna papel nulo.
+2. Rotas de vendas, inventário, dashboard e sync, além dos loaders SSR, passaram a resolver a role para a loja solicitada antes de autorizar.
+3. A migration incremental `20260902201000_rbac_store_membership_authority.sql` remove policies históricas baseadas em perfil, recria helpers com `search_path` seguro e faz `adjust_inventory` gravar `actor_role` somente da membership.
+4. Testes unitários cobrem divergência de roles, ausência de membership, multi-store, mudança sem cache e guarda estática da migration.
+
+Validação PostgreSQL/RLS permanece **UNVERIFIED — ambiente PostgreSQL/Supabase indisponível**: Docker, Podman, Supabase CLI e `psql` não estão instalados.
+
+**Data:** 2026-09-01
+**Agente:** Cursor Grok 4.6
+**Escopo:** Correções pontuais (sync status, estoque, catálogo, teto de desconto no servidor, recibo, HID). Sem alterar Dexie schema, RLS ou dashboard.
+
+## Revisão técnica complementar
+
+**Agente:** Cursor GPT-5.6 Luna
+
+1. O outbox agora reivindica somente comandos ainda `pending`; respostas só são aplicadas ao registro que continua `processing` com o mesmo `updatedAt`.
+2. Transições terminais não sobrescrevem `failed`, `conflict` ou `synced`; estados não sincronizados também permanecem contabilizados na UI.
+3. O recibo respeita o estado exato do próprio outbox, mesmo quando existem outras vendas pendentes ou quando o dispositivo está offline.
+4. Atalhos não-Escape e scanner HID são bloqueados enquanto um painel modal está aberto.
+5. Fixtures de E2E não reinicializam o estoque projetado após cada atualização de tela.
+6. O teto de desconto considera o total dos descontos de cabeçalho e de itens; respostas `403` entram no fluxo de conflito e restauram o estoque projetado.
+
+## Análise (antes da implementação)
+
+Pontos de falha confirmados no fluxo PDV + outbox:
+
+1. **Recibo `synced` falso:** `paySale` usa só `pendingCount === 0 && online`. `countUnsyncedCommands` ignora `conflict`/`failed`, então 409/422 imprime `synced`/`confirmed`.
+2. **Estoque demo:** `ensureLocalInventory` faz `bulkPut` de quantidades fictícias quando Dexie está vazio; o caixa vende contra saldo inventado e o RPC pode falhar depois.
+3. **Catálogo demo:** `useProducts` cai em `DEMO_PRODUCTS` em erro/exceção, com `error` às vezes nulo — SKUs/preços que não são da org.
+4. **Desconto só no client:** papel vem de `<select>`; `process_sale` só rejeita total &lt; 0. Caixa pode persistir desconto de admin.
+5. **Método de pagamento divergente:** `closeSale` grava `cash`; o recibo usa `input.method`.
+6. **HID/atalhos:** listener global ignora foco; F6/scanner disparam com modal/input aberto (exceto a busca, que deve continuar aceitando HID).
+
+## Alterações necessárias
+
+1. Função pura `resolveReceiptSyncState({ pendingCount, online, outboxStatus, conflictForSale })`; recibo lê o outbox da venda após o flush.
+2. Remover semeadura em `ensureLocalInventory`; checkout e `addItem` falham fechado se o mapa local estiver vazio.
+3. `useProducts` inicia vazio; falha de catálogo mostra erro e não carrega `DEMO_PRODUCTS` (fixtures E2E só com `NEXT_PUBLIC_PDV_FIXTURES=1`).
+4. `discountExceedsRoleCap` no domínio; API `POST /api/sales/process` retorna **403**; RPC `assert_sale_discount_cap` chamado por `process_sale` (migration nova, sem mexer RLS).
+5. Mesmo `method` em `closeSale` e no recibo.
+6. `shouldAcceptHidScan` / `shouldHandleShortcut` bloqueiam input/modal; campo `pdv-search-input` permanece permitido para HID.
+
+## Fora de escopo desta correção
+
+Schema Dexie, policies RLS, páginas/API de dashboard, NFC-e, estorno.
+
+---
+
+# Agent Log — Sprint 4
+
+
+>>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 **Data:** 2026-09-01  
 **Agente:** Cursor Grok 4.6  
 **Escopo:** Sprint 4 inventário auditado, dashboard SSR e RBAC. Sprints 1–3 não sobrescritos.
@@ -193,3 +256,97 @@ Sprint 2/3/4, pagamentos eletrônicos reais, NFC-e/SAT, relatórios, estorno UI.
 ## Commit
 
 Initial Sprint 1 implementation committed on `main`.
+<<<<<<< HEAD
+=======
+
+---
+
+# Agent Log — Auditoria RBAC por loja
+
+**Data:** 2026-09-02
+**Branch:** `cursor/rbac-store-authority-ccb4`
+**HEAD:** `7e74bff`
+
+## Alterações para revisão
+
+- `user_has_org_role` agora recebe `p_store_id` e só considera a membership
+  ativa nessa loja; a resolução de papel no Next.js usa `user_store_role`.
+- `POST /api/products` e `PATCH /api/products/[id]` exigem `store_id` válido,
+  chamam `getAuthedContext(storeId)` e usam RPCs de mutação com contexto de loja.
+- DML direto de escrita em `products` e `categories` foi revogado para
+  `authenticated`, evitando que um manager de outra loja contorne o contexto
+  da requisição.
+- A migration incremental `20260902225832_catalog_store_scope.sql` foi criada
+  e verificada pela listagem de `supabase/migrations/`.
+- Dashboard, inventário, sincronização e vendas rejeitam `store_id` ausente ou
+  inválido com HTTP 403 antes do restante da validação.
+
+## Verificações
+
+| Comando | Resultado |
+|---|---|
+| `pnpm typecheck` | OK |
+| `pnpm lint` | OK; 1 warning preexistente em `inventory-screen.tsx` |
+| `pnpm test` | 85 verificações OK |
+| `supabase db lint --local` | OK; sem erros no schema atualmente conectado |
+| `supabase db query --local` | `process_sale_core(jsonb)` existe; o estado RBAC da migration da branch não está aplicado |
+| RBAC PostgreSQL 1–6 | UNVERIFIED |
+
+## Pendência de ambiente
+
+Aplicar/verificar a migration e executar os seis casos de RBAC em um ambiente
+Supabase local ou de CI alinhado à branch. O `db push --local --dry-run` foi
+impedido por divergência do histórico local; nenhum reset de banco foi executado.
+
+---
+
+# Agent Log — Hardening RBAC: integridade de dados e validação executável
+
+**Data:** 2026-09-02 23:26 UTC
+**Status:** **PARTIAL** (estado PostgreSQL não alinhado à branch — UNVERIFIED)
+
+## Contexto
+
+A cadeia de hardening é incremental e o estado efetivo depende da aplicação
+ordenada das migrations listadas no checkout. Para impedir regressão silenciosa,
+os artefatos desta sessão validam o **estado final da cadeia**, não texto por
+arquivo.
+
+## Entregas desta sessão
+
+1. `supabase/migrations/20260902233000_rbac_data_integrity.sql` (aditiva):
+   - Trigger `profiles_provisioning_guard`: `org_id`/`default_role`
+     imutáveis para o role `authenticated` (SECURITY INVOKER;
+     `service_role`/`postgres` de provisionamento seguem permitidos).
+   - `uq_stores_id_org` + FK composto `fk_store_members_store_same_org`
+     (`store_members (store_id, org_id) → stores (id, org_id)`), com
+     pre-check que falha a aplicação se houver inconsistência legada.
+2. `tests/unit/migration-hardening.test.ts`: regressão de estado final —
+   nenhum corpo de função de autorização final contém `default_role`; toda policy baseada
+   em `default_role` termina em `DROP`; funções das migrations 2026 com
+   `search_path` fixado; backstop dinâmico (`prosecdef` + `pg_catalog,
+   public, pg_temp`) presente; guardas de integridade instalados.
+3. `scripts/pg-rbac-validation.sql`: 7 cenários executáveis via `psql` com
+   `SET LOCAL ROLE authenticated` + `request.jwt.claims`: role divergente,
+   sem membership, loja B sem membership, multi-store, troca de role + FK
+   cross-org, guarda de provisionamento (re-grant temporário de UPDATE para
+   exercitar o trigger) e idempotência/1-pagamento/estoque do `process_sale`.
+   Transação única com `ROLLBACK` final.
+
+## Qualidade executada nesta sessão
+
+| Verificação | Resultado |
+|---|---|
+| `pnpm typecheck` | OK (exit 0) |
+| `pnpm lint` | OK; 0 errors, 1 warning preexistente (`no-location-assign-relative-destination`) |
+| `pnpm test` | OK; 7 arquivos, 91 testes |
+| Cenários SQL contra Postgres | **UNVERIFIED** — banco local não corresponde ao checkout |
+
+## Riscos registrados
+
+- A cadeia `2026` consolidada pela sessão concorrente não inclui guarda de
+  provisionamento nem FK cross-org — cobertos por
+  `20260902233000_rbac_data_integrity.sql` desta sessão.
+- Migrações simultâneas no mesmo working tree podem conflitar em ordem de
+  aplicação; reconciliar com `supabase migration list` antes da aplicação.
+>>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)

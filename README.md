@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Nex Gestão Vendas — PDV Local-first
 
 Sprint 4 do PDV local-first para varejo brasileiro (BRL, `America/Sao_Paulo`): inventário auditado, dashboard SSR de rentabilidade e RBAC. Os contratos Sprint 1 (RPC cash, RLS), Sprint 2 (Dexie outbox) e Sprint 3 (UI de vendas) permanecem.
@@ -112,3 +113,6 @@ docs/            Contrato e decisões
 - [docs/IMPLEMENTATION_CONTRACT.md](./docs/IMPLEMENTATION_CONTRACT.md)
 - [docs/assumptions.md](./docs/assumptions.md)
 - [docs/agent-log.md](./docs/agent-log.md)
+=======
+# Novo PDV - Do Zero
+>>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)

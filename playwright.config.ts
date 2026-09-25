@@ -14,5 +14,12 @@ export default defineConfig({
     command: "pnpm dev",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
+<<<<<<< HEAD
+=======
+    env: {
+      ...process.env,
+      NEXT_PUBLIC_PDV_FIXTURES: "1",
+    },
+>>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
   },
 });

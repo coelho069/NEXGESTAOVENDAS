@@ -30,7 +30,12 @@ Decisões assumidas para destravar o MVP. Revisar antes dos próximos sprints.
 
 - Signup público desabilitado (`enable_signup=false` no Supabase config).
 - Usuários demo criados via `pnpm seed:auth` com e-mails `@example.invalid`.
+<<<<<<< HEAD
 - Autorização de papel em `profiles.default_role` + `store_members.role`.
+=======
+- `store_members.role` é a única autoridade de autorização, resolvida por `auth.uid()` + `store_id`.
+- `profiles.default_role` permanece apenas como metadado/preferência informativa e nunca autoriza operações.
+>>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 - JWT `user_metadata` não usado para RLS (somente tabelas app + `auth.uid()`).
 
 ## Sync / offline
@@ -92,4 +97,30 @@ IDs fixos no seed para facilitar QA local:
 - Dashboard SSR (COGS, margem, sell-through) com filtros de loja/período em `America/Sao_Paulo` e estado degradado.
 - RBAC no servidor (RLS + RPC). Caixa não vê relatórios nem custo. `PermissionGate` é só UX.
 - Manager entra no seed (`manager@example.invalid`).
+<<<<<<< HEAD
 - NFC-e, banco real e estorno continuam fora.
+=======
+- Mutação de catálogo exige `store_id` válido; `create_product`/`update_product` autorizam
+  `admin` e `manager` somente pela membership dessa loja. DML direto de catálogo fica
+  bloqueado para `authenticated`.
+- NFC-e, banco real e estorno continuam fora.
+
+---
+
+# Hardening RBAC — 2026-09-02 (sessão de integridade de dados)
+
+- `profiles.default_role` e `profiles.org_id` são colunas de provisionamento:
+  imutáveis para o role `authenticated` (trigger
+  `profiles_provisioning_guard`); `service_role`/`postgres` continuam
+  autorizados a provisionar.
+- `store_members (store_id, org_id)` é referencialmente obrigado a apontar
+  para uma loja da mesma organização (`fk_store_members_store_same_org`).
+- A autoridade de autorização continua sendo exclusivamente
+  `store_members.role` resolvido por `(auth.uid(), store_id)`; o fallback
+  legacy de `default_role` em `20250901000006` é superseded pela recreação
+  limpa em `20260902150536` — regressão coberta por
+  `tests/unit/migration-hardening.test.ts` (estado final da cadeia).
+- Cenários RBAC/RLS padronizados em `scripts/pg-rbac-validation.sql`:
+  rodar em Supabase local/CI; resultado permanece UNVERIFIED até execução
+  real contra o Postgres.
+>>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)

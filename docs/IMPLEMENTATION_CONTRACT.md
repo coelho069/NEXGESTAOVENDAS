@@ -18,7 +18,12 @@ Regras:
 ## 2. Autenticação e autorização
 
 - Supabase Auth (email/senha).
+<<<<<<< HEAD
 - `profiles.org_id` + `store_members.role` definem escopo.
+=======
+- `profiles.org_id` define apenas o contexto da organização; `store_members.role`, resolvida por `auth.uid()` + `store_id`, é a única autoridade de autorização.
+- `profiles.default_role` é metadado informativo e nunca participa de uma decisão de acesso.
+>>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 - RLS em todas as tabelas `public`.
 - `REVOKE ALL ... FROM anon` aplicado.
 - Cashier:
@@ -163,7 +168,11 @@ Uma única transação IndexedDB grava: venda + itens + pagamentos + estoque pro
 
 ## Backoff
 
+<<<<<<< HEAD
 `1, 2, 4, 8, 16` segundos, teto 60s, jitter `[0.5, 1.0]`. 10 falhas transitórias → `failed`.
+=======
+`1, 2, 4, 8, 16` segundos, teto 60s, jitter `[0.5, 1.0]`. 10 falhas de transporte/resultado ambíguo → `conflict` com resultado incerto, mantendo a reserva até reconciliação autoritativa. Erros determinísticos → `failed`.
+>>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 
 ## HTTP
 
@@ -174,7 +183,12 @@ Uma única transação IndexedDB grava: venda + itens + pagamentos + estoque pro
 ## Concorrência
 
 - `startHeartbeat` — liveness/online. Não adquire lock.
+<<<<<<< HEAD
 - `withMultiTabLock` — apenas uma aba sincroniza.
+=======
+- `withMultiTabLock` — apenas uma aba executa a região crítica do mesmo escopo; checkout e sync usam escopo por loja.
+- Fallback sem Web Locks usa lease com TTL, owner e heartbeat para recuperar locks após crash.
+>>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 
 ## Zustand
 
@@ -238,7 +252,13 @@ Estorno UI, cartão/pix real, NFC-e/SAT. Inventário, dashboard e RBAC: ver anex
 
 # Sprint 4 — Inventário, dashboard e RBAC
 
+<<<<<<< HEAD
 Anexo. Contratos Sprint 1–3 permanecem. Nova migration `20250901000005_sprint4_inventory_dashboard_rbac.sql` apenas. Não altera `process_sale` nem Dexie/sync.
+=======
+Anexo. Contratos Sprint 1–3 permanecem. As migrations de inventário/RBAC são
+incrementais; `20260902201000_rbac_store_membership_authority.sql` consolida a
+autoridade em `store_members.role`. Não altera `process_sale` nem Dexie/sync.
+>>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 
 ## Inventário
 
@@ -247,7 +267,13 @@ Anexo. Contratos Sprint 1–3 permanecem. Nova migration `20250901000005_sprint4
 - Auditoria: `inventory_movements.reason`, `inventory_movements.actor_role` + `audit_logs` action `adjust_inventory`.
 - Listagem paginada (cursor SKU) em `get_inventory_page`. Caixa não recebe `cost_price`.
 - CSV import `sku,delta,reason,movement_type` com erros por linha; export omite custo para caixa.
+<<<<<<< HEAD
 - CRUD de produto: `POST /api/products`, `PATCH /api/products/[id]` (Zod `0.00`); manager/admin via RLS.
+=======
+- CRUD de produto: `POST /api/products`, `PATCH /api/products/[id]` (Zod `0.00`); ambos exigem `store_id` e
+  resolvem `store_members.role` para essa loja. A escrita passa por RPCs com contexto
+  de loja; DML direto em `products`/`categories` é revogado para `authenticated`.
+>>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 
 ## Dashboard
 
@@ -258,6 +284,13 @@ Anexo. Contratos Sprint 1–3 permanecem. Nova migration `20250901000005_sprint4
 
 ## RBAC
 
+<<<<<<< HEAD
+=======
+`store_members.role` é a fonte única de autoridade. Toda rota, loader, policy e RPC
+resolve o papel para a loja ativa usando `auth.uid()` + `store_id`; `PermissionGate`
+e seletores do cliente são somente UX. `profiles.default_role` não é fallback.
+
+>>>>>>> c54210a (Initial commit: Reiniciando projeto PDV)
 | Papel | Inventário | Relatórios | Preço/custo |
 |-------|------------|------------|-------------|
 | cashier | leitura (ativos) | bloqueado | sem custo |
