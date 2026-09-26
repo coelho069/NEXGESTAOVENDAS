@@ -16,21 +16,20 @@
  *   color só no hover, scale-105 @ 200ms.
  *
  * HOTKEYS: F1 ou Ctrl+/ abrem o modal (livres no mapa pdv-shortcuts —
- * F2/F4/F6/F8/F9/Ctrl+K/Esc já têm dono). Esc/click-out/X fecham com
+ * F2/F4/F6/F8/F10/Ctrl+K/Esc já têm dono). Esc/click-out/X fecham com
  * stopPropagation para o Esc não vazar para o handler "cancel" do PDV.
  *
  * HIERARQUIA DE RESOLUÇÃO: busca → links rápidos → WhatsApp. O
  * autoatendimento filtra chamados simples antes do canal humano.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HelpCircle, MessageCircle, X } from 'lucide-react';
-
-const WHATSAPP_URL =
-  process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP_URL ??
-  'https://wa.me/5511999999999?text=' +
-    encodeURIComponent(
-      'Olá, preciso de suporte para o sistema NEX Gestão Vendas',
-    );
+import { useCardPaymentHealth } from '@/hooks/use-card-payment-health';
+import {
+  buildPdvHotkeyHints,
+  getPdvShortcutKeyLabel,
+} from '@/lib/domain/pdv-shortcuts';
+import { getSupportWhatsAppUrl } from '@/lib/support/whatsapp';
 
 type QuickLink = {
   id: string;
@@ -40,10 +39,26 @@ type QuickLink = {
 
 // Links rápidos = dúvidas mais comuns do balcão (filtro de autoatendimento)
 const QUICK_LINKS: QuickLink[] = [
-  { id: 'cancel-item', label: 'Como cancelar um item da venda?', hint: 'Selecione o item no carrinho e pressione F6 para desconto ou use o botão de remover (lixeira).' },
-  { id: 'close-cash', label: 'Fechamento de caixa', hint: 'Use o painel de Caixa (F7) → "Fechar caixa" — informe o dinheiro em gaveta para conferência.' },
-  { id: 'printer', label: 'Problemas com a impressora', hint: 'O recibo é impresso pelo diálogo do navegador (F9). Verifique papel e se a impressora padrão do Windows está correta.' },
-  { id: 'pix-sync', label: 'PIX não confirmou', hint: 'Confira o selo de sincronização no topo do PDV. Venda com "pending" sobe sozinha quando a rede voltar.' },
+  {
+    id: 'cancel-item',
+    label: 'Como cancelar um item da venda?',
+    hint: `Selecione o item no carrinho e pressione ${getPdvShortcutKeyLabel('removeLine')} para remover, ou use o botão de remover (lixeira).`,
+  },
+  {
+    id: 'close-cash',
+    label: 'Fechamento de caixa',
+    hint: 'Use o painel Caixa na barra lateral → "Fechar caixa" — informe o dinheiro em gaveta para conferência.',
+  },
+  {
+    id: 'printer',
+    label: 'Problemas com a impressora',
+    hint: `O recibo abre ao finalizar a venda (${getPdvShortcutKeyLabel('finalize')}). Use Imprimir no diálogo do navegador. Verifique papel e impressora padrão do Windows.`,
+  },
+  {
+    id: 'pix-sync',
+    label: 'PIX não confirmou',
+    hint: 'Confira o selo de sincronização no topo do PDV. Venda com "pending" sobe sozinha quando a rede voltar.',
+  },
 ];
 
 export function SuporteOperacional() {
@@ -52,6 +67,12 @@ export function SuporteOperacional() {
   const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pillRef = useRef<HTMLButtonElement>(null);
+  const cardSelectable = useCardPaymentHealth();
+  const whatsappUrl = getSupportWhatsAppUrl();
+  const hotkeyHints = useMemo(
+    () => buildPdvHotkeyHints({ card: cardSelectable }),
+    [cardSelectable],
+  );
 
   const open = useCallback(() => {
     setIsOpen(true);
@@ -181,6 +202,29 @@ export function SuporteOperacional() {
               />
             </div>
 
+            {/* Atalhos do PDV — mesma fonte de verdade do hotkeys bar */}
+            <div className="border-b border-slate-200 px-5 py-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Atalhos do PDV
+              </p>
+              <div
+                data-testid="support-hotkey-hints"
+                className="flex flex-wrap gap-x-3 gap-y-1"
+              >
+                {hotkeyHints.map((hint) => (
+                  <span
+                    key={hint.keys + hint.label}
+                    className="inline-flex items-center gap-1 text-xs text-slate-600"
+                  >
+                    <kbd className="rounded border border-slate-200 bg-slate-50 px-1 py-0.5 font-mono text-[10px] font-semibold text-slate-700">
+                      {hint.keys}
+                    </kbd>
+                    <span>{hint.label}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+
             {/* Links rápidos */}
             <div className="max-h-64 overflow-y-auto px-5 py-3">
               {filtered.length > 0 ? (
@@ -200,22 +244,26 @@ export function SuporteOperacional() {
                 </ul>
               ) : (
                 <p className="py-4 text-center text-sm text-slate-500">
-                  Nenhuma dúvida encontrada — fale com o suporte abaixo.
+                  Nenhuma dúvida encontrada
+                  {whatsappUrl ? ' — fale com o suporte abaixo.' : '.'}
                 </p>
               )}
             </div>
 
             {/* Ação primária — último recurso da hierarquia */}
             <div className="border-t border-slate-200 px-5 py-4">
-              <a
-                href={WHATSAPP_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
-              >
-                <MessageCircle size={18} />
-                Falar com Suporte Agora
-              </a>
+              {whatsappUrl ? (
+                <a
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="support-whatsapp-cta"
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+                >
+                  <MessageCircle size={18} />
+                  Falar com Suporte Agora
+                </a>
+              ) : null}
               <p className="mt-2 text-center text-[11px] text-slate-400">
                 Atalhos: F1 ou Ctrl+/ abre este painel · Esc fecha
               </p>
