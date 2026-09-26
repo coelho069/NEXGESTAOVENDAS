@@ -51,6 +51,7 @@ const STRIPE_PLAN = {
 const STRIPE_ENV = {
   STRIPE_SECRET_KEY: "sk_test_abc123",
   STRIPE_WEBHOOK_SECRET: "whsec_abc123",
+  STRIPE_SUBSCRIPTION_CHECKOUT_ENABLED: "true",
   STRIPE_PRICE_PLAN_PIX: "price_1234567890abcdef",
   APP_ORIGIN: "https://nex.example.com",
 };
@@ -115,10 +116,25 @@ describe("public Stripe checkout", () => {
       planId: PLAN_ID,
       payerEmail: "cliente@exemplo.com",
       clientMutationId: MUTATION,
-      envSource: {},
+      envSource: { STRIPE_SUBSCRIPTION_CHECKOUT_ENABLED: "true" },
     });
 
     expect(result).toEqual({ ok: false, error: "stripe_not_configured", status: 503 });
+  });
+
+  it("returns 503 hold without STRIPE_SUBSCRIPTION_CHECKOUT_ENABLED", async () => {
+    const result = await executeMercadoPagoIndependentStripeCheckout({
+      planId: PLAN_ID,
+      payerEmail: "cliente@exemplo.com",
+      clientMutationId: MUTATION,
+      envSource: {
+        STRIPE_SECRET_KEY: "sk_test_abc123",
+        STRIPE_PRICE_PLAN_PIX: "price_1234567890abcdef",
+      },
+    });
+
+    expect(result).toEqual({ ok: false, error: "stripe_subscription_checkout_hold", status: 503 });
+    expect(mocks.sessionsCreate).not.toHaveBeenCalled();
   });
 });
 

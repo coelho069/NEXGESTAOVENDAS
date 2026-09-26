@@ -5,6 +5,7 @@ import {
   planProviderForSlug,
   resolveStripePriceIdForSlug,
   isStripeSubscriptionCheckoutEnabled,
+  isStripeSubscriptionCheckoutEnabledEnv,
 } from "@/lib/domain/onboarding-stripe";
 import { loadPublicPlans } from "@/lib/server/public-plans-query";
 import {
@@ -127,10 +128,19 @@ describe("gating público (loadPublicPlans + checkout gate)", () => {
     vi.doUnmock("@/lib/supabase/server");
   });
 
-  it("checkout público exige STRIPE_SECRET_KEY (servidor) — nunca publica a secret", () => {
-    expect(isStripeSubscriptionCheckoutEnabled({ STRIPE_SECRET_KEY: "sk_test_x" })).toBe(true);
-    expect(isStripeSubscriptionCheckoutEnabled({})).toBe(false);
+  it("checkout público exige STRIPE_SUBSCRIPTION_CHECKOUT_ENABLED=true — nunca publica a secret", () => {
+    expect(isStripeSubscriptionCheckoutEnabledEnv(undefined)).toBe(false);
+    expect(isStripeSubscriptionCheckoutEnabledEnv("false")).toBe(false);
+    expect(isStripeSubscriptionCheckoutEnabledEnv("true")).toBe(true);
+    expect(isStripeSubscriptionCheckoutEnabled({ STRIPE_SECRET_KEY: "sk_test_x" })).toBe(false);
+    expect(
+      isStripeSubscriptionCheckoutEnabled({
+        STRIPE_SECRET_KEY: "sk_test_x",
+        STRIPE_SUBSCRIPTION_CHECKOUT_ENABLED: "true",
+      })
+    ).toBe(true);
     const envExample = readFileSync(join(process.cwd(), ".env.example"), "utf8");
+    expect(envExample).toContain("STRIPE_SUBSCRIPTION_CHECKOUT_ENABLED=false");
     expect(envExample).not.toMatch(/NEXT_PUBLIC_STRIPE_SECRET/);
   });
 });

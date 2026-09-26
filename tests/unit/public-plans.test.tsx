@@ -221,17 +221,23 @@ describe("PlansSalesPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("anchors the middle-priced plan as Crescimento with Mais popular badge", () => {
+  it("anchors the middle-priced plan as Profissional with Mais popular badge", () => {
     delete process.env[ASSINATURAS_WHATSAPP_ENV];
 
     render(<PlansSalesPage plans={threeTierPlans} loadError={null} isAuthenticated={false} />);
 
-    // "Essencial" aparece no card e na comparação; Crescimento/Escala só no card.
+    // Nomes vêm do banco (Essencial/Profissional/Enterprise) — sem rótulos divergentes.
     expect(
       screen.getAllByRole("heading", { name: "Essencial" }).length
     ).toBeGreaterThanOrEqual(2);
-    expect(screen.getByRole("heading", { name: "Crescimento" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Escala" })).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("heading", { name: "Profissional" }).length
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      screen.getAllByRole("heading", { name: "Enterprise" }).length
+    ).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByRole("heading", { name: "Crescimento" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Escala" })).not.toBeInTheDocument();
     expect(screen.getByText("Mais popular")).toBeInTheDocument();
     // O benefício aparece no card do plano e na seção "Compare os planos".
     expect(

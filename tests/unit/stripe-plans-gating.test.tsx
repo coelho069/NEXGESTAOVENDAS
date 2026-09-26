@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  isStripeSubscriptionCheckoutEnabled,
+  isStripeSubscriptionCheckoutEnabledEnv,
   planProviderForSlug,
   resolveStripePriceIdForSlug,
 } from "@/lib/domain/onboarding-stripe";
@@ -19,6 +21,29 @@ function plan(overrides: Partial<PublicPlanRecord> = {}): PublicPlanRecord {
     ...overrides,
   };
 }
+
+describe("Stripe subscription checkout flag (domain)", () => {
+  it("requires explicit STRIPE_SUBSCRIPTION_CHECKOUT_ENABLED=true", () => {
+    expect(isStripeSubscriptionCheckoutEnabledEnv(undefined)).toBe(false);
+    expect(isStripeSubscriptionCheckoutEnabledEnv("false")).toBe(false);
+    expect(isStripeSubscriptionCheckoutEnabledEnv("TRUE")).toBe(false);
+    expect(isStripeSubscriptionCheckoutEnabledEnv("true")).toBe(true);
+  });
+
+  it("does not infer enablement from STRIPE_SECRET_KEY alone", () => {
+    expect(
+      isStripeSubscriptionCheckoutEnabled({
+        STRIPE_SECRET_KEY: "sk_test_abc123",
+      })
+    ).toBe(false);
+    expect(
+      isStripeSubscriptionCheckoutEnabled({
+        STRIPE_SECRET_KEY: "sk_test_abc123",
+        STRIPE_SUBSCRIPTION_CHECKOUT_ENABLED: "true",
+      })
+    ).toBe(true);
+  });
+});
 
 describe("Stripe plan mapping (domain)", () => {
   const env = { STRIPE_PRICE_PLAN_PIX: "price_1234567890abcdef", STRIPE_PRICE_PLAN_ESSENCIAL: "not-a-price" };
