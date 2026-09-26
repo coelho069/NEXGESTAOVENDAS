@@ -1,3 +1,5 @@
+import { getPdvShortcutKeyLabel } from "@/lib/domain/pdv-shortcuts";
+
 type DiscountDialogProps = {
   open: boolean;
   value: string;
@@ -25,7 +27,7 @@ export function DiscountDialog({
     <div data-testid="discount-dialog" className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button type="button" className="absolute inset-0 bg-slate-900/40" aria-label="Fechar desconto" onClick={onClose} />
       <div className="relative w-full max-w-sm rounded-xl bg-white p-5 shadow-xl">
-        <h2 className="text-lg font-semibold">Desconto (F6)</h2>
+        <h2 className="text-lg font-semibold">Desconto ({getPdvShortcutKeyLabel("discount")})</h2>
         <p className="mt-1 text-sm text-slate-500">
           Limite {role}: {max}
         </p>

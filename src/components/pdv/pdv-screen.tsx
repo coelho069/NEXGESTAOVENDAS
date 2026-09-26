@@ -573,7 +573,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             onClose={() => setShowSaleReturn(false)}
           />
         </div>
-        <PdvHotkeysBar />
+        <PdvHotkeysBar cardSelectable={cardSelectable} />
       </div>
     </div>
   );
