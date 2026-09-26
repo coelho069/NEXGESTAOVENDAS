@@ -70,12 +70,6 @@ type PlanName = (typeof ORDERED_PLAN_NAMES)[number];
 
 type TierPosition = "entry" | "middle" | "enterprise";
 
-const TIER_DISPLAY_LABELS: Record<TierPosition, string> = {
-  entry: "Essencial",
-  middle: "Crescimento",
-  enterprise: "Escala",
-};
-
 function planNameToTierPosition(name: string): TierPosition | null {
   const normalized = name.trim();
   if (normalized === "Essencial") return "entry";
@@ -107,7 +101,7 @@ function resolveTierMeta(
 
   return {
     position,
-    displayLabel: TIER_DISPLAY_LABELS[position],
+    displayLabel: planName,
     isPopular,
   };
 }

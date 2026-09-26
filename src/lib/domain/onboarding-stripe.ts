@@ -50,13 +50,21 @@ export function planProviderForSlug(
   return resolveStripePriceIdForSlug(slug, envSource) ? "stripe" : null;
 }
 
+/** Strict opt-in. Unset/false stays hold. Never default true. */
+export function isStripeSubscriptionCheckoutEnabledEnv(value: string | undefined): boolean {
+  return value === "true";
+}
+
 /**
  * Sole subscription rail: Stripe Checkout (mode=subscription). Plans without a
  * STRIPE_PRICE_PLAN_<SLUG> mapping offer no subscription at all — there is no
  * Mercado Pago (or any other) fallback on the public plans page.
+ *
+ * Requires explicit STRIPE_SUBSCRIPTION_CHECKOUT_ENABLED=true (independent of
+ * PDV card/PIX Stripe rails that share STRIPE_SECRET_KEY).
  */
 export function isStripeSubscriptionCheckoutEnabled(
   envSource: Record<string, string | undefined> = process.env
 ): boolean {
-  return Boolean(envSource.STRIPE_SECRET_KEY?.trim());
+  return isStripeSubscriptionCheckoutEnabledEnv(envSource.STRIPE_SUBSCRIPTION_CHECKOUT_ENABLED);
 }

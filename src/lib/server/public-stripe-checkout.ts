@@ -16,6 +16,7 @@ import {
   SUBSCRIPTION_CHECKOUT_SESSION_PREFIX,
 } from "@/lib/domain/onboarding-visitor";
 import {
+  isStripeSubscriptionCheckoutEnabled,
   resolveStripePriceIdForSlug,
   STRIPE_PRICE_PLAN_ENV_PREFIX,
 } from "@/lib/domain/onboarding-stripe";
@@ -27,6 +28,9 @@ import { createLogger } from "@/lib/observability/logger";
 
 const logger = createLogger({ service: "nexgestaovendas", component: "public-stripe-checkout" });
 
+const STRIPE_SUBSCRIPTION_CHECKOUT_HOLD_MESSAGE =
+  "Stripe subscription checkout em hold operacional até opt-in explícito (STRIPE_SUBSCRIPTION_CHECKOUT_ENABLED=true).";
+
 export type PublicStripeCheckoutResult =
   | {
       ok: true;
@@ -37,11 +41,26 @@ export type PublicStripeCheckoutResult =
     }
   | { ok: false; error: string; status: number };
 
+export function stripeSubscriptionCheckoutHoldHealth(): {
+  configured: false;
+  message: string;
+  reason: "stripe_subscription_checkout_hold";
+} {
+  return {
+    configured: false,
+    message: STRIPE_SUBSCRIPTION_CHECKOUT_HOLD_MESSAGE,
+    reason: "stripe_subscription_checkout_hold",
+  };
+}
+
 export function getPublicStripeCheckoutHealth(envSource: Record<string, string | undefined> = process.env): {
   configured: boolean;
   message: string;
   reason?: string;
 } {
+  if (!isStripeSubscriptionCheckoutEnabled(envSource)) {
+    return stripeSubscriptionCheckoutHoldHealth();
+  }
   const cardEnv = getStripeCardEnv(envSource);
   if (!cardEnv.configured) {
     return {
@@ -70,6 +89,9 @@ export async function executeMercadoPagoIndependentStripeCheckout(input: {
   envSource?: Record<string, string | undefined>;
 }): Promise<PublicStripeCheckoutResult> {
   const envSource = input.envSource ?? process.env;
+  if (!isStripeSubscriptionCheckoutEnabled(envSource)) {
+    return { ok: false, error: "stripe_subscription_checkout_hold", status: 503 };
+  }
   const cardEnv = getStripeCardEnv(envSource);
   if (!cardEnv.configured) {
     return { ok: false, error: "stripe_not_configured", status: 503 };
