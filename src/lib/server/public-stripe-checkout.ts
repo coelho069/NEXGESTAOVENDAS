@@ -24,6 +24,10 @@ import {
   type CreatePublicCheckoutSessionResult,
 } from "@/lib/server/public-checkout-sessions";
 import { createLogger } from "@/lib/observability/logger";
+import {
+  REFUND_POLICY_CANONICAL_URL,
+  stripeCheckoutRefundPolicyNotice,
+} from "@/lib/domain/refund-policy";
 
 const logger = createLogger({ service: "nexgestaovendas", component: "public-stripe-checkout" });
 
@@ -129,9 +133,15 @@ export async function executeMercadoPagoIndependentStripeCheckout(input: {
           checkout_client_mutation_id: input.clientMutationId,
           plan_id: plan.id,
           rail: "stripe_subscription",
+          refund_policy_url: REFUND_POLICY_CANONICAL_URL,
         },
         success_url: `${appOrigin(envSource)}/login?checkout=stripe&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${appOrigin(envSource)}/#planos`,
+        custom_text: {
+          submit: {
+            message: stripeCheckoutRefundPolicyNotice(),
+          },
+        },
       },
       { idempotencyKey: `nex-stripe-checkout:${input.clientMutationId}` }
     );

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Loader2, X, CreditCard } from "lucide-react";
+import { REFUND_POLICY_PATH } from "@/lib/domain/refund-policy";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -119,6 +121,18 @@ function StartStripeCheckoutForm({
           <p className="text-xs text-slate-500">
             Você será direcionado ao checkout seguro do Stripe para concluir a assinatura.
             Após o pagamento, enviaremos seu acesso por este e-mail.
+          </p>
+          <p className="text-xs text-slate-500">
+            Ao continuar, você concorda com a{" "}
+            <Link
+              href={REFUND_POLICY_PATH}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-emerald-700 hover:text-emerald-800"
+            >
+              Política de Reembolsos e Devoluções
+            </Link>
+            .
           </p>
           <button
             type="submit"

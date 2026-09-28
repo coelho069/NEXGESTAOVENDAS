@@ -91,6 +91,14 @@ describe("public Stripe checkout", () => {
         customer_email: "cliente@exemplo.com",
         line_items: [{ price: "price_1234567890abcdef", quantity: 1 }],
         client_reference_id: `nex:checkout:session:${MUTATION}`,
+        custom_text: {
+          submit: {
+            message: expect.stringContaining("https://nexgestaovendas.com.br/politica-de-reembolso"),
+          },
+        },
+        metadata: expect.objectContaining({
+          refund_policy_url: "https://nexgestaovendas.com.br/politica-de-reembolso",
+        }),
       }),
       expect.objectContaining({ idempotencyKey: `nex-stripe-checkout:${MUTATION}` })
     );

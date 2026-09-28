@@ -31,6 +31,7 @@ import { getAssinaturasWhatsAppUrl } from "@/lib/assinaturas/whatsapp";
 import { formatBRL } from "@/lib/money";
 import { SubscribePlanButton } from "@/components/marketing/subscribe-plan-button";
 import { PriceDisplay } from "@/components/marketing/price-display";
+import { REFUND_POLICY_PATH } from "@/lib/domain/refund-policy";
 
 // ---------------------------------------------------------------------------
 // Dados comerciais reais — espelhados do seed SQL e do negócio, não inventados
@@ -121,7 +122,14 @@ function formatPlanPrice(amount: string, interval: SubscriptionBillingInterval):
 // FAQ — perguntas e respostas reais do produto
 // ---------------------------------------------------------------------------
 
-const FAQ_ITEMS = [
+type FaqItem = {
+  question: string;
+  answer: string;
+  href?: string;
+  linkLabel?: string;
+};
+
+const FAQ_ITEMS: readonly FaqItem[] = [
   {
     question: "Qual a diferença entre os planos?",
     answer:
@@ -150,9 +158,16 @@ const FAQ_ITEMS = [
   {
     question: "Posso cancelar?",
     answer:
-      "Sim. A assinatura pode ser cancelada a qualquer momento. O cancelamento é registrado no sistema e o acesso ao PDV segue a política de assinatura vigente. Se tiver dúvidas sobre o encerramento, fale conosco pelo WhatsApp.",
+      "Sim. A assinatura pode ser cancelada a qualquer momento. O cancelamento evita a renovação; o acesso segue até o fim do período já pago. Cancelar não estorna o ciclo corrente. Se tiver dúvidas sobre o encerramento, fale conosco pelo WhatsApp.",
   },
-] as const;
+  {
+    question: "Como funciona o reembolso?",
+    answer:
+      "A cobrança é de assinatura de software, não de produto físico. Pedidos de estorno da primeira cobrança seguem prazo, uso em produção e as demais condições da política. Reembolso não é o mesmo que cancelar para não renovar.",
+    href: REFUND_POLICY_PATH,
+    linkLabel: "Ler a Política de Reembolsos e Devoluções",
+  },
+];
 
 // ---------------------------------------------------------------------------
 // Recursos do produto — somente o que existe de fato no sistema
@@ -400,6 +415,16 @@ function FaqSection() {
                 {isOpen ? (
                   <div className="px-5 pb-5">
                     <p className="text-sm leading-relaxed text-slate-600">{item.answer}</p>
+                    {item.href && item.linkLabel ? (
+                      <p className="mt-3">
+                        <Link
+                          href={item.href}
+                          className="text-sm font-semibold text-emerald-700 transition-colors hover:text-emerald-800"
+                        >
+                          {item.linkLabel}
+                        </Link>
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -761,6 +786,7 @@ export function PlansSalesPage({
                 { href: "/pdv", label: "PDV" },
                 { href: "#planos", label: "Planos" },
                 { href: "#faq", label: "FAQ" },
+                { href: REFUND_POLICY_PATH, label: "Política de reembolso" },
               ].map((link) => (
                 <Link key={link.label} href={link.href} className="text-slate-600 transition-colors hover:text-slate-900">
                   {link.label}

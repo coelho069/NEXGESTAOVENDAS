@@ -76,6 +76,20 @@ const nextConfig = {
 
     return [{ source: "/(.*)", headers }];
   },
+  async redirects() {
+    return [
+      {
+        source: "/politica-de-reembolsos",
+        destination: "/politica-de-reembolso",
+        statusCode: 301,
+      },
+      {
+        source: "/reembolso",
+        destination: "/politica-de-reembolso",
+        statusCode: 301,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
