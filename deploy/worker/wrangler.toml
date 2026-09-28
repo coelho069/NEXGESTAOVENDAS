@@ -1,0 +1,7 @@
+name = "nexgestao-email-api"
+main = "index.ts"
+compatibility_date = "2026-09-01"
+
+# Secrets (never commit real values):
+#   npx wrangler secret put API_EMAIL_TOKEN
+#   npx wrangler secret put RESEND_API_KEY
