@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     NextResponse.json({
       ok: true,
       provider: "stripe",
-      checkout_url: result.checkout_url,
+      client_secret: result.client_secret,
       checkout_session_id: result.checkout_session_id,
       client_mutation_id: result.client_mutation_id,
       replayed: result.replayed,

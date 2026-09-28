@@ -48,3 +48,6 @@ next-env.d.ts
 
 # Build artifacts (nunca versionar; causaram blob de 142MB no push)
 /.next*/
+
+# Worker local deps (Cloudflare, pasta de deploy)
+deploy/worker/node_modules/

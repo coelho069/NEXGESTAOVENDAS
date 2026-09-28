@@ -102,9 +102,15 @@ export async function POST(request: Request) {
   });
   return obs.withHeaders(
     NextResponse.json({
+      ok: result.ok ?? true,
+      ...(result.code ? { code: result.code } : {}),
+      ...(result.hint ? { hint: result.hint } : {}),
       status: result.status,
       message: result.message,
       configured: result.configured,
+      ...(result.provider !== undefined ? { provider: result.provider } : {}),
+      ...(result.fallback !== undefined ? { fallback: result.fallback } : {}),
+      ...(result.client_secret !== undefined ? { client_secret: result.client_secret } : {}),
       provider_reference: result.providerReference,
       sale_id: result.sale_id,
       sale_status: result.sale_status,
