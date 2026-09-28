@@ -5,11 +5,15 @@ import { resolvePaymentAttempt } from "@/lib/domain/payment-attempt";
 import {
   classifySilentPixHttpSuccess,
   extractPixQr,
+  isPixNotEnabledOnAccountError,
   isPixStripeObject,
   mapStripePixIntentStatus,
   mustNotInventRefundCash,
   pixRefundStatusPendingExternal,
+  PixNotEnabledOnAccountError,
+  PIX_NOT_ENABLED_ON_ACCOUNT,
   reconcileStripePixPaymentIntent,
+  stripePixExpiresAfterSeconds,
 } from "@/lib/domain/stripe-pix";
 import { executePixPayment, getPixAdapterHealth } from "@/lib/server/pix-payment";
 import { probeStripePixHealth } from "@/lib/server/stripe-pix";
@@ -116,6 +120,7 @@ describe("PIX checkout hold flag", () => {
 
   it("keeps prior health behavior when PIX_CHECKOUT_ENABLED=true", async () => {
     vi.stubEnv("PIX_CHECKOUT_ENABLED", "true");
+    vi.stubEnv("STRIPE_PIX_ENABLED", "true");
     probeStripePixHealthMock.mockResolvedValue({
       ok: true,
       configured: true,
@@ -129,6 +134,31 @@ describe("PIX checkout hold flag", () => {
       reason: undefined,
     });
     expect(probeStripePixHealthMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not offer PIX when STRIPE_PIX_ENABLED is not the literal 'true'", async () => {
+    vi.stubEnv("PIX_CHECKOUT_ENABLED", "true");
+
+    delete process.env.STRIPE_PIX_ENABLED;
+    const unset = await getPixAdapterHealth();
+    expect(unset.configured).toBe(false);
+    expect(unset.reason).toBe("pix_checkout_hold");
+    expect(probeStripePixHealthMock).not.toHaveBeenCalled();
+
+    vi.stubEnv("STRIPE_PIX_ENABLED", "TRUE");
+    const notLiteral = await getPixAdapterHealth();
+    expect(notLiteral.configured).toBe(false);
+    expect(notLiteral.reason).toBe("pix_checkout_hold");
+    expect(probeStripePixHealthMock).not.toHaveBeenCalled();
+
+    const exec = await executePixPayment(
+      {} as never,
+      createInput(),
+      "33333333-3333-4333-8333-333333333333"
+    );
+    expect(exec.status).toBe("not_configured");
+    expect(exec.sale_confirmed).not.toBe(true);
+    expect(probeStripePixHealthMock).not.toHaveBeenCalled();
   });
 });
 
@@ -232,5 +262,28 @@ describe("PIX reconcile and webhook routing", () => {
     expect(pixRefundStatusPendingExternal()).toBe("pending_external");
     expect(mustNotInventRefundCash("pix")).toBe(true);
     expect(mustNotInventRefundCash("cash")).toBe(false);
+  });
+
+  it("detects a Stripe account without PIX enabled and emits a clear code", () => {
+    expect(
+      isPixNotEnabledOnAccountError({
+        type: "invalid_request_error",
+        code: "payment_method_not_available",
+        message: "The payment method type provided: pix is not enabled for this account.",
+      })
+    ).toBe(true);
+    expect(isPixNotEnabledOnAccountError(new Error("network timeout"))).toBe(false);
+
+    const err = new PixNotEnabledOnAccountError();
+    expect(err.code).toBe(PIX_NOT_ENABLED_ON_ACCOUNT);
+    expect(err.hint).toContain("Dashboard Stripe");
+  });
+
+  it("reads/clamps STRIPE_PIX_EXPIRES_SECONDS to the Stripe window", () => {
+    expect(stripePixExpiresAfterSeconds({})).toBe(3600);
+    expect(stripePixExpiresAfterSeconds({ STRIPE_PIX_EXPIRES_SECONDS: "7200" })).toBe(7200);
+    expect(stripePixExpiresAfterSeconds({ STRIPE_PIX_EXPIRES_SECONDS: "5" })).toBe(10);
+    // Stripe max is 1209600s — clamp anything above.
+    expect(stripePixExpiresAfterSeconds({ STRIPE_PIX_EXPIRES_SECONDS: "99999999" })).toBe(1_209_600);
   });
 });

@@ -194,6 +194,7 @@ describe("PIX smoke lock — Gate 1 health hold / online only", () => {
 
   it("stays not_configured when flag is on but secrets/health fail", async () => {
     vi.stubEnv("PIX_CHECKOUT_ENABLED", "true");
+    vi.stubEnv("STRIPE_PIX_ENABLED", "true");
     probeStripePixHealthMock.mockResolvedValue({
       ok: false,
       configured: false,
@@ -282,6 +283,7 @@ describe("PIX smoke lock — Gate 2 create pending ≠ sale confirmed", () => {
 
   it("returns pending QR and never calls process_pix_sale", async () => {
     vi.stubEnv("PIX_CHECKOUT_ENABLED", "true");
+    vi.stubEnv("STRIPE_PIX_ENABLED", "true");
     probeStripePixHealthMock.mockResolvedValue({
       ok: true,
       configured: true,

@@ -403,6 +403,10 @@ export type Database = {
           pix_order_amount: number | null
           pix_order_status: string | null
           pix_paid_at: string | null
+          mp_payment_id: string | null
+          mp_payment_status: string | null
+          mp_preference_id: string | null
+          mp_payment_paid_at: string | null
           plan_id: string
           status: string
           updated_at: string
@@ -423,6 +427,10 @@ export type Database = {
           pix_order_amount?: number | null
           pix_order_status?: string | null
           pix_paid_at?: string | null
+          mp_payment_id?: string | null
+          mp_payment_status?: string | null
+          mp_preference_id?: string | null
+          mp_payment_paid_at?: string | null
           plan_id: string
           status?: string
           updated_at?: string
@@ -443,6 +451,10 @@ export type Database = {
           pix_order_amount?: number | null
           pix_order_status?: string | null
           pix_paid_at?: string | null
+          mp_payment_id?: string | null
+          mp_payment_status?: string | null
+          mp_preference_id?: string | null
+          mp_payment_paid_at?: string | null
           plan_id?: string
           status?: string
           updated_at?: string

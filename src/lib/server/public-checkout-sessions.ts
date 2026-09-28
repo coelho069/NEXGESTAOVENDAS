@@ -18,6 +18,10 @@ export type PublicCheckoutSessionRow = Database["public"]["Tables"]["checkout_se
  */
 export type PublicCheckoutSessionState = PublicCheckoutSessionRow & {
   mp_preapproval_id: string | null;
+  mp_payment_id: string | null;
+  mp_payment_status: string | null;
+  mp_preference_id: string | null;
+  mp_payment_paid_at: string | null;
   onboarding_claim_token: string | null;
   onboarding_claimed_at: string | null;
   onboarding_attempt_count: number;
@@ -196,6 +200,128 @@ export async function resolveSessionForOnboarding(input: {
     return { ok: false, error: "checkout_session_not_found", status: 404 };
   }
   return { ok: true, session: asSessionState(data) };
+}
+
+export async function findCheckoutSessionByMpPaymentId(input: {
+  admin: AdminClient;
+  paymentId: string;
+  correlationId?: string;
+}): Promise<PublicCheckoutSessionState | null> {
+  const { data, error } = await input.admin
+    .from("checkout_sessions")
+    .select("*")
+    .eq("mp_payment_id" as never, input.paymentId.trim())
+    .maybeSingle();
+  if (error) {
+    logCheckoutSessionDbFailure({
+      operation: "checkout_sessions.select.mp_payment_id",
+      table: "checkout_sessions",
+      code: error.code,
+      message: error.message,
+      correlationId: input.correlationId,
+    });
+    throw new Error("checkout_session_payment_lookup_failed");
+  }
+  return data ? asSessionState(data) : null;
+}
+
+export type ApplyCheckoutSessionMpPaymentResult =
+  | { ok: true; session: PublicCheckoutSessionState; replay: boolean }
+  | { ok: false; error: string; status: "not_found" | "database" };
+
+export async function applyCheckoutSessionMpPayment(input: {
+  admin: AdminClient;
+  clientMutationId: string;
+  paymentId: string;
+  paymentStatus: string;
+  preferenceId?: string | null;
+  correlationId?: string;
+}): Promise<ApplyCheckoutSessionMpPaymentResult> {
+  const paymentId = input.paymentId.trim();
+  if (!paymentId) {
+    return { ok: false, error: "payment_id_required", status: "not_found" };
+  }
+
+  const existingByPayment = await findCheckoutSessionByMpPaymentId({
+    admin: input.admin,
+    paymentId,
+    correlationId: input.correlationId,
+  });
+  if (existingByPayment) {
+    return { ok: true, session: existingByPayment, replay: true };
+  }
+
+  const resolved = await resolveSessionForOnboarding({
+    admin: input.admin,
+    clientMutationId: input.clientMutationId,
+    correlationId: input.correlationId,
+  });
+  if (!resolved.ok) {
+    return {
+      ok: false,
+      error: resolved.error,
+      status: resolved.error === "checkout_session_not_found" ? "not_found" : "database",
+    };
+  }
+
+  if (resolved.session.mp_payment_id?.trim() === paymentId) {
+    return { ok: true, session: resolved.session, replay: true };
+  }
+  if (
+    resolved.session.mp_payment_id &&
+    resolved.session.mp_payment_id.trim() !== paymentId
+  ) {
+    logSessionResolution(input.correlationId, "public_checkout_payment_conflict", {
+      client_mutation_id: input.clientMutationId,
+    });
+    return { ok: false, error: "checkout_session_payment_conflict", status: "not_found" };
+  }
+
+  const paidAt = new Date().toISOString();
+  const { data, error } = await input.admin
+    .from("checkout_sessions")
+    .update({
+      mp_payment_id: paymentId,
+      mp_payment_status: input.paymentStatus,
+      mp_preference_id: input.preferenceId ?? null,
+      mp_payment_paid_at: paidAt,
+      updated_at: paidAt,
+    } as never)
+    .eq("client_mutation_id", input.clientMutationId)
+    .is("mp_payment_id", null)
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === "23505") {
+      const raced = await findCheckoutSessionByMpPaymentId({
+        admin: input.admin,
+        paymentId,
+        correlationId: input.correlationId,
+      });
+      if (raced) return { ok: true, session: raced, replay: true };
+    }
+    logCheckoutSessionDbFailure({
+      operation: "checkout_sessions.update.mp_payment_id",
+      table: "checkout_sessions",
+      code: error.code,
+      message: error.message,
+      correlationId: input.correlationId,
+    });
+    return { ok: false, error: "checkout_session_payment_update_failed", status: "database" };
+  }
+
+  if (!data) {
+    const raced = await findCheckoutSessionByMpPaymentId({
+      admin: input.admin,
+      paymentId,
+      correlationId: input.correlationId,
+    });
+    if (raced) return { ok: true, session: raced, replay: true };
+    return { ok: false, error: "checkout_session_payment_update_failed", status: "database" };
+  }
+
+  return { ok: true, session: asSessionState(data), replay: false };
 }
 
 export type PublicCheckoutSessionResolution =

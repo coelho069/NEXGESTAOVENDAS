@@ -24,7 +24,8 @@ import {
   describeSaleProcessError,
   isCustomerRequiredSaleError,
 } from "@/lib/domain/sale-process-error";
-import { evaluatePixCheckoutGate, type StripePixQr } from "@/lib/domain/stripe-pix";
+import { evaluatePixCheckoutGate, PIX_NOT_ENABLED_ON_ACCOUNT, type StripePixQr } from "@/lib/domain/stripe-pix";
+import { PIX_FALLBACK_BANNER_MESSAGE } from "@/lib/domain/payment-fallback";
 import { closeSale } from "@/lib/offline/close-sale";
 import { endClientSession } from "@/lib/offline/end-session";
 import { withMultiTabLock } from "@/lib/offline/multi-tab-lock";
@@ -174,6 +175,15 @@ export function useCheckout() {
           clientMutationId: string;
           amount: string;
         }
+      | {
+          /** PIX não habilitado → banner + checkout segue por cartão. */
+          ok: true;
+          draft: false;
+          cardFallback: true;
+          banner: string;
+          clientSecret: string;
+          amount: string;
+        }
     > => {
       if (!(await isCheckoutPaymentSelectable(input.method))) {
         return {
@@ -277,6 +287,17 @@ export function useCheckout() {
             qr: checkout.qr,
             providerReference: checkout.providerReference,
             clientMutationId,
+            amount: totals.total,
+          };
+        }
+        if (checkout.kind === "card_fallback") {
+          useCartStore.getState().setCheckoutAttemptId(clientMutationId);
+          return {
+            ok: true,
+            draft: false,
+            cardFallback: true,
+            banner: checkout.banner,
+            clientSecret: checkout.clientSecret,
             amount: totals.total,
           };
         }
@@ -552,6 +573,12 @@ type CardCheckoutResult =
       kind: "pix_pending";
       qr: StripePixQr | null;
       providerReference: string;
+    }
+  | {
+      /** PIX não habilitado na conta Stripe → checkout segue por cartão. */
+      kind: "card_fallback";
+      banner: string;
+      clientSecret: string;
     };
 
 async function readJsonBody(response: Response): Promise<Record<string, unknown>> {
@@ -758,7 +785,7 @@ async function payPixOnServer(input: {
 }): Promise<CardCheckoutResult> {
   const localAdapter = getPaymentAdapter("pix");
   const online = typeof navigator === "undefined" || navigator.onLine !== false;
-  // Server still holds unless PIX_CHECKOUT_ENABLED is the literal "true".
+  // Server still holds unless STRIPE_PIX_ENABLED and PIX_CHECKOUT_ENABLED are the literal "true".
   const gate = evaluatePixCheckoutGate({
     flagEnabled: true,
     healthConfigured: true,
@@ -806,6 +833,23 @@ async function payPixOnServer(input: {
   }
   const createBody = await readJsonBody(createResponse);
   const createStatus = typeof createBody.status === "string" ? createBody.status : "";
+
+  // PIX não habilitado na conta Stripe → checkout segue por cartão (fallback).
+  if (
+    createBody.fallback === true &&
+    createBody.code === PIX_NOT_ENABLED_ON_ACCOUNT &&
+    typeof createBody.client_secret === "string" &&
+    createBody.client_secret.length > 0
+  ) {
+    return {
+      kind: "card_fallback",
+      banner:
+        typeof createBody.message === "string"
+          ? createBody.message
+          : PIX_FALLBACK_BANNER_MESSAGE,
+      clientSecret: createBody.client_secret,
+    };
+  }
 
   if (!createResponse.ok || createStatus === "not_configured" || createBody.configured === false) {
     return {

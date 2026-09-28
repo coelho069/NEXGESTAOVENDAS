@@ -8,6 +8,8 @@ export const STRIPE_WEBHOOK_EVENT_ALLOWLIST = [
   "payment_intent.succeeded",
   "payment_intent.payment_failed",
   "payment_intent.canceled",
+  "payment_intent.processing",
+  "payment_intent.requires_action",
   "charge.refunded",
   "refund.created",
   "refund.updated",
@@ -190,6 +192,9 @@ export function webhookEventToPaymentState(type: StripeWebhookEventType): Paymen
       return "failed";
     case "payment_intent.canceled":
       return "cancelled";
+    case "payment_intent.processing":
+    case "payment_intent.requires_action":
+      return "pending";
     case "charge.refunded":
     case "refund.created":
     case "refund.updated":

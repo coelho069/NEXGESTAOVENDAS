@@ -5,7 +5,13 @@ import {
   type PaymentAdapter,
 } from "@/lib/adapters/payment";
 import { StripePixPaymentAdapter, type StripePixGateway } from "@/lib/adapters/stripe-pix";
-import { extractPixQr, type StripePixIntentSnapshot } from "@/lib/domain/stripe-pix";
+import {
+  extractPixQr,
+  isPixNotEnabledOnAccountError,
+  PixNotEnabledOnAccountError,
+  stripePixExpiresAfterSeconds,
+  type StripePixIntentSnapshot,
+} from "@/lib/domain/stripe-pix";
 import { stripeAmountFromBrl, STRIPE_CARD_CURRENCY } from "@/lib/domain/stripe-card";
 import { createStripeClient, getStripeCardEnv } from "@/lib/server/stripe-card";
 
@@ -30,24 +36,39 @@ export function createStripePixGateway(stripe: Stripe): StripePixGateway {
       }
     },
     async create(input) {
-      const intent = await stripe.paymentIntents.create(
-        {
-          amount: stripeAmountFromBrl(input.amount),
-          currency: STRIPE_CARD_CURRENCY,
-          confirm: true,
-          payment_method_data: { type: "pix" },
-          metadata: {
-            store_id: input.storeId ?? "",
-            client_mutation_id: input.clientMutationId ?? "",
-            app: "nex-gestaovendas",
-            rail: "pix",
+      try {
+        const intent = await stripe.paymentIntents.create(
+          {
+            amount: stripeAmountFromBrl(input.amount),
+            currency: STRIPE_CARD_CURRENCY,
+            // PIX é o meio forçado no checkout Stripe (BRL). Cartão fica no rail card.
+            payment_method_types: ["pix"],
+            payment_method_options: {
+              pix: {
+                expires_after_seconds: stripePixExpiresAfterSeconds(),
+              },
+            },
+            confirm: true,
+            payment_method_data: { type: "pix" },
+            metadata: {
+              store_id: input.storeId ?? "",
+              client_mutation_id: input.clientMutationId ?? "",
+              app: "nex-gestaovendas",
+              rail: "pix",
+            },
           },
-        },
-        input.clientMutationId
-          ? { idempotencyKey: `pix-create:${input.clientMutationId}` }
-          : undefined
-      );
-      return toPixSnapshot(intent);
+          input.clientMutationId
+            ? { idempotencyKey: `pix-create:${input.clientMutationId}` }
+            : undefined
+        );
+        return toPixSnapshot(intent);
+      } catch (error) {
+        // Conta sem PIX habilitado → erro claro da API, sem QR falso.
+        if (isPixNotEnabledOnAccountError(error)) {
+          throw new PixNotEnabledOnAccountError();
+        }
+        throw error;
+      }
     },
     async cancel(input) {
       const intent = await stripe.paymentIntents.cancel(input.providerReference);

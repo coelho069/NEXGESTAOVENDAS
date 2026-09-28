@@ -58,7 +58,7 @@ const STRIPE_ENV = {
 beforeEach(() => {
   mocks.sessionsCreate.mockReset().mockResolvedValue({
     id: "cs_test_123",
-    url: "https://checkout.stripe.com/c/pay/cs_test_123",
+    client_secret: "cs_secret_test_123",
   });
   mocks.createSession.mockReset().mockResolvedValue({
     ok: true,
@@ -83,7 +83,7 @@ describe("public Stripe checkout", () => {
       ok: true,
       client_mutation_id: MUTATION,
       checkout_session_id: "cs_test_123",
-      checkout_url: "https://checkout.stripe.com/c/pay/cs_test_123",
+      client_secret: "cs_secret_test_123",
     });
     expect(mocks.sessionsCreate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -91,11 +91,14 @@ describe("public Stripe checkout", () => {
         customer_email: "cliente@exemplo.com",
         line_items: [{ price: "price_1234567890abcdef", quantity: 1 }],
         client_reference_id: `nex:checkout:session:${MUTATION}`,
-        custom_text: {
-          submit: {
-            message: expect.stringContaining("https://nexgestaovendas.com.br/politica-de-reembolso"),
-          },
-        },
+        ui_mode: "form",
+        billing_address_collection: "auto",
+        phone_number_collection: { enabled: false },
+        automatic_tax: { enabled: false },
+        payment_method_collection: "always",
+        submit_type: "auto",
+        saved_payment_method_options: { payment_method_save: "enabled" },
+        integration_identifier: "custom_embedded_web_0001",
         metadata: expect.objectContaining({
           refund_policy_url: "https://nexgestaovendas.com.br/politica-de-reembolso",
         }),

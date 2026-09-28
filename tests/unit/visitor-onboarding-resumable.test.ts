@@ -87,6 +87,10 @@ function createAdmin(state: OnboardingState) {
           return { data: { user: { id: USER_ID } }, error: null };
         }),
         updateUserById: vi.fn(async () => ({ data: { user: { id: USER_ID } }, error: null })),
+        getUserById: vi.fn(async (id: string) => ({
+          data: { user: { id } },
+          error: null,
+        })),
       },
     },
     from(table: string) {
@@ -387,5 +391,29 @@ describe("resumable visitor onboarding", () => {
     });
     expect(admin.auth.admin.createUser).not.toHaveBeenCalled();
     expect(mocks.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("completes provisioning without email when Resend is unconfigured", async () => {
+    const state = createState();
+    configureMocks(state);
+    mocks.getEmailConfig.mockReturnValue({
+      configured: false,
+      reason: "email_sender_api_key_missing",
+    });
+    const admin = createAdmin(state);
+
+    const result = await runVisitorOnboarding({
+      clientMutationId: MUTATION,
+      providerRef: "payment-1",
+      depsOverride: {
+        admin: admin as never,
+        env: { SUPABASE_SERVICE_ROLE_KEY: "stable-test-secret" },
+      },
+    });
+
+    expect(result.status).toBe("completed");
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+    expect(state.session.onboarding_email_sent_at).toBeNull();
+    expect(state.session.onboarding_status).toBe("completed");
   });
 });

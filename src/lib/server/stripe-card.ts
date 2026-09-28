@@ -16,6 +16,13 @@ import {
 const HEALTH_TTL_MS = 30_000;
 const DEFAULT_TIMEOUT_MS = 15_000;
 
+/**
+ * Stripe server API version pinned for Checkout Studio (Embedded Form).
+ * Combines the dahlia API date + the custom checkout payment-form preview beta.
+ */
+export const STRIPE_API_VERSION =
+  "2026-03-25.dahlia; custom_checkout_payment_form_preview=v1";
+
 type StripeCardEnv =
   | {
       configured: true;
@@ -65,6 +72,8 @@ export function createStripeClient(secretKey: string, timeoutMs = DEFAULT_TIMEOU
     timeout: timeoutMs,
     maxNetworkRetries: 0,
     typescript: true,
+    // Stripe SDK types only accept LatestApiVersion; runtime pin includes Checkout Studio preview.
+    apiVersion: STRIPE_API_VERSION as Stripe.LatestApiVersion,
   });
 }
 

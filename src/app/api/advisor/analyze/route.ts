@@ -23,13 +23,13 @@ export const dynamic = "force-dynamic";
 // A aplicação NÃO decide previamente qual empresa/solução é melhor.
 // ---------------------------------------------------------------------------
 
-export type AdvisorConfig = {
+type AdvisorConfig = {
   endpoint: string;
   apiKey: string;
   model?: string;
 };
 
-export function loadAdvisorConfig(env: NodeJS.ProcessEnv = process.env): AdvisorConfig | null {
+function loadAdvisorConfig(env: NodeJS.ProcessEnv = process.env): AdvisorConfig | null {
   const endpoint = env.JEV_ENDPOINT?.trim();
   const apiKey = env.JEV_API_KEY?.trim();
   if (!endpoint || !apiKey) return null;

@@ -167,7 +167,10 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
       setMessage("Falha de rede no ajuste.");
       return;
     }
-    const body = await response.json().catch(() => ({}));
+    const body = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      replay?: boolean;
+    };
     if (!response.ok) {
       setMessage(body.error ?? "Falha no ajuste");
       return;
@@ -213,7 +216,11 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ store_id: storeId, import_id: importId, csv: csvText }),
       });
-      const body = await response.json().catch(() => ({}));
+      const body = (await response.json().catch(() => ({}))) as {
+        errors?: typeof preview.errors;
+        appliedCount?: number;
+        errorCount?: number;
+      };
       setIssues(body.errors ?? preview.errors);
       setMessage(`Importação: ${body.appliedCount ?? 0} aplicadas, ${body.errorCount ?? 0} erros.`);
       if (body.errorCount === 0) {
@@ -261,7 +268,7 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
         barcode: newBarcode || null,
       }),
     });
-    const body = await response.json();
+    const body = (await response.json()) as { error?: string; sku?: string };
     if (!response.ok) {
       setMessage(
         response.status === 409 && body.error === "barcode_conflict"

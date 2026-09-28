@@ -2,7 +2,10 @@ import type { Enums } from "@/lib/db/types";
 import type { PaymentAdapter, PaymentOperationContext, PaymentOperationResult } from "@/lib/adapters/payment";
 import {
   classifySilentPixHttpSuccess,
+  isPixNotEnabledOnAccountError,
   mapStripePixIntentStatus,
+  PIX_NOT_ENABLED_ON_ACCOUNT,
+  PIX_NOT_ENABLED_ON_ACCOUNT_HINT,
   reconcileStripePixPaymentIntent,
   stripeAmountFromBrl,
   type StripePixIntentOperation,
@@ -68,7 +71,15 @@ export class StripePixPaymentAdapter implements PaymentAdapter {
     try {
       const snapshot = await this.execute(operation, amount, context);
       return this.toResult(operation, amount, snapshot, true);
-    } catch {
+    } catch (error) {
+      if (operation === "create" && isPixNotEnabledOnAccountError(error)) {
+        return {
+          status: "not_configured",
+          message: "PIX não habilitado nesta conta Stripe.",
+          code: PIX_NOT_ENABLED_ON_ACCOUNT,
+          hint: PIX_NOT_ENABLED_ON_ACCOUNT_HINT,
+        } as PaymentOperationResult & { code: string; hint: string };
+      }
       return {
         status: "unknown",
         message: "Stripe não confirmou o PaymentIntent PIX. Pagamento permanece unknown.",

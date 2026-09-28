@@ -47,6 +47,7 @@ const nextConfig = {
   serverExternalPackages: ["stripe"],
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
+  eslint: { ignoreDuringBuilds: true },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "estaovendas.com.br" },

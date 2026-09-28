@@ -13,6 +13,67 @@ export { mustNotInventRefundCash };
 
 export const STRIPE_PIX_CURRENCY = "brl" as const;
 
+/** PIX QR default expiry: 3600s (1h). Stripe accepts 10..1209600 seconds. */
+export const STRIPE_PIX_DEFAULT_EXPIRES_SECONDS = 3600;
+export const STRIPE_PIX_MIN_EXPIRES_SECONDS = 10;
+export const STRIPE_PIX_MAX_EXPIRES_SECONDS = 1_209_600;
+
+/**
+ * Reads `STRIPE_PIX_EXPIRES_SECONDS`, falling back to 3600. Values outside the
+ * Stripe-supported window are clamped — never rejected at request time.
+ */
+export function stripePixExpiresAfterSeconds(
+  envSource: Record<string, string | undefined> = process.env
+): number {
+  const raw = Number.parseInt(envSource.STRIPE_PIX_EXPIRES_SECONDS ?? "", 10);
+  if (!Number.isFinite(raw)) return STRIPE_PIX_DEFAULT_EXPIRES_SECONDS;
+  return Math.min(Math.max(raw, STRIPE_PIX_MIN_EXPIRES_SECONDS), STRIPE_PIX_MAX_EXPIRES_SECONDS);
+}
+
+/** Machine-readable outcome when the Stripe account has PIX disabled. */
+export const PIX_NOT_ENABLED_ON_ACCOUNT = "PIX_NOT_ENABLED_ON_ACCOUNT" as const;
+export const PIX_NOT_ENABLED_ON_ACCOUNT_HINT =
+  "Dashboard Stripe → Settings → Payment methods → ativar PIX (Brasil)";
+
+export class PixNotEnabledOnAccountError extends Error {
+  readonly code = PIX_NOT_ENABLED_ON_ACCOUNT;
+  readonly hint = PIX_NOT_ENABLED_ON_ACCOUNT_HINT;
+
+  constructor(message = "PIX não habilitado nesta conta Stripe.") {
+    super(message);
+    this.name = "PixNotEnabledOnAccountError";
+  }
+}
+
+/**
+ * Detects the Stripe API refusal for an account without PIX enabled.
+ * Only errors that explicitly reference pix + an unsupported/invalid payment
+ * method type are matched, so unrelated Stripe failures keep their own path.
+ */
+export function isPixNotEnabledOnAccountError(error: unknown): boolean {
+  if (error instanceof PixNotEnabledOnAccountError) return true;
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { message?: unknown; code?: unknown; type?: unknown };
+  const message = typeof candidate.message === "string" ? candidate.message.toLowerCase() : "";
+  const code = typeof candidate.code === "string" ? candidate.code.toLowerCase() : "";
+  const type = typeof candidate.type === "string" ? candidate.type : "";
+  if (!message.includes("pix") && !code.includes("pix")) return false;
+  const markers = [
+    "payment_method_type",
+    "payment method type",
+    "payment_method_types",
+    "not supported",
+    "unsupported",
+    "not enabled",
+    "invalid payment_method",
+    "parameter_invalid",
+  ];
+  return (
+    type === "invalid_request_error" ||
+    markers.some((marker) => message.includes(marker) || code.includes(marker))
+  );
+}
+
 export type PixCheckoutGateReason = "hold" | "not_configured" | "livemode" | "offline" | "ok";
 
 export type PixCheckoutGate = {

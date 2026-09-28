@@ -1,6 +1,6 @@
 import { PlansSalesPage } from "@/components/marketing/plans-sales-page";
 import { getAuthedContext } from "@/lib/auth/session";
-import { isStripeSubscriptionCheckoutEnabled } from "@/lib/domain/onboarding-stripe";
+import { isMercadoPagoCheckoutEnabled } from "@/lib/server/mercadopago";
 import { loadPublicPlans } from "@/lib/server/public-plans-query";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export default async function HomePage() {
       plans={plansResult.data ?? []}
       loadError={plansResult.error}
       isAuthenticated={auth !== null}
-      checkoutEnabled={isStripeSubscriptionCheckoutEnabled()}
+      checkoutEnabled={isMercadoPagoCheckoutEnabled()}
       pdvHref={pdvHref}
     />
   );

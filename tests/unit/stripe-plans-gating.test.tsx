@@ -60,22 +60,20 @@ describe("PlansSalesPage stripe-only subscription gating", () => {
     );
   }
 
-  it("stripe plan shows the Stripe subscription option", () => {
+  it("active plan shows the Mercado Pago subscription option", () => {
     renderPage([plan({ stripeEnabled: true })]);
-    expect(screen.getByRole("button", { name: /Assinar com Stripe/ })).toBeDefined();
+    expect(screen.getByRole("button", { name: /Assinar/ })).toBeDefined();
   });
 
-  it("mercado pago plan (stripeEnabled=false) shows no Stripe option and no subscription button", () => {
+  it("plan (stripeEnabled=false) still offers the Mercado Pago subscription button", () => {
     renderPage([plan({ stripeEnabled: false })]);
-    expect(screen.queryByRole("button", { name: /Stripe/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Começar agora/ })).toBeNull();
-    expect(screen.getByText(/Indisponível para assinatura/)).toBeDefined();
+    expect(screen.getByRole("button", { name: /Assinar/ })).toBeDefined();
+    expect(screen.queryByText(/Indisponível para assinatura/)).toBeNull();
   });
 
-  it("plan without provider (stripeEnabled falsy/undefined) shows no Stripe option", () => {
+  it("plan without provider (stripeEnabled falsy/undefined) also offers the Mercado Pago button", () => {
     renderPage([plan({ stripeEnabled: undefined as unknown as boolean })]);
-    expect(screen.queryByRole("button", { name: /Stripe/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Começar agora/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Assinar/ })).toBeDefined();
   });
 
   it("Mercado Pago is announced as the billing provider on the plans page", () => {
@@ -101,8 +99,7 @@ describe("PlansSalesPage stripe-only subscription gating", () => {
         checkoutEnabled={false}
       />
     );
-    expect(screen.queryByRole("button", { name: /Assinar com Stripe/ })).toBeNull();
-    expect(screen.queryByText(/Indisponível para assinatura/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Assinar/ })).toBeNull();
     expect(screen.getAllByText("Em breve").length).toBeGreaterThan(0);
   });
 });

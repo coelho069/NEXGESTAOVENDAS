@@ -11,6 +11,7 @@ import {
 import {
   isPixCheckoutEnabledEnv,
   isPixStripeObject,
+  PIX_NOT_ENABLED_ON_ACCOUNT,
   pixRefundStatusPendingExternal,
   reconcileStripePixPaymentIntent,
   type StripePixQr,
@@ -20,6 +21,8 @@ import {
   webhookEventToPaymentState,
   type StripeWebhookEventType,
 } from "@/lib/domain/stripe-card";
+import { createPaymentWithFallback } from "@/lib/server/payment-fallback";
+import { type CreatePaymentResult } from "@/lib/domain/payment-fallback";
 import type { PixPaymentInput } from "@/lib/validation/schemas";
 import { applyStripeWebhookEvent as applyCardStripeWebhookEvent } from "@/lib/server/card-payment";
 
@@ -27,6 +30,9 @@ type DbClient = SupabaseClient<Database>;
 
 export type PixPaymentApiResult = PaymentOperationResult & {
   configured: boolean;
+  ok?: boolean;
+  code?: string;
+  hint?: string;
   sale_id?: string;
   sale_status?: string;
   sale_confirmed?: boolean;
@@ -34,6 +40,10 @@ export type PixPaymentApiResult = PaymentOperationResult & {
   qr?: StripePixQr | null;
   replay?: boolean;
   ignored?: boolean;
+  /** Campos do fallback (createPaymentWithFallback) — estáveis e UI-facing. */
+  provider?: "stripe" | "mercadopago" | null;
+  fallback?: boolean;
+  client_secret?: string | null;
 };
 
 function asJson(value: unknown): Json {
@@ -41,15 +51,46 @@ function asJson(value: unknown): Json {
 }
 
 /**
- * PIX_CHECKOUT_ENABLED must stay unset/false until locked smoke
- * (docs/STRIPE-PIX-SMOKE.md) PASSES. Explicit `"true"` only — never default on.
+ * Converte o resultado estável do fallback num PixPaymentApiResult legado, de
+ * modo que a rota /api/payments/pix continue devolvendo o mesmo JSON estável,
+ * enriquecido com provider/fallback/client_secret. Nunca vira 500.
+ */
+function fallbackToPixApiResult(
+  fallback: CreatePaymentResult,
+  hint?: string
+): PixPaymentApiResult & { fallback: boolean } {
+  return {
+    ok: fallback.ok,
+    code: fallback.code ?? undefined,
+    status: fallback.ok ? "pending" : "not_configured",
+    message: fallback.message,
+    configured: fallback.ok,
+    sale_confirmed: false,
+    provider: fallback.provider,
+    fallback: fallback.fallback,
+    client_secret: fallback.client_secret,
+    qr: null,
+    ...(hint ? { hint } : {}),
+  };
+}
+
+/**
+ * Duas travas obrigatórias, nunca default on:
+ * - `STRIPE_PIX_ENABLED` (feature flag do checkout Stripe PIX): se não for o
+ *   literal "true", o PIX não é oferecido.
+ * - `PIX_CHECKOUT_ENABLED` (smoke lock, docs/STRIPE-PIX-SMOKE.md): mantém o rail
+ *   morto até a smoke passar.
+ * Explicit `"true"` only — `"TRUE"`, `"1"`, `"yes"` e unset ficam em hold.
  */
 function isPixCheckoutEnabled(): boolean {
-  return isPixCheckoutEnabledEnv(process.env.PIX_CHECKOUT_ENABLED);
+  return (
+    isPixCheckoutEnabledEnv(process.env.STRIPE_PIX_ENABLED) &&
+    isPixCheckoutEnabledEnv(process.env.PIX_CHECKOUT_ENABLED)
+  );
 }
 
 const PIX_CHECKOUT_HOLD_MESSAGE =
-  "PIX checkout em hold operacional até opt-in explícito (PIX_CHECKOUT_ENABLED=true).";
+  "PIX checkout em hold operacional até opt-in explícito (STRIPE_PIX_ENABLED=true + PIX_CHECKOUT_ENABLED=true).";
 
 function pixCheckoutHoldHealth(): {
   configured: false;
@@ -114,17 +155,28 @@ export async function executePixPayment(
   switch (input.action) {
     case "create": {
       const result = await adapter.authorize(input.amount, context);
-      if (result.status === "not_configured") {
-        return { ...result, configured: false, sale_confirmed: false };
+      const outcome = result as PaymentOperationResult & { code?: string; hint?: string };
+      if (outcome.code === PIX_NOT_ENABLED_ON_ACCOUNT) {
+        // Conta Stripe sem PIX: cai no fallback automático (card → Mercado Pago
+        // → erro controlado) sem estourar 500 na tela de pagamento.
+        const fallback = await createPaymentWithFallback({
+          amount: input.amount,
+          clientMutationId: input.client_mutation_id,
+          storeId: input.store_id,
+        });
+        return fallbackToPixApiResult(fallback, outcome.hint);
       }
-      if (result.providerReference && result.status !== "unknown") {
-        await registerPixIntent(supabase, input, operatorId, result);
+      if (outcome.status === "not_configured") {
+        return { ...outcome, configured: false, sale_confirmed: false };
+      }
+      if (outcome.providerReference && outcome.status !== "unknown") {
+        await registerPixIntent(supabase, input, operatorId, outcome);
       }
       return {
-        ...result,
+        ...outcome,
         configured: true,
         sale_confirmed: false,
-        qr: result.qr,
+        qr: outcome.qr,
       };
     }
     case "cancel": {
@@ -284,7 +336,9 @@ export async function applyPixStripeWebhookEvent(event: {
         ? "failed"
         : mapped === "cancelled"
           ? "cancelled"
-          : "unknown";
+          : mapped === "pending"
+            ? "pending"
+            : "unknown";
 
   const applied = await admin.rpc("apply_pix_provider_event", {
     p_payload: asJson({
@@ -338,7 +392,12 @@ export async function applyPixStripeWebhookEvent(event: {
 
   return {
     status: mapped,
-    message: `Webhook PIX ${event.type} aplicado.`,
+    message:
+      mapped === "pending"
+        ? `Webhook ${event.type}: aguardando pagamento PIX.`
+        : mapped === "cancelled"
+          ? `Webhook ${event.type}: PIX expirado/cancelado no provedor.`
+          : `Webhook PIX ${event.type} aplicado.`,
     configured: true,
     providerReference: providerRef,
     sale_confirmed: false,

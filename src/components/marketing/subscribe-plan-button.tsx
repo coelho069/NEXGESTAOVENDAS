@@ -7,34 +7,34 @@ import { REFUND_POLICY_PATH } from "@/lib/domain/refund-policy";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-type StripeCheckoutResponse = {
-  checkout_url?: string;
+type CheckoutProResponse = {
+  init_point?: string;
   error?: string;
 };
 
 /**
- * Sole subscription rail on the plans page: Stripe Checkout (mode=subscription)
- * for plans mapped via STRIPE_PRICE_PLAN_<SLUG>. Plans without a mapping never
- * render this component with an actionable button.
+ * Contratação pública via Mercado Pago Checkout Pro (Preference → init_point).
+ * Stripe Embedded / PIX Stripe ficam desligados. O visitante informa o e-mail,
+ * o servidor devolve o init_point (ou sandbox_init_point) e o navegador redireciona.
  */
-async function requestStripeCheckout(body: {
+async function requestMercadoPagoCheckout(body: {
   plan_id: string;
   payer_email: string;
   client_mutation_id: string;
-}): Promise<{ checkoutUrl: string | null }> {
-  const response = await fetch("/api/subscriptions/stripe/public-checkout", {
+}): Promise<{ initPoint: string | null }> {
+  const response = await fetch("/api/subscriptions/mercadopago/public-checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const payload = (await response.json()) as StripeCheckoutResponse;
-  if (!response.ok || !payload.checkout_url) {
-    return { checkoutUrl: null };
+  const payload = (await response.json()) as CheckoutProResponse;
+  if (!response.ok || !payload.init_point) {
+    return { initPoint: null };
   }
-  return { checkoutUrl: payload.checkout_url };
+  return { initPoint: payload.init_point };
 }
 
-function StartStripeCheckoutForm({
+function StartCheckoutForm({
   planId,
   planLabel,
   onDone,
@@ -57,22 +57,23 @@ function StartStripeCheckoutForm({
     setLoading(true);
     setError(null);
     try {
-      const { checkoutUrl } = await requestStripeCheckout({
+      const { initPoint } = await requestMercadoPagoCheckout({
         plan_id: planId,
         payer_email: normalized,
         client_mutation_id: crypto.randomUUID(),
       });
-      if (!checkoutUrl) {
+      if (!initPoint) {
         setError("checkout_unavailable");
         return;
       }
-      window.location.assign(checkoutUrl);
+      window.location.assign(initPoint);
     } catch {
       setError("checkout_unavailable");
     } finally {
       setLoading(false);
     }
   }
+
 
   return (
     <div
@@ -98,6 +99,7 @@ function StartStripeCheckoutForm({
             <X size={18} aria-hidden="true" />
           </button>
         </div>
+
         <form
           className="mt-5 flex flex-col gap-3"
           onSubmit={(event) => {
@@ -105,59 +107,60 @@ function StartStripeCheckoutForm({
             void handleSubmit();
           }}
         >
-          <label className="text-sm font-medium text-slate-700" htmlFor="checkout-email">
-            E-mail
-          </label>
-          <input
-            id="checkout-email"
-            type="email"
-            required
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="voce@empresa.com.br"
-            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-          />
-          <p className="text-xs text-slate-500">
-            Você será direcionado ao checkout seguro do Stripe para concluir a assinatura.
-            Após o pagamento, enviaremos seu acesso por este e-mail.
-          </p>
-          <p className="text-xs text-slate-500">
-            Ao continuar, você concorda com a{" "}
-            <Link
-              href={REFUND_POLICY_PATH}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-emerald-700 hover:text-emerald-800"
+            <label className="text-sm font-medium text-slate-700" htmlFor="checkout-email">
+              E-mail
+            </label>
+            <input
+              id="checkout-email"
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="voce@empresa.com.br"
+              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+            />
+            <p className="text-xs text-slate-500">
+              Você será direcionado ao checkout seguro do Mercado Pago (PIX ou cartão).
+              Após o pagamento, enviaremos seu acesso por este e-mail.
+            </p>
+            <p className="text-xs text-slate-500">
+              Ao continuar, você concorda com a{" "}
+              <Link
+                href={REFUND_POLICY_PATH}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-emerald-700 hover:text-emerald-800"
+              >
+                Política de Reembolsos e Devoluções
+              </Link>
+              .
+            </p>
+            <button
+              type="submit"
+              disabled={loading}
+              aria-busy={loading}
+              className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              Política de Reembolsos e Devoluções
-            </Link>
-            .
-          </p>
-          <button
-            type="submit"
-            disabled={loading}
-            aria-busy={loading}
-            className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {loading ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <CreditCard size={18} aria-hidden="true" />}
-            {loading ? "Preparando..." : "Continuar para o pagamento"}
-          </button>
-          {error === "invalid_email" ? (
-            <p role="alert" className="text-center text-xs text-rose-600">
-              Informe um e-mail válido.
-            </p>
-          ) : null}
-          {error === "checkout_unavailable" ? (
-            <p role="alert" className="text-center text-xs text-rose-600">
-              Não foi possível iniciar a contratação. Tente novamente.
-            </p>
-          ) : null}
-        </form>
+              {loading ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <CreditCard size={18} aria-hidden="true" />}
+              {loading ? "Preparando..." : "Continuar para o pagamento"}
+            </button>
+            {error === "invalid_email" ? (
+              <p role="alert" className="text-center text-xs text-rose-600">
+                Informe um e-mail válido.
+              </p>
+            ) : null}
+            {error === "checkout_unavailable" ? (
+              <p role="alert" className="text-center text-xs text-rose-600">
+                Não foi possível iniciar a contratação. Tente novamente.
+              </p>
+            ) : null}
+          </form>
       </div>
     </div>
   );
 }
+
 
 export function SubscribePlanButton({
   planId,
@@ -167,25 +170,18 @@ export function SubscribePlanButton({
 }: {
   planId: string;
   planLabel: string;
-  /** Server-resolved STRIPE_PRICE_PLAN_<SLUG> mapping for this plan. */
+  /** Stripe fica desligado; gate efetivo é subscriptionEnabled (MP Checkout Pro). */
   stripeEnabled: boolean;
   /** Global subscription checkout gate (env). */
   subscriptionEnabled: boolean;
 }) {
+  void stripeEnabled;
   const [modalOpen, setModalOpen] = useState(false);
 
   if (!subscriptionEnabled) {
     return (
       <span className="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-500">
         Em breve
-      </span>
-    );
-  }
-
-  if (!stripeEnabled) {
-    return (
-      <span className="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-500">
-        Indisponível para assinatura
       </span>
     );
   }
@@ -199,10 +195,10 @@ export function SubscribePlanButton({
         className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
       >
         <CreditCard size={18} aria-hidden="true" />
-        Assinar com Stripe
+        Assinar
       </button>
       {modalOpen ? (
-        <StartStripeCheckoutForm
+        <StartCheckoutForm
           planId={planId}
           planLabel={planLabel}
           onDone={() => setModalOpen(false)}

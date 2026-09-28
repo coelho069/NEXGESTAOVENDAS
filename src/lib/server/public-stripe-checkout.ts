@@ -8,7 +8,6 @@
  * Rails stay isolated: this module never touches Mercado Pago gateways and is
  * only reachable for plans with an explicit, valid Stripe mapping.
  */
-import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createStripeClient, getStripeCardEnv } from "@/lib/server/stripe-card";
 import {
@@ -24,10 +23,7 @@ import {
   type CreatePublicCheckoutSessionResult,
 } from "@/lib/server/public-checkout-sessions";
 import { createLogger } from "@/lib/observability/logger";
-import {
-  REFUND_POLICY_CANONICAL_URL,
-  stripeCheckoutRefundPolicyNotice,
-} from "@/lib/domain/refund-policy";
+import { REFUND_POLICY_CANONICAL_URL } from "@/lib/domain/refund-policy";
 
 const logger = createLogger({ service: "nexgestaovendas", component: "public-stripe-checkout" });
 
@@ -36,7 +32,7 @@ export type PublicStripeCheckoutResult =
       ok: true;
       checkout_session_id: string;
       client_mutation_id: string;
-      checkout_url: string;
+      client_secret: string;
       replayed: boolean;
     }
   | { ok: false; error: string; status: number };
@@ -124,6 +120,7 @@ export async function executeMercadoPagoIndependentStripeCheckout(input: {
     const checkoutSession = await stripe.checkout.sessions.create(
       {
         mode: "subscription",
+        // Real Stripe Price resolved per-plan — never a placeholder here.
         line_items: [{ price: stripePriceId, quantity: 1 }],
         customer_email: input.payerEmail,
         // Binds the Stripe session back to the local public session so the
@@ -135,29 +132,31 @@ export async function executeMercadoPagoIndependentStripeCheckout(input: {
           rail: "stripe_subscription",
           refund_policy_url: REFUND_POLICY_CANONICAL_URL,
         },
-        success_url: `${appOrigin(envSource)}/login?checkout=stripe&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${appOrigin(envSource)}/#planos`,
-        custom_text: {
-          submit: {
-            message: stripeCheckoutRefundPolicyNotice(),
-          },
-        },
+        // Checkout Studio (Embedded Form) — fixed_by_ui.
+        ui_mode: "form",
+        billing_address_collection: "auto",
+        phone_number_collection: { enabled: false },
+        automatic_tax: { enabled: false },
+        payment_method_collection: "always",
+        submit_type: "auto",
+        saved_payment_method_options: { payment_method_save: "enabled" },
+        integration_identifier: "custom_embedded_web_0001",
       },
       { idempotencyKey: `nex-stripe-checkout:${input.clientMutationId}` }
     );
 
-    if (!checkoutSession.url) {
-      logger.error("public_stripe_checkout_missing_url", {
+    if (!checkoutSession.client_secret) {
+      logger.error("public_stripe_checkout_missing_client_secret", {
         correlationId: input.correlationId,
       });
-      return { ok: false, error: "stripe_checkout_url_missing", status: 502 };
+      return { ok: false, error: "stripe_checkout_client_secret_missing", status: 502 };
     }
 
     return {
       ok: true,
       checkout_session_id: checkoutSession.id,
       client_mutation_id: session.clientMutationId,
-      checkout_url: checkoutSession.url,
+      client_secret: checkoutSession.client_secret,
       replayed: session.replayed,
     };
   } catch {
@@ -166,10 +165,6 @@ export async function executeMercadoPagoIndependentStripeCheckout(input: {
     });
     return { ok: false, error: "stripe_checkout_failed", status: 502 };
   }
-}
-
-function appOrigin(envSource: Record<string, string | undefined>): string {
-  return envSource.APP_ORIGIN?.trim() || "http://localhost:3000";
 }
 
 export { SUBSCRIPTION_CHECKOUT_SESSION_PREFIX };

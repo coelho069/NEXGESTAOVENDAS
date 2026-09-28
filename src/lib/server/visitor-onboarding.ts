@@ -36,7 +36,11 @@ import {
 const logger = createLogger({ service: "nexgestaovendas", component: "visitor-onboarding" });
 
 function appOrigin(envSource: Record<string, string | undefined> = process.env): string {
-  return envSource.APP_ORIGIN?.trim() || "http://localhost:3000";
+  return (
+    envSource.APP_ORIGIN?.trim() ||
+    envSource.APP_URL?.trim() ||
+    "http://localhost:3000"
+  );
 }
 
 export type VisitorOnboardingOutcome =
@@ -46,6 +50,10 @@ export type VisitorOnboardingOutcome =
       userId?: string;
       subscriptionId?: string;
       retryable?: boolean;
+      /** Normalized payer email used as Supabase login (never logged with password). */
+      loginEmail?: string;
+      accessEmailSent?: boolean;
+      verifiedUserCreated?: boolean;
     }
   | { status: "degraded"; error: string; retryable?: boolean };
 
@@ -93,6 +101,14 @@ function generateOnboardingPassword(
     .digest("base64url")
     .replace(/[0O1lI]/g, "x");
   return `N${digest.slice(0, 18)}a9!`;
+}
+
+async function verifyAuthUserExists(
+  admin: SupabaseClient<Database>,
+  userId: string
+): Promise<boolean> {
+  const { data, error } = await admin.auth.admin.getUserById(userId);
+  return !error && Boolean(data.user?.id);
 }
 
 async function findAuthUserByEmail(
@@ -148,22 +164,29 @@ export async function runVisitorOnboarding(
   }
 
   if (resolved.session.onboarding_status === "completed") {
+    const replayEmail = resolved.session.payer_email?.trim().toLowerCase() || undefined;
     return {
       status: "replayed",
       organizationId: resolved.session.onboarding_organization_id ?? undefined,
       userId: resolved.session.onboarding_user_id ?? undefined,
       subscriptionId: resolved.session.onboarding_subscription_id ?? undefined,
+      loginEmail: replayEmail,
+      accessEmailSent: Boolean(resolved.session.onboarding_email_sent_at),
+      verifiedUserCreated: false,
     };
   }
 
   const payerEmail = resolved.session.payer_email?.trim().toLowerCase() || "";
-  if (!payerEmail) return { status: "missing_email" };
+  if (!payerEmail) {
+    onboardingLogger.warn("onboarding_email_skipped", {
+      client_mutation_id: input.clientMutationId,
+      reason: "missing_payer_email",
+    });
+    return { status: "missing_email" };
+  }
 
   const envSource = input.depsOverride?.env ?? process.env;
   const emailConfig = getEmailSenderConfig(envSource);
-  if (!emailConfig.configured) {
-    return { status: "degraded", error: emailConfig.reason };
-  }
 
   const { data: plan, error: planError } = await admin
     .from("plans")
@@ -188,11 +211,15 @@ export async function runVisitorOnboarding(
     };
   }
   if (claim.status === "completed") {
+    const replayEmail = claim.session.payer_email?.trim().toLowerCase() || undefined;
     return {
       status: "replayed",
       organizationId: claim.session.onboarding_organization_id ?? undefined,
       userId: claim.session.onboarding_user_id ?? undefined,
       subscriptionId: claim.session.onboarding_subscription_id ?? undefined,
+      loginEmail: replayEmail,
+      accessEmailSent: Boolean(claim.session.onboarding_email_sent_at),
+      verifiedUserCreated: false,
     };
   }
   if (!claim.claimToken) {
@@ -204,6 +231,8 @@ export async function runVisitorOnboarding(
   let userId = session.onboarding_user_id;
   let subscriptionId = session.onboarding_subscription_id;
   let temporaryPassword: string | null = null;
+  let accessEmailSent = Boolean(session.onboarding_email_sent_at);
+  let verifiedUserCreated = false;
 
   const saveProgress = async (progress: {
     organizationId?: string | null;
@@ -247,6 +276,10 @@ export async function runVisitorOnboarding(
           throw new Error("onboarding_user_create_failed");
         }
         userId = created.user.id;
+        verifiedUserCreated = true;
+      }
+      if (!(await verifyAuthUserExists(admin, userId))) {
+        throw new Error("onboarding_auth_user_verify_failed");
       }
       await saveProgress({ userId });
     }
@@ -413,32 +446,40 @@ export async function runVisitorOnboarding(
     // 6. Email delivery is guarded by the persisted marker and by Resend's
     // deterministic idempotency key. The password is never logged/stored.
     if (!session.onboarding_email_sent_at) {
-      if (!temporaryPassword) {
-        temporaryPassword = generateOnboardingPassword(input.clientMutationId, envSource);
-        const { error: passwordError } = await admin.auth.admin.updateUserById(userId, {
-          password: temporaryPassword,
+      if (!emailConfig.configured) {
+        onboardingLogger.warn("onboarding_email_skipped", {
+          client_mutation_id: input.clientMutationId,
+          reason: emailConfig.reason,
         });
-        if (passwordError) throw new Error("onboarding_user_password_update_failed");
+      } else {
+        if (!temporaryPassword) {
+          temporaryPassword = generateOnboardingPassword(input.clientMutationId, envSource);
+          const { error: passwordError } = await admin.auth.admin.updateUserById(userId, {
+            password: temporaryPassword,
+          });
+          if (passwordError) throw new Error("onboarding_user_password_update_failed");
+        }
+        const emailContent = buildAccessEmailContent({
+          appOrigin: appOrigin(envSource),
+          email: payerEmail,
+          temporaryPassword,
+          planName: planRow.name,
+        });
+        const sent = await sendAccessEmail({
+          to: payerEmail,
+          content: emailContent,
+          config: emailConfig,
+          idempotencyKey: `nex-onboarding/${input.clientMutationId}`,
+        });
+        if (!sent.ok) throw new Error("onboarding_access_email_failed");
+        accessEmailSent = true;
+        await saveProgress({
+          organizationId: orgId,
+          userId,
+          subscriptionId,
+          emailSent: true,
+        });
       }
-      const emailContent = buildAccessEmailContent({
-        appOrigin: appOrigin(envSource),
-        email: payerEmail,
-        temporaryPassword,
-        planName: planRow.name,
-      });
-      const sent = await sendAccessEmail({
-        to: payerEmail,
-        content: emailContent,
-        config: emailConfig,
-        idempotencyKey: `nex-onboarding/${input.clientMutationId}`,
-      });
-      if (!sent.ok) throw new Error("onboarding_access_email_failed");
-      await saveProgress({
-        organizationId: orgId,
-        userId,
-        subscriptionId,
-        emailSent: true,
-      });
     }
 
     const completed = await savePublicCheckoutSessionProgress({
@@ -448,7 +489,7 @@ export async function runVisitorOnboarding(
       organizationId: orgId,
       userId,
       subscriptionId,
-      emailSent: true,
+      emailSent: accessEmailSent,
       complete: true,
       correlationId: input.correlationId,
     });
@@ -457,12 +498,17 @@ export async function runVisitorOnboarding(
     onboardingLogger.info("visitor_onboarding_completed", {
       client_mutation_id: input.clientMutationId,
       organization_id: orgId,
+      access_email_sent: accessEmailSent,
+      verified_user_created: verifiedUserCreated,
     });
     return {
       status: completed.replay ? "replayed" : "completed",
       organizationId: orgId,
       userId,
       subscriptionId,
+      loginEmail: payerEmail,
+      accessEmailSent,
+      verifiedUserCreated,
     };
   } catch (error) {
     const errorCode = sanitizeOnboardingError(error);
