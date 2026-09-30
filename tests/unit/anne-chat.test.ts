@@ -14,6 +14,7 @@ describe("isAnneSupportRoute", () => {
     expect(isAnneSupportRoute("/pdv?store=abc")).toBe(false);
     expect(isAnneSupportRoute("/inventory")).toBe(true);
     expect(isAnneSupportRoute("/dashboard")).toBe(true);
+    expect(isAnneSupportRoute("/suporte/tickets")).toBe(true);
   });
 
   it("rejects public routes", () => {
