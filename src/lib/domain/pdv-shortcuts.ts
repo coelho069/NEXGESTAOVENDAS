@@ -88,3 +88,35 @@ export function shouldAcceptHidScan(target: EventTarget | null, modalOpen: boole
   if (isEditableTarget(target) && !isPdvSearchTarget(target)) return false;
   return true;
 }
+
+const PDV_SHORTCUT_KEY_LABELS: Record<PdvShortcut, string> = {
+  search: "F2",
+  customer: "F4",
+  discount: "F6",
+  payment: "F8",
+  receipt: "F9",
+  cancel: "Esc",
+  qtyInc: "+",
+  qtyDec: "−",
+};
+
+export function getPdvShortcutKeyLabel(shortcut: PdvShortcut): string {
+  return PDV_SHORTCUT_KEY_LABELS[shortcut];
+}
+
+export type SupportHotkeyHint = {
+  keys: string;
+  label: string;
+};
+
+export function buildSupportHotkeyHints(): SupportHotkeyHint[] {
+  return [
+    { keys: "F2", label: "Buscar produto" },
+    { keys: "Ctrl+K", label: "Buscar produto" },
+    { keys: "F4", label: "Cliente" },
+    { keys: "F6", label: "Desconto" },
+    { keys: "F8", label: "Pagamento" },
+    { keys: "F9", label: "Recibo" },
+    { keys: "+/−", label: "Quantidade" },
+  ];
+}

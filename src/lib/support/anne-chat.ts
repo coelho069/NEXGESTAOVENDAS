@@ -26,7 +26,7 @@ export type AnneChatResult =
   | { ok: false; unauthorized: true }
   | { ok: false; unauthorized: false; message: string };
 
-const AUTHENTICATED_ROUTE_PREFIXES = ["/pdv", "/inventory", "/dashboard"] as const;
+const AUTHENTICATED_ROUTE_PREFIXES = ["/pdv", "/inventory", "/dashboard", "/suporte"] as const;
 
 export function isAnneSupportRoute(pathname: string): boolean {
   return AUTHENTICATED_ROUTE_PREFIXES.some(

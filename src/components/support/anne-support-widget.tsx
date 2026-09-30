@@ -9,6 +9,7 @@ import {
   ANNE_CHAT_MAX_MESSAGE_LENGTH,
   isAnneSupportRoute,
 } from "@/lib/support/anne-chat";
+import { ANNE_SUPPORT_OPEN_EVENT } from "@/lib/support/open-anne-support";
 
 function PlainTextMessage({ content }: { content: string }) {
   return <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{content}</p>;
@@ -53,6 +54,12 @@ export function AnneSupportWidget() {
     const timer = window.setTimeout(() => textareaRef.current?.focus(), 0);
     return () => window.clearTimeout(timer);
   }, [open]);
+
+  useEffect(() => {
+    const handleOpen = () => setOpen(true);
+    window.addEventListener(ANNE_SUPPORT_OPEN_EVENT, handleOpen);
+    return () => window.removeEventListener(ANNE_SUPPORT_OPEN_EVENT, handleOpen);
+  }, []);
 
   if (!visible || !initialized) {
     return null;
