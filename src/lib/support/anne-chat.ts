@@ -4,8 +4,10 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 export const ANNE_CHAT_MAX_MESSAGE_LENGTH = 2000;
 export const ANNE_CONVERSA_STORAGE_KEY = "anne-support-conversa-id";
 
+export const ANNE_SUPPORT_EMAIL = "suporte@nexgestaovendas.com.br";
+
 export const ANNE_GREETING =
-  "Oi! Sou a Anne, do suporte do NEX. Qual é a sua dúvida sobre o sistema?";
+  "Oi! Sou a Anne, do suporte do NEX. Qual é a sua dúvida sobre o sistema? Se preferir falar com nossa equipe, entre em contato pelo e-mail suporte@nexgestaovendas.com.br.";
 
 export const ANNE_GENERIC_ERROR =
   "Não foi possível enviar sua mensagem. Tente novamente em instantes.";

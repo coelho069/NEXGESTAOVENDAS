@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useAnneChat } from "@/hooks/use-anne-chat";
 import {
   ANNE_CHAT_MAX_MESSAGE_LENGTH,
+  ANNE_SUPPORT_EMAIL,
   isAnneSupportRoute,
 } from "@/lib/support/anne-chat";
 import { ANNE_SUPPORT_OPEN_EVENT } from "@/lib/support/open-anne-support";
@@ -155,6 +156,16 @@ export function AnneSupportWidget() {
             </div>
             <p className="mt-2 text-right text-xs text-slate-500">
               {input.length}/{ANNE_CHAT_MAX_MESSAGE_LENGTH}
+            </p>
+            <p className="mt-2 text-center text-xs text-slate-500">
+              Em caso de dúvida, entre em contato pelo{" "}
+              <a
+                href={`mailto:${ANNE_SUPPORT_EMAIL}`}
+                className="font-medium text-emerald-700 underline underline-offset-2 hover:text-emerald-800"
+              >
+                {ANNE_SUPPORT_EMAIL}
+              </a>
+              .
             </p>
           </footer>
         </section>
