@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { SyncProvider } from "@/components/providers/sync-provider";
-// [BUG-NEX-HYDRATION-418] widget do Hermes montado apenas no client
+// [BUG-NEX-HYDRATION-418] widget da Anne montado apenas no client
 // (dynamic import com ssr:false) — sem SSR, não há mismatch de hidratação.
-import { HermesChatWidgetLazyMount } from "@/components/hermes/chat-widget-client";
-// [TASK: Módulo de Suporte] pill de Suporte Operacional (topo direito),
-// hotkeys F1 / Ctrl+/, client-only (mesmo padrão anti-mismatch do chat).
-import { SuporteOperacionalClient } from "@/components/support/suporte-operacional-client";
+import { AnneChatWidgetLazyMount } from "@/components/hermes/chat-widget-client";
 import "./globals.css";
 
 const inter = Inter({
@@ -24,10 +21,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="pt-BR">
       <body className={inter.className}>
         <SyncProvider>{children}</SyncProvider>
-        {/* [BUG-NEX-HYDRATION-418] montagem client-only, fora do fluxo SSR */}
-        <HermesChatWidgetLazyMount />
-        {/* [TASK: Módulo de Suporte] pill client-only, topo direito */}
-        <SuporteOperacionalClient />
+        {/* [BUG-NEX-HYDRATION-418] montagem client-only, fora do fluxo SSR.
+            Único canal de suporte na tela — pill Suporte Operacional e botões
+            de WhatsApp de suporte foram removidos (decisão do dono, 2026-09-30). */}
+        <AnneChatWidgetLazyMount />
       </body>
     </html>
   );

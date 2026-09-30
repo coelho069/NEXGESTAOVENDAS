@@ -30,24 +30,17 @@ export default function TicketsPage() {
       <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
         <p className="font-medium text-slate-800">Nenhum ticket ainda</p>
         <p className="mt-1">
-          Precisa de ajuda agora? Fale com o suporte pelo WhatsApp — o atendimento
-          é mais rápido para incidentes de caixa (impressora, rede, sync).
+          Precisa de ajuda agora? Fale com a assistente pelo chat no canto
+          inferior direito da tela — o atendimento é rápido para incidentes de
+          caixa (impressora, rede, sync).
         </p>
-        <div className="mt-4 flex gap-2">
+        <div className="mt-4">
           <Link
             href="/"
             className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-medium transition-colors hover:bg-slate-50"
           >
             Voltar ao início
           </Link>
-          <a
-            href={`https://wa.me/${process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP ?? "5511999999999"}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-lg bg-emerald-600 px-3 py-1.5 font-medium text-white transition-colors hover:bg-emerald-700"
-          >
-            Abrir WhatsApp
-          </a>
         </div>
       </div>
     </main>

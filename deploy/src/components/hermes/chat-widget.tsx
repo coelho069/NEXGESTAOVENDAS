@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * ChatWidget do HERMES — assistente do NEX Gestão Vendas.
+ * ChatWidget da ANNE — assistente de suporte do NEX Gestão Vendas.
  * Padrão NEX: Tailwind-only, lucide-react, botões grandes, hotkey Esc.
  * Resiliente: falha de API/banco NÃO trava a renderização da UI.
  */
@@ -19,7 +19,7 @@ type ChatMessage = {
 const WELCOME: ChatMessage = {
   id: 'welcome',
   role: 'hermes',
-  text: 'Olá! Sou o HERMES. Como posso ajudar com o PDV?',
+  text: 'Olá! Sou a Anne. Como posso ajudar com o PDV?',
 };
 
 // Fallback offline: o widget nunca fica "travado" se o backend estiver fora
@@ -29,7 +29,12 @@ const OFFLINE_REPLY: ChatMessage = {
   text: '⚠️ Sem conexão com o servidor agora. Tente novamente em instantes.',
 };
 
-export function HermesChatWidget() {
+/**
+ * ÚNICO canal de suporte da tela — os demais (pill Suporte Operacional,
+ * botões de WhatsApp e item "Suporte" da navegação) foram removidos por
+ * decisão do dono (2026-09-30).
+ */
+export function AnneChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   const [draft, setDraft] = useState('');
@@ -61,7 +66,7 @@ export function HermesChatWidget() {
     setIsSending(true);
 
     try {
-      // Endpoint do agente Hermes — trocar quando o backend for definido
+      // Endpoint do agente de suporte (rota interna /api/hermes) — as respostas são da Anne
       const res = await fetch('/api/hermes/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -76,7 +81,7 @@ export function HermesChatWidget() {
       ]);
     } catch (err) {
       // Falha de rede/banco cai aqui; a UI continua íntegra
-      console.error('Falha ao enviar mensagem do chat do Hermes:', err);
+      console.error('Falha ao enviar mensagem do chat da Anne:', err);
       setMessages((prev) => [...prev, { ...OFFLINE_REPLY, id: crypto.randomUUID() }]);
     } finally {
       setIsSending(false);
@@ -96,7 +101,7 @@ export function HermesChatWidget() {
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
-        aria-label={isOpen ? 'Fechar chat do Hermes' : 'Abrir chat do Hermes'}
+        aria-label={isOpen ? 'Fechar chat da Anne' : 'Abrir chat da Anne'}
         aria-expanded={isOpen}
         className={`flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg ring-2 ring-white/70 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
           isOpen ? 'bg-slate-700 hover:bg-slate-800' : 'bg-blue-600 hover:bg-blue-700'
@@ -109,7 +114,7 @@ export function HermesChatWidget() {
         <div className="mb-3 flex h-96 w-80 flex-col overflow-hidden rounded-lg bg-white shadow-2xl ring-1 ring-slate-200">
           {/* Header */}
           <div className="flex items-center justify-between bg-blue-600 px-4 py-3 text-white">
-            <span className="text-sm font-semibold">Hermes · Suporte NEX</span>
+            <span className="text-sm font-semibold">Anne · Suporte</span>
             <button
               type="button"
               onClick={() => setIsOpen(false)}
