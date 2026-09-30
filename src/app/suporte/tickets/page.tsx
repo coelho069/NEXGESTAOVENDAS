@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Ticket } from "lucide-react";
 import Link from "next/link";
-import { OpenAnneSupportButton } from "@/components/support/open-anne-support-button";
 
 export const metadata: Metadata = {
   title: "Suporte · Tickets — Nex Gestão Vendas",
@@ -24,33 +23,18 @@ export default function TicketsPage() {
       <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
         <p className="font-medium text-slate-800">Abertura de chamados em breve</p>
         <p className="mt-2">
-          Ainda não há backend de tickets nesta versão. Enquanto isso, use os canais abaixo para
-          suporte operacional.
+          Ainda não há backend de tickets nesta versão. Para suporte operacional (impressora, rede,
+          sincronização), use o botão <strong>Suporte</strong> no canto da tela — a Anne, assistente
+          virtual, atende por lá.
         </p>
 
-        <ul className="mt-4 space-y-2 text-slate-700">
-          <li>
-            <span className="font-medium">Painel de suporte no PDV:</span> pressione F1 ou Ctrl+/
-            no caixa para abrir o Suporte Operacional.
-          </li>
-          <li>
-            <span className="font-medium">Chat de suporte:</span> fale com a Anne, assistente
-            virtual, para incidentes de caixa (impressora, rede, sincronização).
-          </li>
-        </ul>
-
-        <div className="mt-6 flex flex-wrap gap-2">
+        <div className="mt-6">
           <Link
             href="/"
             className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-medium transition-colors hover:bg-slate-50"
           >
             Voltar ao início
           </Link>
-          <OpenAnneSupportButton
-            label="Abrir chat de suporte"
-            testId="tickets-anne-chat-cta"
-            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-1.5 font-medium text-white transition-colors hover:bg-emerald-700"
-          />
         </div>
       </div>
     </main>
