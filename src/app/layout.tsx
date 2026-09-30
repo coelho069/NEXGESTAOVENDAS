@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { SyncProvider } from "@/components/providers/sync-provider";
-// [BUG-NEX-HYDRATION-418] widget da Anne montado apenas no client
-// (dynamic import com ssr:false) — sem SSR, não há mismatch de hidratação.
-import { AnneChatWidgetLazyMount } from "@/components/hermes/chat-widget-client";
+import { AnneSupportWidget } from "@/components/support/anne-support-widget";
 import "./globals.css";
 
 const inter = Inter({
@@ -20,11 +18,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="pt-BR">
       <body className={inter.className}>
-        <SyncProvider>{children}</SyncProvider>
-        {/* [BUG-NEX-HYDRATION-418] montagem client-only, fora do fluxo SSR.
-            Único canal de suporte na tela — pill Suporte Operacional e botões
-            de WhatsApp de suporte foram removidos (decisão do dono, 2026-09-30). */}
-        <AnneChatWidgetLazyMount />
+        <SyncProvider>
+          {children}
+          {/* Único canal de suporte na tela — FAB Anne (rotas autenticadas, client-only). */}
+          <AnneSupportWidget />
+        </SyncProvider>
       </body>
     </html>
   );
