@@ -8,7 +8,6 @@ function renderSheet(overrides: Partial<Parameters<typeof PaymentSheet>[0]> = {}
   const onCash = vi.fn();
   const onCard = vi.fn();
   const onPixManual = vi.fn();
-  const onVoucher = vi.fn();
   const onClose = vi.fn();
   render(
     <PaymentSheet
@@ -19,12 +18,11 @@ function renderSheet(overrides: Partial<Parameters<typeof PaymentSheet>[0]> = {}
       onCash={onCash}
       onCard={onCard}
       onPixManual={onPixManual}
-      onVoucher={onVoucher}
       onClose={onClose}
       {...overrides}
     />
   );
-  return { onCash, onCard, onPixManual, onVoucher, onClose };
+  return { onCash, onCard, onPixManual, onClose };
 }
 
 describe("PaymentSheet cash change UX", () => {
@@ -80,5 +78,33 @@ describe("PaymentSheet cash change UX", () => {
     fireEvent.click(closeButtons[closeButtons.length - 1]!);
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onCash).not.toHaveBeenCalled();
+  });
+
+  it("integrated numpad feeds the received amount and recalculates troco in realtime", () => {
+    const { onCash } = renderSheet();
+    fireEvent.click(screen.getByTestId("checkout-cash"));
+    fireEvent.click(screen.getByTestId("cash-change-yes"));
+
+    fireEvent.click(screen.getByTestId("numpad-1"));
+    fireEvent.click(screen.getByTestId("numpad-0"));
+    expect(screen.getByTestId("cash-received-input")).toHaveValue("10");
+    expect(screen.getByTestId("cash-change-amount")).toHaveTextContent("Troco:");
+
+    fireEvent.click(screen.getByTestId("numpad-back"));
+    expect(screen.getByTestId("cash-received-input")).toHaveValue("1");
+    fireEvent.click(screen.getByTestId("numpad-comma"));
+    expect(screen.getByTestId("cash-received-input")).toHaveValue("1,");
+    fireEvent.click(screen.getByTestId("numpad-back"));
+    expect(screen.getByTestId("cash-received-input")).toHaveValue("1");
+
+    fireEvent.click(screen.getByTestId("cash-change-confirm"));
+    expect(screen.getByTestId("cash-change-error")).toHaveTextContent(
+      "Valor recebido deve ser maior ou igual ao total."
+    );
+
+    fireEvent.click(screen.getByTestId("numpad-2"));
+    expect(screen.getByTestId("cash-received-input")).toHaveValue("12");
+    fireEvent.click(screen.getByTestId("cash-change-confirm"));
+    expect(onCash).toHaveBeenCalledTimes(1);
   });
 });

@@ -197,10 +197,10 @@ describe("keyboard shortcuts", () => {
     expect(matchPdvShortcut({ key: "F2", ctrlKey: false, metaKey: false, altKey: false })).toBe("search");
     expect(matchPdvShortcut({ key: "k", ctrlKey: true, metaKey: false, altKey: false })).toBe("search");
     expect(matchPdvShortcut({ key: "h", ctrlKey: true, metaKey: false, altKey: false })).toBe("salesHistory");
-    expect(matchPdvShortcut({ key: "F4", ctrlKey: false, metaKey: false, altKey: false })).toBe("discount");
+    expect(matchPdvShortcut({ key: "F4", ctrlKey: false, metaKey: false, altKey: false })).toBe("qtyEdit");
     expect(matchPdvShortcut({ key: "F6", ctrlKey: false, metaKey: false, altKey: false })).toBe("customer");
-    expect(matchPdvShortcut({ key: "F8", ctrlKey: false, metaKey: false, altKey: false })).toBe("payCash");
-    expect(matchPdvShortcut({ key: "F9", ctrlKey: false, metaKey: false, altKey: false })).toBe("payCard");
+    expect(matchPdvShortcut({ key: "F8", ctrlKey: false, metaKey: false, altKey: false })).toBe("discount");
+    expect(matchPdvShortcut({ key: "F9", ctrlKey: false, metaKey: false, altKey: false })).toBe("cancelItem");
     expect(matchPdvShortcut({ key: "F10", ctrlKey: false, metaKey: false, altKey: false })).toBe("payPix");
     expect(matchPdvShortcut({ key: "F12", ctrlKey: false, metaKey: false, altKey: false })).toBe("finalize");
     expect(matchPdvShortcut({ key: "Escape", ctrlKey: false, metaKey: false, altKey: false })).toBe("cancel");

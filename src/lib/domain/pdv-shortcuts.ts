@@ -2,8 +2,8 @@ export type PdvShortcut =
   | "search"
   | "customer"
   | "discount"
-  | "payCash"
-  | "payCard"
+  | "qtyEdit"
+  | "cancelItem"
   | "payPix"
   | "finalize"
   | "salesHistory"
@@ -40,13 +40,13 @@ export function matchPdvShortcut(event: KeyLike): PdvShortcut | null {
     case "F2":
       return "search";
     case "F4":
-      return "discount";
+      return "qtyEdit";
     case "F6":
       return "customer";
     case "F8":
-      return "payCash";
+      return "discount";
     case "F9":
-      return "payCard";
+      return "cancelItem";
     case "F10":
       return "payPix";
     case "F12":
@@ -67,7 +67,7 @@ export function matchPdvShortcut(event: KeyLike): PdvShortcut | null {
   }
 }
 
-const MODAL_ALLOWED_SHORTCUTS = new Set<PdvShortcut>(["cancel", "payCash", "payCard", "payPix"]);
+const MODAL_ALLOWED_SHORTCUTS = new Set<PdvShortcut>(["cancel"]);
 
 export function shouldHandleShortcut(
   shortcut: PdvShortcut,

@@ -31,7 +31,7 @@ test("SKU -> quantidade -> desconto -> pagamento -> recibo", async ({ page }) =>
   await page.getByTestId("open-customer").click();
   await page.getByTestId("customer-55555555-5555-4555-8555-555555555502").click();
 
-  await page.keyboard.press("F4");
+  await page.keyboard.press("F8");
   await page.getByTestId("discount-input").fill("0.30");
   await page.getByTestId("discount-apply").click();
 
@@ -54,8 +54,8 @@ test("pagamento falho permanece rascunho local", async ({ page }) => {
   const pixManual = visible(page, "checkout-pix-manual");
   await expect(card).toBeDisabled();
   await expect(card).toContainText("não configurado");
-  await expect(pixManual).toBeEnabled();
-  await expect(pixManual).toContainText("PIX próprio");
+  await expect(pixManual).toBeDisabled();
+  await expect(pixManual).toContainText("não configurado");
   await expect(visible(page, "checkout-cash")).toBeEnabled();
   await expect(page.getByTestId("cart-line-BEV-001")).toBeVisible();
   await expect(page.getByTestId("receipt")).toHaveCount(0);

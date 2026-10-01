@@ -4,7 +4,15 @@ import { create } from "zustand";
 import type { ReceiptModel } from "@/lib/domain/receipt";
 import type { StripePixQr } from "@/lib/domain/stripe-pix";
 
-export type PdvPanel = "none" | "payment" | "customer" | "discount" | "receipt" | "pix-qr";
+export type PdvPanel =
+  | "none"
+  | "payment"
+  | "customer"
+  | "discount"
+  | "qty"
+  | "cancel-item"
+  | "receipt"
+  | "pix-qr";
 
 export type PendingPixCheckout = {
   clientMutationId: string;

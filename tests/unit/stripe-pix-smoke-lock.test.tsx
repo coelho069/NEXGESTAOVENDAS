@@ -440,7 +440,7 @@ describe("PIX smoke lock — Gate 4 cash + card regression", () => {
     expect(cardExec.status).toBe("not_configured");
   });
 
-  it("keeps provider pix out of checkout while pix_manual is enabled", () => {
+  it("keeps provider pix out of checkout and pix_manual not_configured", () => {
     const onCard = vi.fn();
     const onPixManual = vi.fn();
     const onCash = vi.fn();
@@ -451,16 +451,16 @@ describe("PIX smoke lock — Gate 4 cash + card regression", () => {
         onCash={onCash}
         onCard={onCard}
         onPixManual={onPixManual}
-        onVoucher={() => undefined}
       />
     );
 
     expect(screen.getByTestId("checkout-cash")).toBeEnabled();
     expect(screen.getByTestId("checkout-card")).toBeEnabled();
-    expect(screen.getByTestId("checkout-pix-manual")).toBeEnabled();
+    expect(screen.getByTestId("checkout-pix-manual")).toBeDisabled();
     expect(screen.getByTestId("checkout-pix-manual")).toHaveTextContent("PIX próprio");
+    expect(screen.getByTestId("checkout-pix-manual")).toHaveTextContent("não configurado");
     screen.getByTestId("checkout-pix-manual").click();
-    expect(onPixManual).toHaveBeenCalledTimes(1);
+    expect(onPixManual).not.toHaveBeenCalled();
   });
 
   it("routes card PaymentIntents to card RPCs, not process_pix_sale", async () => {

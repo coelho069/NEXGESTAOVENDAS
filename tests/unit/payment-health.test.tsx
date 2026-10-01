@@ -257,7 +257,7 @@ describe("PDV payment actions", () => {
     cleanup();
   });
 
-  it("disables card and keeps cash and pix_manual available when health is unknown", () => {
+  it("disables card and pix when health is unknown; cash stays available", () => {
     const onCard = vi.fn();
     const onPixManual = vi.fn();
     render(
@@ -267,7 +267,6 @@ describe("PDV payment actions", () => {
         onCash={() => undefined}
         onCard={onCard}
         onPixManual={onPixManual}
-        onVoucher={() => undefined}
       />
     );
 
@@ -275,17 +274,18 @@ describe("PDV payment actions", () => {
     const pixManual = screen.getByTestId("checkout-pix-manual");
     const cash = screen.getByTestId("checkout-cash");
     expect(card).toBeDisabled();
-    expect(pixManual).toBeEnabled();
+    expect(pixManual).toBeDisabled();
     expect(cash).toBeEnabled();
     expect(card).toHaveTextContent("não configurado");
+    expect(pixManual).toHaveTextContent("não configurado");
     expect(pixManual).toHaveTextContent("PIX próprio");
     card.click();
     pixManual.click();
     expect(onCard).not.toHaveBeenCalled();
-    expect(onPixManual).toHaveBeenCalledTimes(1);
+    expect(onPixManual).not.toHaveBeenCalled();
   });
 
-  it("keeps pix_manual enabled alongside card when card health is configured", () => {
+  it("keeps pix restricted (not_configured) even when card health is configured", () => {
     const onPixManual = vi.fn();
     render(
       <PaymentActions
@@ -294,14 +294,13 @@ describe("PDV payment actions", () => {
         onCash={() => undefined}
         onCard={() => undefined}
         onPixManual={onPixManual}
-        onVoucher={() => undefined}
       />
     );
 
     const pixManual = screen.getByTestId("checkout-pix-manual");
-    expect(pixManual).toBeEnabled();
-    expect(pixManual).toHaveTextContent("PIX próprio");
+    expect(pixManual).toBeDisabled();
+    expect(pixManual).toHaveTextContent("não configurado");
     pixManual.click();
-    expect(onPixManual).toHaveBeenCalledTimes(1);
+    expect(onPixManual).not.toHaveBeenCalled();
   });
 });

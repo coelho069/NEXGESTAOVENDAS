@@ -1,74 +1,80 @@
-import { Banknote, CreditCard, QrCode, Ticket } from "lucide-react";
+import { Banknote, CreditCard, QrCode } from "lucide-react";
 import { formatBRL } from "@/lib/money";
 import type { SaleTotals } from "@/lib/domain/sale-ops";
 
 type PaymentActionsProps = {
   disabled: boolean;
   cardSelectable?: boolean;
+  /** Mapa de integração: PIX restrito (not_configured) até o health-check ser ligado. */
+  pixSelectable?: boolean;
   onCash: () => void;
   onCard: () => void;
   onPixManual: () => void;
-  onVoucher: () => void;
 };
 
 export function PaymentActions({
   disabled,
   cardSelectable = false,
+  pixSelectable = false,
   onCash,
   onCard,
   onPixManual,
-  onVoucher,
 }: PaymentActionsProps) {
   const cardDisabled = disabled || !cardSelectable;
+  const pixDisabled = disabled || !pixSelectable;
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3">
       <button
         type="button"
         data-testid="checkout-cash"
         disabled={disabled}
         onClick={onCash}
-        className="flex flex-col items-center gap-2 rounded-2xl border-2 border-emerald-100 bg-emerald-50 p-4 font-semibold text-emerald-800 transition hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex min-h-[44px] flex-col items-center gap-2 rounded-2xl border-2 border-emerald-100 bg-emerald-50 p-4 font-semibold text-emerald-800 transition hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Banknote size={24} aria-hidden="true" />
         <span>Dinheiro</span>
       </button>
       <button
         type="button"
+        data-testid="checkout-pix-manual"
+        disabled={pixDisabled}
+        aria-label="PIX próprio"
+        title="PIX próprio"
+        onClick={onPixManual}
+        className="flex min-h-[44px] flex-col items-center gap-2 rounded-2xl border-2 border-teal-100 bg-teal-50 p-4 font-semibold text-teal-800 transition hover:border-teal-500 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <QrCode size={24} aria-hidden="true" />
+        <span>PIX próprio</span>
+        {!pixSelectable ? (
+          <small className="font-normal text-slate-400">não configurado</small>
+        ) : null}
+      </button>
+      <button
+        type="button"
         data-testid="checkout-card"
         disabled={cardDisabled}
         onClick={onCard}
-        className="flex flex-col items-center gap-2 rounded-2xl border-2 border-slate-100 bg-white p-4 font-semibold text-slate-700 transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex min-h-[44px] flex-col items-center gap-2 rounded-2xl border-2 border-slate-100 bg-white p-4 font-semibold text-slate-700 transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <CreditCard size={24} aria-hidden="true" />
-        <span>Cartão</span>
+        <span>Débito</span>
         {!cardSelectable ? (
           <small className="font-normal text-slate-400">não configurado</small>
         ) : null}
       </button>
       <button
         type="button"
-        data-testid="checkout-pix-manual"
-        disabled={disabled}
-        aria-label="PIX próprio"
-        title="PIX próprio"
-        onClick={onPixManual}
-        className="flex flex-col items-center gap-2 rounded-2xl border-2 border-teal-100 bg-teal-50 p-4 font-semibold text-teal-800 transition hover:border-teal-500 disabled:cursor-not-allowed disabled:opacity-50"
+        data-testid="checkout-card-credit"
+        disabled={cardDisabled}
+        onClick={onCard}
+        className="flex min-h-[44px] flex-col items-center gap-2 rounded-2xl border-2 border-slate-100 bg-white p-4 font-semibold text-slate-700 transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <QrCode size={24} aria-hidden="true" />
-        <span>PIX próprio</span>
-      </button>
-      <button
-        type="button"
-        data-testid="checkout-voucher"
-        disabled={disabled}
-        aria-label="Vale"
-        title="Vale"
-        onClick={onVoucher}
-        className="flex flex-col items-center gap-2 rounded-2xl border-2 border-violet-100 bg-violet-50 p-4 font-semibold text-violet-800 transition hover:border-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <Ticket size={24} aria-hidden="true" />
-        <span>Vale</span>
+        <CreditCard size={24} aria-hidden="true" />
+        <span>Crédito</span>
+        {!cardSelectable ? (
+          <small className="font-normal text-slate-400">não configurado</small>
+        ) : null}
       </button>
     </div>
   );
@@ -150,7 +156,7 @@ export function SaleSummary({
             onClick={onDiscount}
             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm transition hover:border-indigo-300"
           >
-            Desconto (F4)
+            Desconto (F8)
           </button>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2">
@@ -192,7 +198,7 @@ export function SaleSummary({
           data-testid="open-payment"
           disabled={checkoutDisabled}
           onClick={onOpenPayment}
-          className="flex w-full items-center justify-between rounded-2xl bg-success px-4 py-4 text-lg font-bold text-success-foreground shadow-lg shadow-emerald-100 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none"
+          className="flex min-h-[56px] w-full items-center justify-between rounded-2xl bg-success px-4 py-4 text-lg font-bold text-success-foreground shadow-lg shadow-emerald-100 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none"
         >
           <span>Finalizar venda (F12)</span>
           <span className="tabular-nums">{formatBRL(totals.total)}</span>

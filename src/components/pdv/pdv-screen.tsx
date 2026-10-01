@@ -9,6 +9,8 @@ import { PaymentSheet } from "@/components/pdv/payment-sheet";
 import { PixQrSheet } from "@/components/pdv/pix-qr-sheet";
 import { CustomerDialog } from "@/components/pdv/customer-dialog";
 import { DiscountDialog } from "@/components/pdv/discount-dialog";
+import { QtyDialog } from "@/components/pdv/qty-dialog";
+import { CancelItemDialog } from "@/components/pdv/cancel-item-dialog";
 import { ReceiptDialog } from "@/components/pdv/receipt-dialog";
 import { PdvHotkeysBar } from "@/components/pdv/pdv-hotkeys-bar";
 import { ConflictBanner } from "@/components/pdv/conflict-banner";
@@ -29,6 +31,8 @@ import { usePdvShortcuts } from "@/hooks/use-pdv-shortcuts";
 import { useCardPaymentHealth } from "@/hooks/use-card-payment-health";
 import { usePdvSale } from "@/hooks/use-pdv-sale";
 import { resolveOpenCashSaleContext } from "@/lib/domain/cash";
+import { lineTotal } from "@/lib/domain/sale";
+import { formatBRL } from "@/lib/money";
 import { useCartStore } from "@/stores/cart-store";
 import { useSyncStore } from "@/stores/sync-store";
 import { usePdvUiStore } from "@/stores/pdv-ui-store";
@@ -249,14 +253,35 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     setOpenPanel("payment");
   };
 
-  const triggerPaymentMethod = (
-    testId: "checkout-cash" | "checkout-card" | "checkout-pix-manual" | "checkout-voucher"
-  ) => {
-    if (checkoutDisabled) return;
-    setOpenPanel("payment");
-    requestAnimationFrame(() => {
-      document.querySelector<HTMLButtonElement>(`[data-testid=${testId}]`)?.click();
-    });
+  const selectedLine = useMemo(() => {
+    const id = sale.selectedProductId ?? sale.lines.at(-1)?.productId ?? null;
+    return id ? sale.lines.find((item) => item.productId === id) ?? null : null;
+  }, [sale.lines, sale.selectedProductId]);
+
+  const [qtyDraft, setQtyDraft] = useState("");
+  const [qtyError, setQtyError] = useState<string | null>(null);
+
+  const confirmQtyDraft = () => {
+    if (!selectedLine) {
+      setOpenPanel("none");
+      return;
+    }
+    const parsed = Number(qtyDraft.replace(",", "."));
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 1) {
+      setQtyError("Informe uma quantidade inteira maior ou igual a 1.");
+      return;
+    }
+    sale.changeQty(selectedLine.productId, parsed);
+    setQtyDraft("");
+    setQtyError(null);
+    setOpenPanel("none");
+    focusPdvSearch();
+  };
+
+  const confirmCancelItem = () => {
+    if (selectedLine) sale.removeLine(selectedLine.productId);
+    setOpenPanel("none");
+    focusPdvSearch();
   };
 
   usePdvShortcuts({
@@ -270,12 +295,19 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
       setOpenPanel("discount");
     },
     finalize: openPaymentSheet,
-    payCash: () => triggerPaymentMethod("checkout-cash"),
-    payCard: () => {
-      if (!cardSelectable) return;
-      triggerPaymentMethod("checkout-card");
+    // F10 (extra): PIX está restrito (not_configured) — abre a sheet apenas
+    // para consulta; o método só fica ativo quando um health-check for ligado.
+    payPix: openPaymentSheet,
+    qtyEdit: () => {
+      if (!selectedLine) return;
+      setQtyDraft(String(selectedLine.quantity));
+      setQtyError(null);
+      setOpenPanel("qty");
     },
-    payPix: () => triggerPaymentMethod("checkout-pix-manual"),
+    cancelItem: () => {
+      if (!selectedLine) return;
+      setOpenPanel("cancel-item");
+    },
     salesHistory: () => {
       closeAllPanels();
       openSalesHistory();
@@ -409,34 +441,39 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
 
           <div
             data-testid="pdv-layout"
-            className="grid flex-1 gap-4 md:grid-cols-2 lg:grid-cols-[minmax(20rem,1.3fr)_minmax(20rem,1fr)_minmax(18rem,0.8fr)]"
+            className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]"
           >
-            <ProductSearch
-              products={products}
-              loading={loading || stockLoading}
-              query={query}
-              onQueryChange={setQuery}
-              onPick={sale.addProduct}
-              stock={balances}
-              cartQty={sale.cartQty}
-            />
-            <CartPanel
-              lines={sale.lines}
-              selectedProductId={sale.selectedProductId}
-              stock={balances}
-              onSelect={sale.setSelectedProductId}
-              onIncrement={(productId) => {
-                const line = sale.lines.find((item) => item.productId === productId);
-                if (line) sale.changeQty(productId, line.quantity + 1);
-              }}
-              onDecrement={(productId) => {
-                const line = sale.lines.find((item) => item.productId === productId);
-                if (line) sale.changeQty(productId, line.quantity - 1);
-              }}
-              onQuantity={sale.changeQty}
-              onRemove={sale.removeLine}
-            />
-            <div className="md:col-span-2 lg:col-span-1">
+            <div className="flex min-h-0 flex-col gap-4">
+              <ProductSearch
+                products={products}
+                loading={loading || stockLoading}
+                query={query}
+                onQueryChange={setQuery}
+                onPick={(product) => {
+                  sale.addProduct(product);
+                  if (openPanel === "none") focusPdvSearch();
+                }}
+                stock={balances}
+                cartQty={sale.cartQty}
+              />
+              <CartPanel
+                lines={sale.lines}
+                selectedProductId={sale.selectedProductId}
+                stock={balances}
+                onSelect={sale.setSelectedProductId}
+                onIncrement={(productId) => {
+                  const line = sale.lines.find((item) => item.productId === productId);
+                  if (line) sale.changeQty(productId, line.quantity + 1);
+                }}
+                onDecrement={(productId) => {
+                  const line = sale.lines.find((item) => item.productId === productId);
+                  if (line) sale.changeQty(productId, line.quantity - 1);
+                }}
+                onQuantity={sale.changeQty}
+                onRemove={sale.removeLine}
+              />
+            </div>
+            <div className="min-h-0">
               <SaleSummary
                 totals={sale.totals}
                 customerName={sale.customerName}
@@ -477,7 +514,6 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             onCash={() => void sale.pay("cash")}
             onCard={() => void sale.pay("card")}
             onPixManual={() => void sale.pay("pix_manual")}
-            onVoucher={() => void sale.pay("voucher")}
             onClose={() => setOpenPanel("none")}
           />
           <PixQrSheet
@@ -507,6 +543,26 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             onApply={() => {
               sale.applyDiscountValue(sale.discountDraft);
             }}
+            onClose={() => setOpenPanel("none")}
+          />
+          <QtyDialog
+            open={openPanel === "qty"}
+            productName={selectedLine?.name ?? null}
+            lineTotal={selectedLine ? formatBRL(lineTotal(selectedLine)) : ""}
+            value={qtyDraft}
+            error={qtyError}
+            onChange={(value) => {
+              setQtyDraft(value);
+              setQtyError(null);
+            }}
+            onConfirm={confirmQtyDraft}
+            onClose={() => setOpenPanel("none")}
+          />
+          <CancelItemDialog
+            open={openPanel === "cancel-item"}
+            productName={selectedLine?.name ?? null}
+            lineTotal={selectedLine ? formatBRL(lineTotal(selectedLine)) : ""}
+            onConfirm={confirmCancelItem}
             onClose={() => setOpenPanel("none")}
           />
           <ReceiptDialog
