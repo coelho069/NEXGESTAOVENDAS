@@ -1,17 +1,30 @@
-# PORTING.md — Levar o PDV para o projeto real do NEX
+# PORTING.md — referência, não a rota
 
-> ## PORTING.md — referência, não a rota
->
-> **Decisão:** a tela canônica do caixa é `src/components/pdv/pdv-screen.tsx`.
-> A rota `/pdv` importa esse módulo. **Não montar o `PdvScreen` desta pasta.**
->
-> - Este diretório fica como **kit de referência**. Não copiar para `src/features/pdv`.
-> - UI nova entra em `src/components/pdv`, no mesmo commit.
+A tela canônica do caixa é `src/components/pdv/pdv-screen.tsx`.
+A rota `/pdv` (`src/app/pdv/page.tsx`) importa esse módulo.
+
+**Não montar o `PdvScreen` desta pasta.** Não copiar este diretório para
+`src/features/pdv`. UI nova entra em `src/components/pdv`.
 
 Estes arquivos são **portáveis e self-contained** (React + TypeScript + inline
 styles via tokens). Nenhuma regra fiscal, migration ou endpoint foi criado.
 
-## Mapa de arquivos
+## O que vale no src/
+
+- Atalhos: F2 busca, F4 quantidade, F8 desconto, F9 cancelar item com
+  confirmação, F12 finalizar, Esc fecha. F6 cliente e F10 Pix são extras.
+- Sheet de pagamento, grade 1.2fr/0.8fr, foco volta para a busca, Finalizar
+  com no mínimo 56px.
+- Persistência: IndexedDB + `POST /api/sales/process` → `process_sale`, com
+  `client_mutation_id`.
+- Só dinheiro fecha a venda. Pix, débito e crédito permanecem `not_configured`.
+
+## O que este kit não substitui
+
+Cliente, venda suspensa, conflito de sync, recibo, devolução e o badge da
+fila Dexie já vivem em `src/components/pdv/`.
+
+## Mapa (referência)
 
 ```
 portable/pdv/
