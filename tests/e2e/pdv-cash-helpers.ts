@@ -6,10 +6,19 @@ function visible(page: Page, testId: string) {
 
 /** Opens payment sheet, selects Dinheiro, skips change — completes cash checkout. */
 export async function payCashNoChange(page: Page) {
-  const openPayment = page.getByTestId("open-payment");
-  if (await openPayment.isVisible()) {
-    await openPayment.click();
+  // Se o sheet já está aberto (ex.: teste de tablet), o overlay interceptaria
+  // o clique em open-payment. Só abrimos quando o sheet ainda não existe.
+  const sheetAlreadyOpen = await page
+    .getByTestId("pdv-payment-sheet")
+    .isVisible()
+    .catch(() => false);
+  if (!sheetAlreadyOpen) {
+    const openPayment = page.getByTestId("open-payment");
+    if (await openPayment.isVisible()) {
+      await openPayment.click();
+    }
   }
+  await expect(page.getByTestId("pdv-payment-sheet")).toBeVisible();
   await visible(page, "checkout-cash").click();
   await visible(page, "cash-change-no").click();
 }

@@ -27,7 +27,13 @@ type SyncState = {
 };
 
 export const useSyncStore = create<SyncState>((set) => ({
-  online: typeof navigator !== "undefined" ? navigator.onLine : true,
+  // SSR-safe: o Node moderno expõe um global `navigator` sem `onLine`.
+  // Usar `navigator.onLine` direto no servidor produz `undefined` e quebra a
+  // hidratação do badge de sync ("Offline" no SSR vs "Sincronizado" no cliente).
+  online:
+    typeof navigator !== "undefined" && typeof navigator.onLine === "boolean"
+      ? navigator.onLine
+      : true,
   syncing: false,
   lastSyncAt: null,
   pendingCount: 0,

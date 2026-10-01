@@ -6,9 +6,14 @@ function visible(page: Page, testId: string) {
 }
 
 async function selectStore(page: Page) {
-  await page.getByTestId("store-select").selectOption("22222222-2222-4222-8222-222222222201");
   await expect(page.getByTestId("product-sku-BEV-001")).toBeVisible();
-  await expect(page.getByTestId("projected-stock-BEV-001").first()).toContainText("Estoque projetado");
+  // Se o change chegar antes do React hidratar (o HTML SSR já traz a loja
+  // renderizada), o evento é perdido na regeneração da árvore e o estoque
+  // projetado não carrega. Repetimos a seleção até o fixture aparecer.
+  await expect(async () => {
+    await page.getByTestId("store-select").selectOption("22222222-2222-4222-8222-222222222201");
+    await expect(page.getByTestId("projected-stock-BEV-001").first()).toContainText("Estoque projetado");
+  }).toPass({ timeout: 15000 });
 }
 
 async function addSku(page: Page, sku: string) {
