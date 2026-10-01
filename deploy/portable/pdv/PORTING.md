@@ -60,6 +60,16 @@ portable/pdv/
    usado (`.from('products').select().or()/.limit()`). Se o projeto real usa
    tipos gerados, faça cast direto.
 
+4. **Spec v2 — mapa de atalhos**: F2 busca · F4 modo quantidade · F8 modo
+   desconto inline · F9 cancelar item · F12 finalizar · Esc fecha/desarma.
+   O F12 é sequestrado (preventDefault) — em dev isso bloqueia DevTools; o
+   guard `import.meta.env.DEV` foi removido por exigência da spec.
+
+5. **Desconto**: o carrinho aceita desconto em centavos limitado ao subtotal;
+   o total exibido é `subtotal − desconto`. O callback `onVendaConfirmada`
+   recebe `{ totalCentavos, descontoCentavos, pagamentos }` — o host decide
+   como enviar o desconto à camada fiscal (fora deste pacote).
+
 4. **Tailwind (opcional)**: os componentes usam inline styles com os tokens
    para serem 100% portáveis. Se quiser classes, mapeie `pdvTheme.color.*`
    para as variáveis do seu `tailwind.config` e substitua gradualmente.
