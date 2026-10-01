@@ -1,5 +1,13 @@
 # PORTING.md — Levar o PDV para o projeto real do NEX
 
+> ## PORTING.md — referência, não a rota
+>
+> **Decisão:** a tela canônica do caixa é `src/components/pdv/pdv-screen.tsx`.
+> A rota `/pdv` importa esse módulo. **Não montar o `PdvScreen` desta pasta.**
+>
+> - Este diretório fica como **kit de referência**. Não copiar para `src/features/pdv`.
+> - UI nova entra em `src/components/pdv`, no mesmo commit.
+
 Estes arquivos são **portáveis e self-contained** (React + TypeScript + inline
 styles via tokens). Nenhuma regra fiscal, migration ou endpoint foi criado.
 
