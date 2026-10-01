@@ -24,6 +24,8 @@ export const pdvTheme = {
     surfaceAlt: '#1C2229',
     /** Linhas/divisórias. */
     border: '#2A323C',
+    /** Bordas de destaque (botões secundários da sheet). */
+    borderStrong: '#3D4754',
     /** Texto primário. */
     text: '#E8EEF2',
     /** Texto de apoio (SKUs, labels). */

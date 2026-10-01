@@ -20,14 +20,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { pdvTheme as t } from './theme/pdv-theme';
-import type { EstadoConexao, Pagamento, Produto } from './lib/types';
+import type { EstadoConexao, Produto, ResumoVenda } from './lib/types';
 import {
   buscarProdutos,
   carregarCatalogo,
   SEED_OFFLINE,
   type SupabaseLike,
 } from './lib/pdv-catalog';
-import { usePdvCart } from './hooks/use-pdv-cart';
+import { usePdvCart, type CarrinhoPdv } from './hooks/use-pdv-cart';
 import { usePdvAtalhos, type AcaoPdv } from './hooks/use-pdv-atalhos';
 import { BarraBuscaPdv } from './components/BarraBuscaPdv';
 import { GradeAtalhos } from './components/GradeAtalhos';
@@ -38,20 +38,53 @@ import { SheetPagamento } from './components/SheetPagamento';
 interface Props {
   /** Cliente supabase-js do projeto real (credenciais de lá). */
   supabaseClient: SupabaseLike | null;
-  /** Persistência fiscal é do host (spec: fiscal_layer external_to_package). */
-  onVendaConfirmada?: (resumo: {
-    totalCentavos: number;
-    descontoCentavos: number;
-    pagamentos: Pagamento[];
-  }) => void;
+  /**
+   * Persistência fiscal é do host (spec: fiscal_layer external_to_package).
+   * Retorne `false` (ou Promise<false>) para MANTER o cupom (ex.: venda em
+   * rascunho por pagamento não configurado / falha de validação). O padrão
+   * (undefined/true) confirma e limpa o cupom.
+   */
+  onVendaConfirmada?: (resumo: ResumoVenda) => boolean | Promise<boolean>;
+  /** Injeção do carrinho pelo host (p/ suspender/recuperar venda). */
+  cartExterno?: CarrinhoPdv;
+  /**
+   * Estado de conexão do host (fila Dexie real). Combinado com o estado
+   * interno do catálogo: OFFLINE vence, e `pendentes` vem da fila do host.
+   */
+  conexaoExterna?: EstadoConexao;
 }
 
-export function PdvScreen({ supabaseClient, onVendaConfirmada }: Props) {
-  const cart = usePdvCart();
+/** OFFLINE vence online; pendentes reais (Dexie do host) entram no badge. */
+export function blendarConexao(
+  interna: EstadoConexao,
+  externa?: EstadoConexao,
+): EstadoConexao {
+  if (!externa) return interna;
+  if (interna.tipo === 'offline') {
+    const pendentesExterna = externa.tipo === 'offline' ? externa.pendentes : 0;
+    return {
+      tipo: 'offline',
+      motivo: interna.motivo,
+      pendentes: Math.max(interna.pendentes, pendentesExterna),
+    };
+  }
+  if (externa.tipo === 'offline') return externa;
+  return interna;
+}
+
+export function PdvScreen({
+  supabaseClient,
+  onVendaConfirmada,
+  cartExterno,
+  conexaoExterna,
+}: Props) {
+  const carrinhoInterno = usePdvCart();
+  const cart = cartExterno ?? carrinhoInterno;
   const [resultados, setResultados] = useState<Produto[]>([]);
   const [conexao, setConexao] = useState<EstadoConexao>({ tipo: 'carregando' });
   const [termo, setTermo] = useState('');
   const [sheetAberta, setSheetAberta] = useState(false);
+  const [processando, setProcessando] = useState(false);
 
   // -------- MODO QUANTIDADE (F4): qty armada p/ o próximo item adicionado
   const [qtyArmada, setQtyArmada] = useState(1);
@@ -119,8 +152,8 @@ export function PdvScreen({ supabaseClient, onVendaConfirmada }: Props) {
           setQtyArmada(0);
           break;
         case 'modo-desconto':
-          // F8 é consumido dentro do PainelTotais via atalho local.
-          painelDescontoSignal.current += 1;
+          // F8 abre/arma o modo desconto no painel (via estado).
+          setDescontoAberto(true);
           break;
         case 'cancelar-item': {
           // F9: linha focada; sem foco explícito, cancela a última bipada.
@@ -144,12 +177,8 @@ export function PdvScreen({ supabaseClient, onVendaConfirmada }: Props) {
 
   const { buscaRef } = usePdvAtalhos(aoAcao, !sheetAberta);
 
-  // Sinal F8 -> PainelTotais (contador = dispara mesmo repetindo F8).
-  const painelDescontoSignal = useRef(0);
+  // MODO DESCONTO (F8) — estado no host, renderizado dentro do PainelTotais.
   const [descontoAberto, setDescontoAberto] = useState(false);
-  useEffect(() => {
-    if (painelDescontoSignal.current > 0) setDescontoAberto(true);
-  }, [painelDescontoSignal.current]);
 
   // ------------------------------------------------------------------
   // MODO QUANTIDADE: dígito solto (com modo armado) compõe a quantidade.
@@ -186,17 +215,26 @@ export function PdvScreen({ supabaseClient, onVendaConfirmada }: Props) {
     [cart, qtyArmada, buscaRef],
   );
 
-  const confirmarVenda = useCallback(() => {
-    onVendaConfirmada?.({
-      totalCentavos: cart.totalCentavos,
-      descontoCentavos: cart.descontoCentavos,
-      pagamentos: cart.pagamentos,
-    });
-    cart.limpar();
-    setSheetAberta(false);
-    setIdLinhaFocada(null);
-    buscaRef.current?.focus();
-  }, [cart, onVendaConfirmada, buscaRef]);
+  const confirmarVenda = useCallback(async () => {
+    if (processando || cart.totalCentavos <= 0) return;
+    setProcessando(true);
+    try {
+      const ok = (await onVendaConfirmada?.({
+        totalCentavos: cart.totalCentavos,
+        descontoCentavos: cart.descontoCentavos,
+        pagamentos: cart.pagamentos,
+        linhas: cart.linhas,
+      })) ?? true;
+      if (ok !== false) {
+        cart.limpar();
+        setSheetAberta(false);
+        setIdLinhaFocada(null);
+        buscaRef.current?.focus();
+      }
+    } finally {
+      setProcessando(false);
+    }
+  }, [cart, onVendaConfirmada, buscaRef, processando]);
 
   const saldoCalculado = useMemo(() => cart.saldoCentavos(), [cart]);
 
@@ -282,10 +320,11 @@ export function PdvScreen({ supabaseClient, onVendaConfirmada }: Props) {
           descontoCentavos={cart.descontoCentavos}
           onAplicarDesconto={cart.setDescontoCentavos}
           descontoExternoAberto={descontoAberto}
+          onAbrirDesconto={() => setDescontoAberto(true)}
           onDescontoFechado={() => setDescontoAberto(false)}
           totalCentavos={cart.totalCentavos}
           totalItens={cart.totalItens}
-          conexao={conexao}
+          conexao={blendarConexao(conexao, conexaoExterna)}
           onFinalizar={() => setSheetAberta(true)}
           onSincronizar={() => void sincronizar()}
         />
@@ -296,6 +335,7 @@ export function PdvScreen({ supabaseClient, onVendaConfirmada }: Props) {
         totalCentavos={cart.totalCentavos}
         pagamentos={cart.pagamentos}
         saldoCalculado={saldoCalculado}
+        processando={processando}
         onRegistrarPagamento={cart.registrarPagamento}
         onConfirmar={confirmarVenda}
         onFechar={() => {

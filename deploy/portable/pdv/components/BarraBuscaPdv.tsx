@@ -133,8 +133,8 @@ export function BarraBuscaPdv({
     left: 0,
     right: 0,
     zIndex: 30,
-    backgroundColor: t.color.surfaceRaised,
-    border: `1px solid ${t.color.borderStrong}`,
+    backgroundColor: t.color.surfaceAlt,
+    border: `1px solid ${t.color.border}`,
     borderRadius: t.radius.lg,
     boxShadow: t.shadow.dropdown,
     overflow: 'hidden',
@@ -208,7 +208,7 @@ export function BarraBuscaPdv({
                     {p.sku ?? p.barcode ?? ''}
                   </span>
                 </span>
-                <span style={{ ...tabularStyle, color: t.color.textSecondary, whiteSpace: 'nowrap' }}>
+                <span style={{ ...tabularStyle, color: t.color.text, whiteSpace: 'nowrap' }}>
                   {formatarBRL(p.unit_price)}
                 </span>
               </button>

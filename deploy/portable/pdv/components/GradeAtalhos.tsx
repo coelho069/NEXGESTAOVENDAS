@@ -8,7 +8,7 @@
  *    visual, sem surpresas).
  *  - Nome com no máx. 2 linhas + SKU pequeno + preço em tabular-nums: leitura
  *    a 1 metro de distância, em pé.
- *  - Pressionado/ativo usa `color.active` p/ feedback tátil imediato.
+ *  - Pressionado usa `color.surfaceAlt` p/ feedback tátil imediato.
  */
 
 'use client';
@@ -79,7 +79,7 @@ export function GradeAtalhos({ produtos, onAdicionar }: Props) {
           }}
           // Feedback de "afundou" sem esper por CSS-in-JS dinâmico
           onMouseDown={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.color.active;
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.color.surfaceAlt;
           }}
           onMouseUp={(e) => {
             (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.color.surface;
@@ -115,7 +115,7 @@ export function GradeAtalhos({ produtos, onAdicionar }: Props) {
                 ...TABULAR,
                 fontSize: 15,
                 fontWeight: 700,
-                color: t.color.textSecondary,
+                color: t.color.text,
               }}
             >
               {formatarBRL(p.unit_price)}

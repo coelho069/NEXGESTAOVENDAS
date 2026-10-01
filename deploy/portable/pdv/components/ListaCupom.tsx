@@ -23,9 +23,19 @@ interface Props {
   onIncrementar: (produtoId: string) => void;
   onDecrementar: (produtoId: string) => void;
   onRemover: (produtoId: string) => void;
+  /** F9 "cancelar item": a tela precisa saber qual linha está mirada. */
+  onFocarLinha?: (produtoId: string | null) => void;
+  idLinhaFocada?: string | null;
 }
 
-export function ListaCupom({ linhas, onIncrementar, onDecrementar, onRemover }: Props) {
+export function ListaCupom({
+  linhas,
+  onIncrementar,
+  onDecrementar,
+  onRemover,
+  onFocarLinha,
+  idLinhaFocada,
+}: Props) {
   if (linhas.length === 0) {
     return (
       <div
@@ -43,7 +53,7 @@ export function ListaCupom({ linhas, onIncrementar, onDecrementar, onRemover }: 
       >
         Cupom vazio — bipe um código ou toque em um atalho.
         <span style={{ fontSize: 12, marginTop: 4 }}>
-          <Kbd>F2</Kbd> busca · <Kbd>F4</Kbd> atalhos · <Kbd>F9</Kbd> pagar
+          <Kbd>F2</Kbd> busca · <Kbd>F4</Kbd> quantidade · <Kbd>F9</Kbd> cancelar item · <Kbd>F12</Kbd> finalizar
         </span>
       </div>
     );
@@ -53,10 +63,13 @@ export function ListaCupom({ linhas, onIncrementar, onDecrementar, onRemover }: 
     <ul style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: 0, padding: 0, listStyle: 'none' }}>
       {linhas.map((l) => {
         const subtotal = totalLinhaCentavos(l.produto.unit_price, l.quantidade);
+        const mirada = idLinhaFocada === l.produto.id;
         return (
           <li
             key={l.produto.id}
             tabIndex={0}
+            onFocus={() => onFocarLinha?.(l.produto.id)}
+            onBlur={() => onFocarLinha?.(null)}
             onKeyDown={(ev) => {
               if (ev.key === 'Delete') {
                 ev.preventDefault();
@@ -64,13 +77,13 @@ export function ListaCupom({ linhas, onIncrementar, onDecrementar, onRemover }: 
               }
             }}
             style={{
-              minHeight: t.touch.row, // 52px — dentro da faixa 48–56 do PRD
+              minHeight: t.touch.row, // 52px — touch_matrix da spec
               display: 'flex',
               alignItems: 'center',
               gap: 10,
               padding: '4px 10px',
-              backgroundColor: t.color.surface,
-              border: `1px solid ${t.color.border}`,
+              backgroundColor: mirada ? t.color.surfaceAlt : t.color.surface,
+              border: `1px solid ${mirada ? t.color.accent : t.color.border}`,
               borderRadius: t.radius.md,
             }}
           >
@@ -182,9 +195,9 @@ function QtdBotao({
       style={{
         width: 44,
         height: 44,
-        border: `1px solid ${t.color.borderStrong}`,
+        border: `1px solid ${t.color.textMuted}`,
         borderRadius: t.radius.md,
-        backgroundColor: t.color.surfaceRaised,
+        backgroundColor: t.color.surfaceAlt,
         color: disabled ? t.color.textMuted : t.color.text,
         fontSize: 20,
         fontWeight: 700,
@@ -205,11 +218,11 @@ function Kbd({ children }: { children: React.ReactNode }) {
         fontFamily: t.font.mono,
         fontSize: t.font.kbdSize,
         padding: '2px 6px',
-        border: `1px solid ${t.color.borderStrong}`,
+        border: `1px solid ${t.color.textMuted}`,
         borderBottomWidth: 2,
         borderRadius: 4,
-        color: t.color.textSecondary,
-        backgroundColor: t.color.surfaceRaised,
+        color: t.color.text,
+        backgroundColor: t.color.surfaceAlt,
       }}
     >
       {children}

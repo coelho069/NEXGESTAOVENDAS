@@ -37,6 +37,8 @@ export interface CarrinhoPdv {
   /** Registra um pagamento parcial (sheet de pagamentos mistos). */
   registrarPagamento: (pagamento: Pagamento) => void;
   pagamentos: Pagamento[];
+  /** Substitui o cupom inteiro (ex.: host recuperando venda suspensa). */
+  importarLinhas: (linhas: LinhaCupom[]) => void;
   /** (total - pago) em centavos. Negativo = troco a devolver. */
   saldoCentavos: () => number;
 }
@@ -96,6 +98,15 @@ export function usePdvCart(): CarrinhoPdv {
     setLinhas((atuais) => atuais.slice(0, -1));
   }, []);
 
+  const registrarPagamento = useCallback((pagamento: Pagamento) => {
+    setPagamentos((atuais) => [...atuais, pagamento]);
+  }, []);
+
+  // Host injeta um cupom completo (ex.: recuperação de venda suspensa).
+  const importarLinhas = useCallback((linhasImportadas: LinhaCupom[]) => {
+    setLinhas(linhasImportadas.filter((l) => l.quantidade > 0));
+  }, []);
+
   const limpar = useCallback(() => {
     setLinhas([]);
     setPagamentos([]);
@@ -147,6 +158,7 @@ export function usePdvCart(): CarrinhoPdv {
     removerUltimo,
     limpar,
     registrarPagamento,
+    importarLinhas,
     pagamentos,
     saldoCentavos,
   };

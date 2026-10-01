@@ -40,3 +40,16 @@ export type EstadoConexao =
   | { tipo: 'online' }
   | { tipo: 'offline'; motivo: 'sem_supabase' | 'erro_rede' | 'erro_servidor'; pendentes: number }
   | { tipo: 'carregando' };
+
+/**
+ * Resumo da venda confirmada, entregue ao host (PORTING): a persistência
+ * fiscal é SEMPRE do host — o kit apenas descreve o cupom fechado.
+ * `linhas` permite ao host reconstruir o payload de venda (items + unit_price)
+ * sem acessar estado interno do kit.
+ */
+export interface ResumoVenda {
+  totalCentavos: number;
+  descontoCentavos: number;
+  pagamentos: Pagamento[];
+  linhas: LinhaCupom[];
+}

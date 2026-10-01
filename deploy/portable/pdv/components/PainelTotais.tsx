@@ -17,13 +17,17 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { pdvTheme as t } from '../theme/pdv-theme';
-import { formatarCentavos, paraCentavos } from '../lib/money';
+import { formatarCentavos } from '../lib/money';
 import type { EstadoConexao } from '../lib/types';
 
 interface Props {
   subtotalCentavos: number;
   descontoCentavos: number;
   onAplicarDesconto: (centavos: number) => void;
+  /** F8 pressionado na tela: abre o modo desconto daqui (via estado no host). */
+  descontoExternoAberto?: boolean;
+  onAbrirDesconto?: () => void;
+  onDescontoFechado?: () => void;
   totalCentavos: number;
   totalItens: number;
   conexao: EstadoConexao;
@@ -35,6 +39,9 @@ export function PainelTotais({
   subtotalCentavos,
   descontoCentavos,
   onAplicarDesconto,
+  descontoExternoAberto,
+  onAbrirDesconto,
+  onDescontoFechado,
   totalCentavos,
   totalItens,
   conexao,
@@ -45,8 +52,18 @@ export function PainelTotais({
   const bloqueado = totalCentavos <= 0;
 
   // ---------------- MODO DESCONTO (F8) ----------------
-  const [descontoAberto, setDescontoAberto] = useState(false);
+  const [descontoAbertoLocal, setDescontoAbertoLocal] = useState(false);
   const [digitos, setDigitos] = useState('');
+  const externo = descontoExternoAberto !== undefined;
+  const descontoAberto = externo ? !!descontoExternoAberto : descontoAbertoLocal;
+  const abrirDesconto = () => {
+    if (externo) onAbrirDesconto?.(); // F8 já abriu no host; botão sinaliza idem
+    else setDescontoAbertoLocal(true);
+  };
+  const fecharDesconto = () => {
+    if (externo) onDescontoFechado?.();
+    else setDescontoAbertoLocal(false);
+  };
   const inputDescontoRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -55,9 +72,14 @@ export function PainelTotais({
 
   const confirmarDesconto = () => {
     // dígitos = centavos (mesmo modelo do numpad; "50" = R$ 0,50).
-    onAplicarDesconto(Math.min(paraCentavos(999999), digitosParaCentavos(digitos)));
+    onAplicarDesconto(digitosParaCentavos(digitos));
     setDigitos('');
-    setDescontoAberto(false);
+    fecharDesconto();
+  };
+
+  const cancelarDesconto = () => {
+    setDigitos('');
+    fecharDesconto();
   };
 
   return (
@@ -172,8 +194,7 @@ export function PainelTotais({
                   confirmarDesconto();
                 } else if (e.key === 'Escape') {
                   e.preventDefault();
-                  setDigitos('');
-                  setDescontoAberto(false);
+                  cancelarDesconto();
                 }
               }}
               placeholder="0,00"
@@ -202,7 +223,7 @@ export function PainelTotais({
         ) : (
           <button
             type="button"
-            onClick={() => setDescontoAberto(true)}
+            onClick={() => abrirDesconto()}
             aria-label="Aplicar desconto (F8)"
             style={{
               display: 'flex',

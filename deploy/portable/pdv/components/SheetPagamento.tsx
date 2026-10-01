@@ -28,6 +28,8 @@ interface Props {
   pagamentos: Pagamento[];
   /** total - pago; negativo após quitar = troco. */
   saldoCalculado: number;
+  /** true enquanto o host processa a confirmação (evita duplo submit). */
+  processando?: boolean;
   onRegistrarPagamento: (p: Pagamento) => void;
   onConfirmar: () => void;
   onFechar: () => void;
@@ -45,6 +47,7 @@ export function SheetPagamento({
   totalCentavos,
   pagamentos,
   saldoCalculado,
+  processando = false,
   onRegistrarPagamento,
   onConfirmar,
   onFechar,
@@ -101,7 +104,7 @@ export function SheetPagamento({
           width: 'min(960px, 100%)',
           maxHeight: '92vh',
           overflowY: 'auto',
-          backgroundColor: t.color.surfaceRaised,
+          backgroundColor: t.color.surfaceAlt,
           borderTop: `2px solid ${t.color.accent}`,
           borderTopLeftRadius: t.radius.xl,
           borderTopRightRadius: t.radius.xl,
@@ -126,7 +129,7 @@ export function SheetPagamento({
           <Numero
             rotulo={saldoCalculado < 0 ? 'Troco' : 'Falta'}
             centavos={Math.abs(saldoCalculado)}
-            cor={saldoCalculado < 0 ? t.color.pay : t.color.warning}
+            cor={saldoCalculado < 0 ? t.color.success : t.color.danger}
           />
         </div>
 
@@ -142,9 +145,9 @@ export function SheetPagamento({
                 aria-pressed={ativo}
                 style={{
                   minHeight: t.touch.pay,
-                  border: `2px solid ${ativo ? t.color.accent : t.color.borderStrong}`,
+                  border: `2px solid ${ativo ? t.color.accent : t.color.border}`,
                   borderRadius: t.radius.lg,
-                  backgroundColor: ativo ? t.color.accentDim : t.color.surface,
+                  backgroundColor: ativo ? t.color.surfaceAlt : t.color.surface,
                   color: t.color.text,
                   fontSize: 15,
                   fontWeight: 700,
@@ -178,8 +181,8 @@ export function SheetPagamento({
                 minHeight: t.touch.pay,
                 border: 'none',
                 borderRadius: t.radius.lg,
-                backgroundColor: valorCentavos > 0 ? t.color.accent : t.color.active,
-                color: valorCentavos > 0 ? '#FFFFFF' : t.color.textMuted,
+                backgroundColor: valorCentavos > 0 ? t.color.accent : t.color.surfaceAlt,
+                color: valorCentavos > 0 ? t.color.accentText : t.color.textMuted,
                 fontSize: 17,
                 fontWeight: 800,
                 cursor: valorCentavos > 0 ? 'pointer' : 'not-allowed',
@@ -239,10 +242,10 @@ export function SheetPagamento({
             style={{
               minHeight: t.touch.pay,
               flex: 1,
-              border: `1px solid ${t.color.borderStrong}`,
+              border: `1px solid ${t.color.border}`,
               borderRadius: t.radius.lg,
               backgroundColor: t.color.surface,
-              color: t.color.textSecondary,
+              color: t.color.text,
               fontSize: 16,
               fontWeight: 700,
               cursor: 'pointer',
@@ -253,20 +256,20 @@ export function SheetPagamento({
           <button
             type="button"
             onClick={onConfirmar}
-            disabled={!todasQuitado}
+            disabled={!todasQuitado || processando}
             style={{
               minHeight: t.touch.pay,
               flex: 2,
               border: 'none',
               borderRadius: t.radius.lg,
-              backgroundColor: todasQuitado ? t.color.pay : t.color.active,
-              color: todasQuitado ? '#FFFFFF' : t.color.textMuted,
+              backgroundColor: todasQuitado && !processando ? t.color.success : t.color.surfaceAlt,
+              color: todasQuitado && !processando ? '#FFFFFF' : t.color.textMuted,
               fontSize: 18,
               fontWeight: 800,
-              cursor: todasQuitado ? 'pointer' : 'not-allowed',
+              cursor: todasQuitado && !processando ? 'pointer' : 'not-allowed',
             }}
           >
-            CONFIRMAR VENDA {todasQuitado ? '' : '(falta valor)'}
+            {processando ? 'PROCESSANDO…' : `CONFIRMAR VENDA ${todasQuitado ? '' : '(falta valor)'}`}
           </button>
         </div>
       </div>
