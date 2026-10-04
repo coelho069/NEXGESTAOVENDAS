@@ -52,17 +52,17 @@ export function AdminPlansScreen({
     <main className="flex flex-col gap-6 p-4 sm:p-6 lg:p-8">
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
             Configuração da plataforma
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Planos</h1>
-          <p className="mt-2 max-w-2xl text-sm text-slate-500">
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground">Planos</h1>
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
             Cadastre e mantenha os planos comerciais usados nas assinaturas administrativas.
           </p>
         </div>
         <Link
           href="/admin/assinaturas"
-          className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+          className="inline-flex items-center justify-center rounded-xl border border-input bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-background/30"
         >
           Ir para assinaturas
         </Link>
@@ -76,10 +76,10 @@ export function AdminPlansScreen({
         </div>
       ) : null}
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="pdv-panel">
         <div className="flex items-center gap-2">
-          <Plus size={18} className="text-indigo-600" aria-hidden="true" />
-          <h2 className="font-semibold text-slate-900">Criar plano</h2>
+          <Plus size={18} className="text-primary" aria-hidden="true" />
+          <h2 className="font-semibold text-foreground">Criar plano</h2>
         </div>
         <form
           className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5"
@@ -100,11 +100,11 @@ export function AdminPlansScreen({
             );
           }}
         >
-          <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Nome
             <input name="name" required maxLength={120} disabled={pending} className={inputClass} />
           </label>
-          <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Valor
             <input
               name="amount"
@@ -115,21 +115,21 @@ export function AdminPlansScreen({
               className={inputClass}
             />
           </label>
-          <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Periodicidade
             <select name="billing_interval" defaultValue="monthly" disabled={pending} className={inputClass}>
               <option value="monthly">{SUBSCRIPTION_BILLING_INTERVAL_LABELS.monthly}</option>
               <option value="yearly">{SUBSCRIPTION_BILLING_INTERVAL_LABELS.yearly}</option>
             </select>
           </label>
-          <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Situação
             <select name="is_active" defaultValue="true" disabled={pending} className={inputClass}>
               <option value="true">Ativo</option>
               <option value="false">Inativo</option>
             </select>
           </label>
-          <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 md:col-span-2 xl:col-span-1">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground md:col-span-2 xl:col-span-1">
             Descrição
             <input name="description" maxLength={2000} disabled={pending} className={inputClass} />
           </label>
@@ -141,10 +141,10 @@ export function AdminPlansScreen({
         </form>
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-5 py-5">
-          <h2 className="font-semibold text-slate-900">Planos cadastrados</h2>
-          <p className="mt-1 text-sm text-slate-500">
+      <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-lg shadow-black/20 backdrop-blur-md">
+        <div className="border-b border-border px-5 py-5">
+          <h2 className="font-semibold text-foreground">Planos cadastrados</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             {data?.length ?? 0} plano{(data?.length ?? 0) === 1 ? "" : "s"}. Planos em uso não podem ser
             excluídos — prefira desativar.
           </p>
@@ -152,13 +152,13 @@ export function AdminPlansScreen({
 
         {!data || data.length === 0 ? (
           <div className="flex min-h-48 flex-col items-center justify-center px-5 py-12 text-center">
-            <Building2 size={28} className="text-slate-300" aria-hidden="true" />
-            <p className="mt-3 text-sm font-semibold text-slate-700">Nenhum plano cadastrado.</p>
+            <Building2 size={28} className="text-muted-foreground/50" aria-hidden="true" />
+            <p className="mt-3 text-sm font-semibold text-foreground">Nenhum plano cadastrado.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-[960px] w-full text-left text-sm">
-              <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+              <thead className="bg-background/30 text-[11px] uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="px-5 py-3 font-semibold">Plano</th>
                   <th className="px-4 py-3 font-semibold">Valor</th>
@@ -171,7 +171,7 @@ export function AdminPlansScreen({
               </thead>
               <tbody>
                 {data.map((plan) => (
-                  <tr key={plan.id} className="border-t border-slate-100 align-top">
+                  <tr key={plan.id} className="border-t border-border align-top">
                     <td className="px-5 py-4">
                       {editingId === plan.id ? (
                         <EditPlanForm
@@ -188,17 +188,17 @@ export function AdminPlansScreen({
                         />
                       ) : (
                         <>
-                          <p className="font-semibold text-slate-800">{plan.name}</p>
-                          <p className="mt-1 text-xs text-slate-500">
+                          <p className="font-semibold text-foreground">{plan.name}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
                             {plan.description || "Sem descrição"}
                           </p>
                         </>
                       )}
                     </td>
-                    <td className="px-4 py-4 tabular-nums text-slate-600">
+                    <td className="px-4 py-4 tabular-nums text-muted-foreground">
                       {formatAdminAmount(plan.amount)}
                     </td>
-                    <td className="px-4 py-4 text-slate-600">
+                    <td className="px-4 py-4 text-muted-foreground">
                       {SUBSCRIPTION_BILLING_INTERVAL_LABELS[plan.billingInterval]}
                     </td>
                     <td className="px-4 py-4">
@@ -206,20 +206,20 @@ export function AdminPlansScreen({
                         className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${
                           plan.isActive
                             ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                            : "bg-slate-100 text-slate-600 ring-slate-200"
+                            : "bg-card text-muted-foreground ring-slate-200"
                         }`}
                       >
                         {plan.isActive ? "Ativo" : "Inativo"}
                       </span>
                     </td>
-                    <td className="px-4 py-4 text-slate-600">{plan.subscriptionCount}</td>
-                    <td className="px-4 py-4 text-slate-600">{formatAdminDate(plan.updatedAt)}</td>
+                    <td className="px-4 py-4 text-muted-foreground">{plan.subscriptionCount}</td>
+                    <td className="px-4 py-4 text-muted-foreground">{formatAdminDate(plan.updatedAt)}</td>
                     <td className="px-5 py-4">
                       <div className="flex flex-col gap-2">
                         <button
                           type="button"
                           disabled={pending}
-                          className="text-left text-sm font-semibold text-indigo-600 hover:text-indigo-800 disabled:opacity-60"
+                          className="text-left text-sm font-semibold text-primary hover:text-blue-300 disabled:opacity-60"
                           onClick={() => setEditingId(editingId === plan.id ? null : plan.id)}
                         >
                           {editingId === plan.id ? "Fechar edição" : "Editar"}
@@ -227,7 +227,7 @@ export function AdminPlansScreen({
                         <button
                           type="button"
                           disabled={pending}
-                          className="text-left text-sm font-semibold text-slate-700 hover:text-slate-900 disabled:opacity-60"
+                          className="text-left text-sm font-semibold text-foreground hover:text-foreground disabled:opacity-60"
                           onClick={() =>
                             runAction(
                               () =>
@@ -349,10 +349,10 @@ function EditPlanForm({
 }
 
 const inputClass =
-  "mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:bg-slate-100";
+  "pdv-input mt-1.5 text-sm font-normal disabled:cursor-not-allowed disabled:opacity-60";
 
 const primaryButtonClass =
-  "inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60";
 
 const ghostButtonClass =
-  "inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex items-center justify-center rounded-lg border border-input bg-card px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-background/30 disabled:cursor-not-allowed disabled:opacity-60";

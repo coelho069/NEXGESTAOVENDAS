@@ -66,9 +66,9 @@ export function AdminSubscriptionManage({
     const defaultStart = todayDateOnly();
     const defaultEnd = addMonths(defaultStart, 1);
     return (
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="font-semibold text-slate-900">Criar assinatura</h2>
-        <p className="mt-1 text-sm text-slate-500">
+      <section className="pdv-panel">
+        <h2 className="font-semibold text-foreground">Criar assinatura</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           Cadastre uma assinatura administrativa para esta organização. Sem cobrança automática.
         </p>
         {error ? (
@@ -159,7 +159,7 @@ export function AdminSubscriptionManage({
           </div>
         </form>
         {activePlans.length === 0 ? (
-          <p className="mt-3 text-sm text-amber-700">
+          <p className="mt-3 text-sm text-amber-300">
             Nenhum plano ativo disponível. Cadastre ou ative um plano em Planos.
           </p>
         ) : null}
@@ -172,9 +172,9 @@ export function AdminSubscriptionManage({
   const isCancelled = data.status === "canceled" || data.status === "cancelled";
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="font-semibold text-slate-900">Gestão da assinatura</h2>
-      <p className="mt-1 text-sm text-slate-500">
+    <section className="pdv-panel">
+      <h2 className="font-semibold text-foreground">Gestão da assinatura</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
         Alterações administrativas de plano, status, período e cancelamento. Sem gateway de pagamento.
       </p>
       {error ? (
@@ -186,7 +186,7 @@ export function AdminSubscriptionManage({
 
       <div className="mt-5 grid gap-6 xl:grid-cols-2">
         <form
-          className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4"
+          className="grid gap-3 rounded-xl border border-border bg-background/30 p-4"
           onSubmit={(event) => {
             event.preventDefault();
             if (isCancelled) return;
@@ -202,7 +202,7 @@ export function AdminSubscriptionManage({
             );
           }}
         >
-          <h3 className="text-sm font-semibold text-slate-800">Alterar plano</h3>
+          <h3 className="text-sm font-semibold text-foreground">Alterar plano</h3>
           <Field label="Plano">
             <select
               name="plan_id"
@@ -233,7 +233,7 @@ export function AdminSubscriptionManage({
         </form>
 
         <form
-          className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4"
+          className="grid gap-3 rounded-xl border border-border bg-background/30 p-4"
           onSubmit={(event) => {
             event.preventDefault();
             if (isCancelled) return;
@@ -248,7 +248,7 @@ export function AdminSubscriptionManage({
             );
           }}
         >
-          <h3 className="text-sm font-semibold text-slate-800">Alterar status</h3>
+          <h3 className="text-sm font-semibold text-foreground">Alterar status</h3>
           <Field label="Status">
             <select
               name="status"
@@ -273,7 +273,7 @@ export function AdminSubscriptionManage({
         </form>
 
         <form
-          className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4"
+          className="grid gap-3 rounded-xl border border-border bg-background/30 p-4"
           onSubmit={(event) => {
             event.preventDefault();
             if (isCancelled) return;
@@ -289,7 +289,7 @@ export function AdminSubscriptionManage({
             );
           }}
         >
-          <h3 className="text-sm font-semibold text-slate-800">Alterar período / vencimento</h3>
+          <h3 className="text-sm font-semibold text-foreground">Alterar período / vencimento</h3>
           <Field label="Início">
             <input
               type="date"
@@ -315,15 +315,15 @@ export function AdminSubscriptionManage({
           </button>
         </form>
 
-        <div className="grid gap-3 rounded-xl border border-rose-100 bg-rose-50 p-4">
-          <h3 className="text-sm font-semibold text-rose-900">Cancelar assinatura</h3>
-          <p className="text-sm text-rose-800">
+        <div className="grid gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-4">
+          <h3 className="text-sm font-semibold text-red-200">Cancelar assinatura</h3>
+          <p className="text-sm text-red-200/90">
             Define o status como cancelada e registra a data de cancelamento. Não processa estorno.
           </p>
           <button
             type="button"
             disabled={pending || isCancelled}
-            className="inline-flex items-center justify-center rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center justify-center rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             onClick={() => {
               if (isCancelled) return;
               const confirmed = window.confirm(
@@ -354,7 +354,7 @@ function optionalMoney(value: FormDataEntryValue | null): string | undefined {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
       {label}
       <span className="mt-1.5 block">{children}</span>
     </label>
@@ -365,18 +365,17 @@ function SuccessNotice({ message }: { message: string }) {
   return (
     <div
       role="status"
-      className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+      className="mt-4 rounded-2xl border border-success/30 bg-success/10 px-4 py-3 text-sm text-emerald-200"
     >
       {message}
     </div>
   );
 }
 
-const inputClass =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:bg-slate-100";
+const inputClass = "pdv-input text-sm font-normal disabled:cursor-not-allowed disabled:opacity-60";
 
 const primaryButtonClass =
-  "inline-flex w-full items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60";
+  "pdv-btn-primary inline-flex w-full items-center justify-center disabled:cursor-not-allowed";
 
 const secondaryButtonClass =
-  "inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60";
+  "pdv-btn-ghost inline-flex items-center justify-center disabled:cursor-not-allowed disabled:opacity-60";

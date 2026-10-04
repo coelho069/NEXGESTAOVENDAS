@@ -56,7 +56,8 @@
  * PDV dark theme — alinhado ao landingTheme (#0B0F19 / #2563EB / #10B981).
  * Escopo via `.pdv-theme` para não afetar outras rotas.
  */
-.pdv-theme {
+.pdv-theme,
+.admin-theme {
   --background: #0b0f19;
   --foreground: #f1f5f9;
   --card: rgba(30, 41, 59, 0.78);
@@ -131,7 +132,10 @@
 @media (prefers-reduced-motion: reduce) {
   .pdv-theme *,
   .pdv-theme *::before,
-  .pdv-theme *::after {
+  .pdv-theme *::after,
+  .admin-theme *,
+  .admin-theme *::before,
+  .admin-theme *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
