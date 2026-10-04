@@ -1,16 +1,6 @@
 /**
- * LandingPage — composição completa da landing de conversão do NexGestão.
- * -----------------------------------------------------------------------------
- * Ordem das seções = esteira cognitiva da spec: Hero → Bento Grid → ROI →
- * Cases → CTA final → Footer.
- *
- * Self-contained: nenhuma dependência além de React. As fontes do guide
- * (Plus Jakarta Sans + Inter) são servidas pelo host via `next/font`, que expõe
- * os tokens `--font-jakarta` / `--font-inter` consumidos por `landing-theme.ts`
- * (sem `@import`, compatível com a CSP de produção).
- *
- * PORTING: copie a pasta para `src/components/landing/` e monte em
- * `src/app/page.tsx` com `<LandingPage />`.
+ * LandingPage — composição da landing de conversão do Nex Gestão Vendas.
+ * Conteúdo factual: PDV, estoque, clientes e planos reais do sistema.
  */
 
 'use client';
@@ -18,14 +8,18 @@
 import { landingTheme as t } from './theme/landing-theme';
 import { Navbar } from './components/Navbar';
 import { HeroSection } from './components/HeroSection';
+import { BenefitsSection } from './components/BenefitsSection';
 import { BentoFeatures } from './components/BentoFeatures';
-import { RoiCalculator } from './components/RoiCalculator';
-import { SocialProof } from './components/SocialProof';
+import { ProductDemo } from './components/ProductDemo';
+import { PlansPreview } from './components/PlansPreview';
+import { TrustSection } from './components/TrustSection';
+import { FaqSection } from './components/FaqSection';
 import { FinalCtaBanner } from './components/FinalCtaBanner';
 import { Footer } from './components/Footer';
 
 const CSS = `
 html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 section[id] { scroll-margin-top: ${t.layout.navClearance}; }
 `;
 
@@ -45,9 +39,12 @@ export function LandingPage() {
       <Navbar />
       <main>
         <HeroSection />
+        <BenefitsSection />
         <BentoFeatures />
-        <RoiCalculator />
-        <SocialProof />
+        <ProductDemo />
+        <PlansPreview />
+        <TrustSection />
+        <FaqSection />
         <FinalCtaBanner />
       </main>
       <Footer />

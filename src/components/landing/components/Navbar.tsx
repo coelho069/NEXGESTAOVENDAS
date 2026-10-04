@@ -1,23 +1,18 @@
 /**
- * Navbar — navegação fixa flutuante (spec: navbar "atrito zero").
- * -----------------------------------------------------------------------------
- * - Glassmorphism fosco exato da spec: blur(16px) + rgba(15,23,42,0.75) +
- *   border-bottom 1px rgba(255,255,255,0.08).
- * - Links com sublinhado animado por gradiente (mesma linguagem do footer).
- * - Em telas < 1000px os links somem (a rota real de Preços/Cases continua
- *   acessível pelos CTAs e pelo rodapé).
+ * Navbar — navegação fixa com menu mobile e CTAs reais.
  */
 
 'use client';
 
+import { useState } from 'react';
+import Link from 'next/link';
 import { landingTheme as t } from '../theme/landing-theme';
 
 const LINKS: ReadonlyArray<{ label: string; href: string }> = [
   { label: 'Recursos', href: '#recursos' },
-  { label: 'Soluções por Segmento', href: '#recursos' },
-  { label: 'Integrações', href: '#recursos' },
-  { label: 'Preços', href: '#roi' },
-  { label: 'Cases', href: '#cases' },
+  { label: 'Benefícios', href: '#beneficios' },
+  { label: 'Planos', href: '#planos' },
+  { label: 'FAQ', href: '#faq' },
 ];
 
 const CSS = `
@@ -29,11 +24,11 @@ const CSS = `
 @media (hover: hover) { .nx-nav-ghost:hover { border-color: rgba(255,255,255,0.28) !important; background: rgba(255,255,255,0.06) !important; } }
 .nx-nav-cta { transition: box-shadow ${t.motion.fast} ease, transform ${t.motion.fast} ease; }
 @media (hover: hover) { .nx-nav-cta:hover { box-shadow: ${t.shadow.ctaGlow}; transform: translateY(-1px); } }
-@media (max-width: 1000px) { .nx-nav-links { display: none; } }
-@media (max-width: 620px) { .nx-nav-ghost { display: none; } }
+@media (max-width: 900px) { .nx-nav-links { display: none !important; } .nx-nav-menu-btn { display: inline-flex !important; } }
+@media (min-width: 901px) { .nx-nav-menu-btn { display: none !important; } .nx-nav-mobile { display: none !important; } }
+@media (max-width: 620px) { .nx-nav-ghost { display: none !important; } }
 `;
 
-/** Marca geométrica vetorial: "N" em traço contínuo com gradiente da marca. */
 function BrandMark({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">
@@ -50,6 +45,8 @@ function BrandMark({ size = 28 }: { size?: number }) {
 }
 
 export function Navbar() {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
     <>
       <style>{CSS}</style>
@@ -75,20 +72,17 @@ export function Navbar() {
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
             border: `1px solid ${t.color.glassBorder}`,
-            borderBottom: `1px solid ${t.color.glassBorder}`,
             borderRadius: t.radius.lg,
             boxShadow: '0 12px 40px rgba(0, 0, 0, 0.45)',
           }}
         >
-          {/* BrandLogo */}
-          <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }} aria-label="NexGestão — início">
+          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }} aria-label="NexGestão — início">
             <BrandMark />
             <span style={{ color: t.color.text, fontFamily: t.font.heading, fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em' }}>
               NexGestão
             </span>
-          </a>
+          </Link>
 
-          {/* NavigationLinks */}
           <div className="nx-nav-links" style={{ display: 'flex', alignItems: 'center', gap: 26 }}>
             {LINKS.map((link) => (
               <a key={link.label} className="nx-nav-link" href={link.href}>
@@ -97,7 +91,6 @@ export function Navbar() {
             ))}
           </div>
 
-          {/* CTAs */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <a
               className="nx-nav-ghost"
@@ -138,8 +131,80 @@ export function Navbar() {
             >
               Testar Gratuitamente por 14 Dias
             </a>
+            <button
+              type="button"
+              className="nx-nav-menu-btn"
+              onClick={() => setMenuOpen((o) => !o)}
+              aria-expanded={menuOpen}
+              aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}
+              style={{
+                display: 'none',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 40,
+                height: 40,
+                borderRadius: t.radius.md,
+                border: `1px solid rgba(255, 255, 255, 0.14)`,
+                background: 'transparent',
+                color: t.color.text,
+                cursor: 'pointer',
+              }}
+            >
+              {menuOpen ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M4 7h16M4 12h16M4 17h16" />
+                </svg>
+              )}
+            </button>
           </div>
         </nav>
+
+        {menuOpen && (
+          <div
+            className="nx-nav-mobile"
+            style={{
+              marginTop: 8,
+              padding: 12,
+              borderRadius: t.radius.lg,
+              border: `1px solid ${t.color.glassBorder}`,
+              background: t.color.glassBg,
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+            }}
+          >
+            {LINKS.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                onClick={() => setMenuOpen(false)}
+                style={{
+                  display: 'block',
+                  padding: '10px 12px',
+                  borderRadius: t.radius.md,
+                  color: t.color.textBody,
+                  textDecoration: 'none',
+                  fontSize: 14,
+                  fontWeight: 500,
+                }}
+              >
+                {link.label}
+              </a>
+            ))}
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${t.color.border}` }}>
+              <a
+                href="/login"
+                onClick={() => setMenuOpen(false)}
+                style={{ display: 'block', padding: '10px 12px', color: t.color.text, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}
+              >
+                Entrar na Conta
+              </a>
+            </div>
+          </div>
+        )}
       </header>
     </>
   );

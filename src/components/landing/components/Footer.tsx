@@ -1,15 +1,10 @@
 /**
- * Footer — institucional, legal e mapa do ecossistema (spec).
- * -----------------------------------------------------------------------------
- * - Divisor superior em hairline rgba(255,255,255,0.05) e tipografia
- *   secundária em slate-400 (#94A3B8) — exatamente o tom da spec.
- * - Links com sublinhado animado (mesma linguagem da navbar).
- * - StatusIndicator com ponto verde pulsante: "Todos os sistemas operacionais".
- * - CNPJ e links legais são PLACEHOLDER — ver PORTING.md.
+ * Footer — links reais onde disponíveis, sem dados fictícios.
  */
 
 'use client';
 
+import Link from 'next/link';
 import { landingTheme as t } from '../theme/landing-theme';
 
 const CSS = `
@@ -17,15 +12,34 @@ const CSS = `
 .nx-foot-link:hover, .nx-foot-link:focus-visible { color: #F1F5F9; background-size: 100% 1.5px; outline: none; }
 @keyframes nx-foot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 .nx-foot-dot { animation: nx-foot-pulse 2.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .nx-foot-dot { animation: none; } }
 @media (max-width: 900px) { .nx-foot-grid { grid-template-columns: 1fr 1fr !important; } }
 @media (max-width: 560px) { .nx-foot-grid { grid-template-columns: 1fr !important; } }
 `;
 
-const COLUNAS: ReadonlyArray<{ titulo: string; links: ReadonlyArray<string> }> = [
-  { titulo: 'Produto', links: ['Visão geral', 'Kanban comercial', 'WhatsApp & Follow-up', 'Relatórios e DRE', 'Preços'] },
-  { titulo: 'Soluções', links: ['Varejo', 'Serviços', 'Indústria', 'Distribuidoras', 'Startups'] },
-  { titulo: 'Recursos', links: ['Central de Ajuda', 'API & Webhooks', 'Status', 'Changelog', 'Comunidade'] },
-  { titulo: 'Legal', links: ['Privacidade', 'Termos de uso', 'LGPD', 'Segurança', 'Cookies'] },
+type FootLink = { label: string; href: string };
+
+const COLUNAS: ReadonlyArray<{ titulo: string; links: readonly FootLink[] }> = [
+  {
+    titulo: 'Produto',
+    links: [
+      { label: 'Recursos', href: '#recursos' },
+      { label: 'Demonstração', href: '#demo' },
+      { label: 'Planos', href: '/planos' },
+      { label: 'Entrar', href: '/login' },
+    ],
+  },
+  {
+    titulo: 'Suporte',
+    links: [
+      { label: 'FAQ', href: '#faq' },
+      { label: 'Planos e assinatura', href: '/planos' },
+    ],
+  },
+  {
+    titulo: 'Legal',
+    links: [{ label: 'Política de reembolso', href: '/politica-de-reembolso' }],
+  },
 ];
 
 export function Footer() {
@@ -35,8 +49,7 @@ export function Footer() {
     <footer style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)', padding: '56px 0 40px' }}>
       <style>{CSS}</style>
       <div style={{ maxWidth: t.layout.max, margin: '0 auto', padding: '0 24px' }}>
-        <div className="nx-foot-grid" style={{ display: 'grid', gridTemplateColumns: '1.4fr repeat(4, 1fr)', gap: 32 }}>
-          {/* BrandInfo */}
+        <div className="nx-foot-grid" style={{ display: 'grid', gridTemplateColumns: '1.4fr repeat(3, 1fr)', gap: 32 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <svg width="26" height="26" viewBox="0 0 32 32" fill="none" aria-hidden="true">
@@ -51,11 +64,8 @@ export function Footer() {
               </svg>
               <span style={{ color: t.color.text, fontFamily: t.font.heading, fontSize: 17, fontWeight: 700 }}>NexGestão</span>
             </div>
-            <p style={{ margin: '14px 0 0', maxWidth: 280, fontSize: 13, lineHeight: 1.65, color: t.color.textMuted }}>
-              CRM e gestão de vendas para operações B2B que precisam de previsibilidade comercial.
-            </p>
-            <p style={{ margin: '14px 0 0', fontSize: 12, color: t.color.textMuted }}>
-              CNPJ 00.000.000/0001-00 · NexGestão Tecnologia Ltda.
+            <p style={{ margin: '14px 0 0', maxWidth: 300, fontSize: 13, lineHeight: 1.65, color: t.color.textMuted }}>
+              PDV, estoque e gestão comercial para varejo brasileiro — operação offline-first com sincronização na nuvem.
             </p>
             <div
               style={{
@@ -76,11 +86,10 @@ export function Footer() {
                 <rect x="4" y="10" width="16" height="10" rx="2" />
                 <path d="M8 10V7a4 4 0 0 1 8 0v3" />
               </svg>
-              Site protegido · SSL 256-bit
+              Site protegido · SSL
             </div>
           </div>
 
-          {/* LinkColumns */}
           {COLUNAS.map((col) => (
             <nav key={col.titulo} aria-label={col.titulo}>
               <div style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.color.text }}>
@@ -88,10 +97,12 @@ export function Footer() {
               </div>
               <ul style={{ listStyle: 'none', margin: '14px 0 0', padding: 0 }}>
                 {col.links.map((link) => (
-                  <li key={link}>
-                    <a className="nx-foot-link" href="#">
-                      {link}
-                    </a>
+                  <li key={link.label}>
+                    {link.href.startsWith('/') ? (
+                      <Link className="nx-foot-link" href={link.href}>{link.label}</Link>
+                    ) : (
+                      <a className="nx-foot-link" href={link.href}>{link.label}</a>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -99,7 +110,6 @@ export function Footer() {
           ))}
         </div>
 
-        {/* StatusIndicator + copyright */}
         <div
           style={{
             marginTop: 48,
@@ -112,7 +122,9 @@ export function Footer() {
             gap: 16,
           }}
         >
-          <span style={{ fontSize: 12.5, color: t.color.textMuted }}>© {ano} NexGestão de Vendas. Todos os direitos reservados.</span>
+          <span style={{ fontSize: 12.5, color: t.color.textMuted }}>
+            © {ano} Nex Gestão Vendas. Todos os direitos reservados.
+          </span>
           <span
             style={{
               display: 'inline-flex',
@@ -128,7 +140,7 @@ export function Footer() {
             }}
           >
             <span className="nx-foot-dot" style={{ width: 8, height: 8, borderRadius: t.radius.full, background: t.color.accent }} aria-hidden="true" />
-            Todos os sistemas operacionais
+            Plataforma em operação
           </span>
         </div>
       </div>

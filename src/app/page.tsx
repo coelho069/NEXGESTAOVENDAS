@@ -24,9 +24,9 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "NexGestão — CRM para escalar pipelines e fechar vendas",
+  title: "Nex Gestão Vendas — PDV, estoque e gestão comercial",
   description:
-    "Centralize leads, automatize follow-ups via WhatsApp e veja métricas de conversão em tempo real. 14 dias grátis, sem cartão.",
+    "PDV offline-first, controle de estoque auditado e cadastro de clientes em uma plataforma para varejo brasileiro. Veja os planos e comece agora.",
 };
 
 export default function HomePage() {
