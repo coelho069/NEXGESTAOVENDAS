@@ -828,3 +828,75 @@ export const publicCheckoutInputSchema = z.object({
 });
 
 export type PublicCheckoutInput = z.infer<typeof publicCheckoutInputSchema>;
+
+// ---------------------------------------------------------------------------
+// Platform ADM — client accounts & Gmail invitations
+// ---------------------------------------------------------------------------
+
+/**
+ * Deliberately permissive on the local part and strict on the domain shape:
+ * Supabase is the final authority on deliverability, and rejecting exotic but
+ * valid addresses here would block legitimate clients.
+ */
+export const accountEmailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(3)
+  .max(320)
+  .refine((value) => /^[^\s@,;:<>()[\]\\"]+@[^\s@.]+(\.[^\s@.]+)+$/.test(value), {
+    message: "email must be a valid address",
+  });
+
+export const createAdminClientAccountSchema = z.object({
+  full_name: z.string().trim().min(2, "full_name is required").max(200),
+  email: accountEmailSchema,
+  // Optional display name; the organization remains the system of record.
+  company_name: z.string().trim().max(200).optional().default(""),
+  // Existing organization (tenant) that will own the profile.
+  org_id: z.string().uuid(),
+  // Optional explicit subscription link; validated against org_id server-side.
+  subscription_id: z.string().uuid().optional(),
+  // Email delivery is opt-in per action so an admin can provision first and
+  // send the invitation afterwards without duplicating the account.
+  send_invite: z.boolean().optional().default(true),
+});
+
+export type CreateAdminClientAccountInput = z.infer<typeof createAdminClientAccountSchema>;
+
+export const resendAdminClientAccountInviteSchema = z.object({
+  client_account_id: z.string().uuid(),
+});
+
+export type ResendAdminClientAccountInviteInput = z.infer<
+  typeof resendAdminClientAccountInviteSchema
+>;
+
+export const setAdminClientAccountSuspendedSchema = z.object({
+  client_account_id: z.string().uuid(),
+  suspended: z.boolean(),
+});
+
+export type SetAdminClientAccountSuspendedInput = z.infer<
+  typeof setAdminClientAccountSuspendedSchema
+>;
+
+export const adminClientAccountListQuerySchema = z.object({
+  query: z.string().trim().max(200).optional(),
+  status: z
+    .enum([
+      "created",
+      "invite_pending",
+      "invite_sent",
+      "invite_expired",
+      "activated",
+      "invite_failed",
+      "suspended",
+    ])
+    .optional(),
+  subscription_status: z
+    .enum(["active", "trialing", "past_due", "expired", "canceled", "cancelled", "none"])
+    .optional(),
+});
+
+export type AdminClientAccountListQuery = z.infer<typeof adminClientAccountListQuerySchema>;

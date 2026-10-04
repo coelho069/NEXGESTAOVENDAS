@@ -528,6 +528,113 @@ export type Database = {
           },
         ]
       }
+      client_account_events: {
+        Row: {
+          actor_user_id: string | null
+          client_account_id: string
+          created_at: string
+          error_code: string
+          event_type: Database["public"]["Enums"]["client_account_event_type"]
+          id: string
+        }
+        Insert: {
+          actor_user_id?: string | null
+          client_account_id: string
+          created_at?: string
+          error_code?: string
+          event_type: Database["public"]["Enums"]["client_account_event_type"]
+          id?: string
+        }
+        Update: {
+          actor_user_id?: string | null
+          client_account_id?: string
+          created_at?: string
+          error_code?: string
+          event_type?: Database["public"]["Enums"]["client_account_event_type"]
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_account_events_client_account_id_fkey"
+            columns: ["client_account_id"]
+            isOneToOne: false
+            referencedRelation: "client_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_accounts: {
+        Row: {
+          activated_at: string | null
+          company_name: string
+          created_at: string
+          created_by: string | null
+          email: string
+          full_name: string
+          id: string
+          invite_expires_at: string | null
+          invite_sent_at: string | null
+          last_error: string
+          org_id: string
+          status: Database["public"]["Enums"]["client_account_status"]
+          subscription_id: string | null
+          suspended_at: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          activated_at?: string | null
+          company_name?: string
+          created_at?: string
+          created_by?: string | null
+          email: string
+          full_name: string
+          id?: string
+          invite_expires_at?: string | null
+          invite_sent_at?: string | null
+          last_error?: string
+          org_id: string
+          status?: Database["public"]["Enums"]["client_account_status"]
+          subscription_id?: string | null
+          suspended_at?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          activated_at?: string | null
+          company_name?: string
+          created_at?: string
+          created_by?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          invite_expires_at?: string | null
+          invite_sent_at?: string | null
+          last_error?: string
+          org_id?: string
+          status?: Database["public"]["Enums"]["client_account_status"]
+          subscription_id?: string | null
+          suspended_at?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_accounts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_accounts_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           created_at: string
@@ -1964,6 +2071,22 @@ export type Database = {
     }
     Enums: {
       adapter_status: "configured" | "not_configured" | "error"
+      client_account_event_type:
+        | "account_created"
+        | "invite_sent"
+        | "invite_resent"
+        | "invite_failed"
+        | "account_activated"
+        | "account_suspended"
+        | "account_reactivated"
+      client_account_status:
+        | "created"
+        | "invite_pending"
+        | "invite_sent"
+        | "invite_expired"
+        | "activated"
+        | "invite_failed"
+        | "suspended"
       cash_movement_type: "sale_cash" | "supply" | "withdrawal" | "adjustment" | "refund_cash"
       cash_session_status: "open" | "closed"
       fiscal_document_status:
