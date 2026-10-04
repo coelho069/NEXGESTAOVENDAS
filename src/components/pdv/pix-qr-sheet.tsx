@@ -80,16 +80,16 @@ export function PixQrSheet({
     <div data-testid="pdv-pix-qr-sheet" className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
-        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+        className="pdv-modal-overlay"
         aria-label="Fechar PIX"
         onClick={onClose}
       />
-      <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-100 p-6">
-          <h2 className="text-xl font-bold text-slate-900">Pagar com PIX</h2>
+      <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-card shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border p-6">
+          <h2 className="text-xl font-bold text-foreground">Pagar com PIX</h2>
           <button
             type="button"
-            className="text-slate-400 transition hover:text-slate-700"
+            className="text-muted-foreground transition hover:text-foreground"
             aria-label="Fechar PIX"
             onClick={onClose}
           >
@@ -97,32 +97,32 @@ export function PixQrSheet({
           </button>
         </div>
         <div className="space-y-4 p-6 text-center">
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted-foreground">
             QR gerado. A venda só confirma depois do PaymentIntent <code>succeeded</code>.
           </p>
-          <p className="text-2xl font-black text-indigo-900">{formatBRL(pending.amount)}</p>
+          <p className="text-2xl font-black text-foreground">{formatBRL(pending.amount)}</p>
           {qr?.imageUrlPng ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               data-testid="pix-qr-image"
               src={qr.imageUrlPng}
               alt="QR Code PIX"
-              className="mx-auto h-56 w-56 rounded-xl border border-slate-200 bg-white p-2"
+              className="mx-auto h-56 w-56 rounded-xl border border-border bg-white p-2"
             />
           ) : (
             <pre
               data-testid="pix-qr-payload"
-              className="overflow-x-auto rounded-xl bg-slate-50 p-3 text-left text-xs text-slate-700"
+              className="overflow-x-auto rounded-xl bg-background/40 p-3 text-left text-xs text-foreground"
             >
               {qr?.data ?? "QR indisponível. Reconcilie ou cancele."}
             </pre>
           )}
           {qr?.data ? (
-            <p data-testid="pix-copy-paste" className="break-all text-left text-xs text-slate-500">
+            <p data-testid="pix-copy-paste" className="break-all text-left text-xs text-muted-foreground">
               {qr.data}
             </p>
           ) : null}
-          <p className="text-sm text-slate-500">{message ?? "Aguardando pagamento PIX…"}</p>
+          <p className="text-sm text-muted-foreground">{message ?? "Aguardando pagamento PIX…"}</p>
           <button
             type="button"
             data-testid="pix-cancel"
@@ -131,7 +131,7 @@ export function PixQrSheet({
               setCancelling(true);
               void onCancel().finally(() => setCancelling(false));
             }}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-indigo-300 disabled:opacity-50"
+            className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground hover:border-primary/50 disabled:opacity-50"
           >
             Cancelar PIX
           </button>

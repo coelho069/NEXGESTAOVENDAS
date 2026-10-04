@@ -63,17 +63,17 @@ export function CustomerDialog({
 
   return (
     <div data-testid="customer-dialog" className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button type="button" className="absolute inset-0 bg-slate-900/40" aria-label="Fechar cliente" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
-        <h2 className="text-lg font-semibold">Associar cliente</h2>
+      <button type="button" className="pdv-modal-overlay" aria-label="Fechar cliente" onClick={onClose} />
+      <div className="pdv-modal-shell max-w-md">
+        <h2 className="text-lg font-semibold text-foreground">Associar cliente</h2>
         {requireCustomer ? (
-          <p className="mt-1 text-sm text-amber-800">Esta loja exige um cliente em toda venda.</p>
+          <p className="mt-1 text-sm text-amber-200">Esta loja exige um cliente em toda venda.</p>
         ) : null}
 
         {creating ? (
           <div className="mt-4">
-            <h3 className="text-sm font-semibold text-slate-700">Novo cliente</h3>
-            <p className="mt-1 text-xs text-slate-500">Nome obrigatório. Documento e e-mail opcionais.</p>
+            <h3 className="text-sm font-semibold text-foreground">Novo cliente</h3>
+            <p className="mt-1 text-xs text-muted-foreground">Nome obrigatório. Documento e e-mail opcionais.</p>
             <div className="mt-3">
               <CustomerForm
                 draft={draft}
@@ -94,7 +94,7 @@ export function CustomerDialog({
           <>
             <input
               data-testid="customer-search"
-              className="mt-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="pdv-input mt-4 text-sm"
               placeholder="Buscar por nome ou documento"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -102,7 +102,7 @@ export function CustomerDialog({
             <button
               type="button"
               data-testid="customer-new"
-              className="mt-3 w-full rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white"
+              className="pdv-btn-success mt-3 w-full px-3 py-2 text-sm"
               onClick={() => setCreating(true)}
             >
               Novo cliente
@@ -113,7 +113,7 @@ export function CustomerDialog({
                   <button
                     type="button"
                     data-testid="customer-walk-in"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left"
+                    className="pdv-btn-ghost w-full text-left"
                     onClick={() => onSelect(null)}
                   >
                     Sem cliente
@@ -126,12 +126,12 @@ export function CustomerDialog({
                     type="button"
                     data-testid={`customer-${customer.id}`}
                     className={`w-full rounded-lg border px-3 py-2 text-left ${
-                      selectedId === customer.id ? "border-emerald-500 bg-emerald-50" : "border-slate-200"
+                      selectedId === customer.id ? "border-success bg-success/10" : "border-border"
                     }`}
                     onClick={() => onSelect(customer)}
                   >
                     <div className="font-medium">{customer.name}</div>
-                    <div className="text-xs text-slate-500">{customer.document ?? customer.email}</div>
+                    <div className="text-xs text-muted-foreground">{customer.document ?? customer.email}</div>
                   </button>
                 </li>
               ))}

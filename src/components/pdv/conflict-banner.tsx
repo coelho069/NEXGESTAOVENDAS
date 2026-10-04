@@ -11,11 +11,7 @@ export function ConflictBanner({
   if (conflicts.length === 0) return null;
 
   return (
-    <div
-      role="alert"
-      data-testid="sync-conflict"
-      className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900"
-    >
+    <div role="alert" data-testid="sync-conflict" className="pdv-alert-error">
       <p className="font-semibold">Conflito de sincronização</p>
       <ul className="mt-2 list-disc space-y-1 pl-5">
         {conflicts.map((conflict) => (
@@ -26,7 +22,7 @@ export function ConflictBanner({
             {conflict.outcomeUnknown && onReconcile ? (
               <button
                 type="button"
-                className="ml-2 rounded border border-red-400 px-2 py-1 text-xs font-medium"
+                className="ml-2 rounded border border-destructive/50 px-2 py-1 text-xs font-medium text-red-200 hover:bg-destructive/10"
                 onClick={() => void onReconcile(conflict.clientMutationId)}
               >
                 Reconciliar

@@ -129,19 +129,19 @@ export function SaleReturnDialog({
     <div data-testid="sale-return-dialog" className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <button
         type="button"
-        className="absolute inset-0 bg-slate-900/50"
+        className="pdv-modal-overlay"
         aria-label="Fechar devolução"
         onClick={onClose}
       />
-      <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
+      <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-card p-5 shadow-xl">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">
+            <h2 className="text-lg font-semibold text-foreground">
               {operation === "cancel" ? "Cancelar venda" : "Devolver itens"}
             </h2>
-            <p className="text-xs text-slate-500">Venda {detail.sale_id}</p>
+            <p className="text-xs text-muted-foreground">Venda {detail.sale_id}</p>
           </div>
-          <button type="button" className="text-sm text-slate-500" onClick={onClose}>
+          <button type="button" className="text-sm text-muted-foreground" onClick={onClose}>
             Fechar
           </button>
         </div>
@@ -153,8 +153,8 @@ export function SaleReturnDialog({
               data-testid="sale-return-mode-return"
               className={`rounded-lg px-3 py-2 text-sm font-semibold ${
                 operation === "return"
-                  ? "bg-indigo-600 text-white"
-                  : "border border-slate-200 text-slate-700"
+                  ? "bg-primary text-white"
+                  : "border border-border text-foreground"
               }`}
               onClick={() => setOperation("return")}
             >
@@ -168,7 +168,7 @@ export function SaleReturnDialog({
               className={`rounded-lg px-3 py-2 text-sm font-semibold ${
                 operation === "cancel"
                   ? "bg-rose-600 text-white"
-                  : "border border-slate-200 text-slate-700"
+                  : "border border-border text-foreground"
               }`}
               onClick={() => setOperation("cancel")}
             >
@@ -182,20 +182,20 @@ export function SaleReturnDialog({
             {returnableItems.map((item) => (
               <li
                 key={item.sale_item_id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border px-3 py-2"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-slate-900">{item.product_name}</div>
-                  <div className="text-xs text-slate-500">
+                  <div className="text-sm font-medium text-foreground">{item.product_name}</div>
+                  <div className="text-xs text-muted-foreground">
                     {item.product_sku} · vendido {item.quantity_sold} · devolvido{" "}
                     {item.quantity_returned} · disponível {item.quantity_returnable}
                   </div>
                 </div>
-                <label className="text-xs text-slate-600">
+                <label className="text-xs text-muted-foreground">
                   Qtd
                   <input
                     data-testid={`sale-return-qty-${item.sale_item_id}`}
-                    className="mt-1 block w-24 rounded-lg border border-slate-300 px-2 py-1 text-sm"
+                    className="mt-1 block w-24 rounded-lg border border-input px-2 py-1 text-sm"
                     value={quantities[item.sale_item_id] ?? "0"}
                     onChange={(event) =>
                       setQuantities((current) => ({
@@ -217,11 +217,11 @@ export function SaleReturnDialog({
         )}
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="text-sm text-slate-700">
+          <label className="text-sm text-foreground">
             Motivo
             <select
               data-testid="sale-return-reason"
-              className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2"
+              className="mt-1 block w-full rounded-lg border border-input px-3 py-2"
               value={reason}
               onChange={(event) => setReason(event.target.value as SaleReturnReason)}
               disabled={mutating}
@@ -233,11 +233,11 @@ export function SaleReturnDialog({
               ))}
             </select>
           </label>
-          <label className="text-sm text-slate-700">
+          <label className="text-sm text-foreground">
             Observações
             <input
               data-testid="sale-return-notes"
-              className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2"
+              className="mt-1 block w-full rounded-lg border border-input px-3 py-2"
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
               disabled={mutating}
@@ -246,7 +246,7 @@ export function SaleReturnDialog({
           </label>
         </div>
 
-        <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm">
+        <div className="mt-4 rounded-xl bg-background/40 px-4 py-3 text-sm">
           <div className="flex justify-between">
             <span>Valor calculado pelo servidor/domínio</span>
             <strong data-testid="sale-return-preview-total">
@@ -270,7 +270,7 @@ export function SaleReturnDialog({
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+            className="rounded-lg border border-input px-4 py-2 text-sm font-medium text-foreground"
             onClick={onClose}
             disabled={mutating}
           >
@@ -279,7 +279,7 @@ export function SaleReturnDialog({
           <button
             type="button"
             data-testid="sale-return-confirm"
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
             disabled={mutating || !preview?.ok}
             onClick={() => {
               const reasonError = validateSaleReturnReason(reason, notes);

@@ -49,20 +49,20 @@ export function SuspendedSalesPanel({
   return (
     <div
       data-testid="suspended-sales-panel"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm p-4"
     >
-      <div className="max-h-[85vh] w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+      <div className="max-h-[85vh] w-full max-w-2xl overflow-hidden rounded-2xl bg-card shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Vendas suspensas</h2>
-            <p className="text-xs text-slate-500">
+            <h2 className="text-lg font-semibold text-foreground">Vendas suspensas</h2>
+            <p className="text-xs text-muted-foreground">
               A lista vem do servidor e a recuperação tem consumo único.
             </p>
           </div>
           <button
             type="button"
             aria-label="Fechar vendas suspensas"
-            className="rounded-lg px-3 py-2 text-slate-500 hover:bg-slate-100"
+            className="rounded-lg px-3 py-2 text-muted-foreground hover:bg-background/50"
             onClick={onClose}
           >
             Fechar
@@ -70,13 +70,13 @@ export function SuspendedSalesPanel({
         </div>
 
         {activeContext ? (
-          <div className="mx-5 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <div className="mx-5 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-amber-200">
             <span>Existe uma venda suspensa recuperada neste carrinho.</span>
             <button
               type="button"
               data-testid="release-suspended-sale"
               disabled={mutating}
-              className="rounded-lg border border-amber-300 px-3 py-1.5 font-semibold disabled:opacity-50"
+              className="rounded-lg border border-warning/40 px-3 py-1.5 font-semibold disabled:opacity-50"
               onClick={() => void onReleaseActive()}
             >
               Liberar venda
@@ -85,15 +85,15 @@ export function SuspendedSalesPanel({
         ) : null}
 
         {error ? (
-          <p role="alert" className="mx-5 mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
+          <p role="alert" className="mx-5 mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-red-800">
             {error}
           </p>
         ) : null}
 
         <div className="max-h-[60vh] overflow-y-auto px-5 py-4">
-          {loading ? <p className="py-8 text-center text-sm text-slate-500">Carregando...</p> : null}
+          {loading ? <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p> : null}
           {!loading && rows.length === 0 ? (
-            <p data-testid="suspended-sales-empty" className="py-8 text-center text-sm text-slate-500">
+            <p data-testid="suspended-sales-empty" className="py-8 text-center text-sm text-muted-foreground">
               Nenhuma venda suspensa nesta loja.
             </p>
           ) : null}
@@ -101,31 +101,31 @@ export function SuspendedSalesPanel({
             {rows.map((row) => (
               <li
                 key={row.suspended_sale_id}
-                className="rounded-xl border border-slate-200 p-4"
+                className="rounded-xl border border-border p-4"
                 data-testid={`suspended-sale-${row.suspended_sale_id}`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="font-semibold text-slate-900">
+                    <p className="font-semibold text-foreground">
                       {row.customer_name ?? "Cliente não informado"}
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted-foreground">
                       {row.item_count} item(ns) · {formatDate(row.created_at)}
                     </p>
                   </div>
-                  <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold uppercase text-indigo-700">
+                  <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold uppercase text-blue-200">
                     {row.status}
                   </span>
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-3 text-sm">
-                  <span className="text-slate-500">Total preservado</span>
+                  <span className="text-muted-foreground">Total preservado</span>
                   <strong>{formatBRL(row.total)}</strong>
                 </div>
                 <button
                   type="button"
                   data-testid={`recover-suspended-sale-${row.suspended_sale_id}`}
                   disabled={mutating || row.status !== "suspended"}
-                  className="mt-3 w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                  className="mt-3 w-full rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => requestRecovery(row.suspended_sale_id)}
                 >
                   {row.status === "suspended" ? "Recuperar venda" : "Venda em uso"}
@@ -136,8 +136,8 @@ export function SuspendedSalesPanel({
         </div>
 
         {pendingRecovery ? (
-          <div className="border-t border-amber-200 bg-amber-50 px-5 py-4">
-            <p className="text-sm font-medium text-amber-950">
+          <div className="border-t border-warning/30 bg-warning/10 px-5 py-4">
+            <p className="text-sm font-medium text-amber-200">
               O carrinho atual tem itens. Substituí-lo pelo snapshot recuperado?
             </p>
             <p className="mt-1 text-xs text-amber-800">
@@ -146,7 +146,7 @@ export function SuspendedSalesPanel({
             <div className="mt-3 flex justify-end gap-2">
               <button
                 type="button"
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="rounded-lg border border-input bg-card px-3 py-2 text-sm"
                 onClick={() => setPendingRecovery(null)}
               >
                 Manter carrinho
@@ -168,12 +168,12 @@ export function SuspendedSalesPanel({
           </div>
         ) : null}
 
-        <div className="flex justify-end border-t border-slate-200 px-5 py-3">
+        <div className="flex justify-end border-t border-border px-5 py-3">
           <button
             type="button"
             data-testid="refresh-suspended-sales"
             disabled={loading || mutating}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold disabled:opacity-50"
+            className="rounded-lg border border-input px-3 py-2 text-sm font-semibold disabled:opacity-50"
             onClick={() => void onRefresh()}
           >
             Atualizar lista

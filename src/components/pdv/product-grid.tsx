@@ -13,7 +13,7 @@ type ProductGridProps = {
 export function ProductGrid({ products, onAdd, stock, cartQty }: ProductGridProps) {
   if (products.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-slate-500">
+      <p className="rounded-lg border border-dashed border-border p-6 text-center text-muted-foreground">
         Nenhum produto encontrado.
       </p>
     );
@@ -29,15 +29,15 @@ export function ProductGrid({ products, onAdd, stock, cartQty }: ProductGridProp
             type="button"
             data-testid={`product-sku-${product.sku}`}
             onClick={() => onAdd(product)}
-            className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:border-indigo-500 hover:shadow-md"
+            className="group rounded-2xl border border-border bg-background/30 p-4 text-left shadow-sm transition-all hover:border-primary/50 hover:bg-background/50 hover:shadow-md hover:shadow-primary/10"
           >
             <div className="flex items-start justify-between gap-3">
-              <div className="rounded bg-indigo-50 px-2 py-1 text-xs font-bold uppercase tracking-wider text-indigo-600">
+              <div className="rounded border border-primary/30 bg-primary/10 px-2 py-1 text-xs font-bold uppercase tracking-wider text-primary">
                 {product.sku}
               </div>
-              <div className="text-lg font-bold text-slate-800">{formatBRL(product.unit_price)}</div>
+              <div className="text-lg font-bold text-foreground tabular-nums">{formatBRL(product.unit_price)}</div>
             </div>
-            <div className="mt-3 font-semibold text-slate-700 transition-colors group-hover:text-indigo-600">
+            <div className="mt-3 font-semibold text-foreground/90 transition-colors group-hover:text-primary">
               {product.name}
             </div>
             <div className="mt-4 flex items-center justify-between gap-3">
@@ -47,7 +47,7 @@ export function ProductGrid({ products, onAdd, stock, cartQty }: ProductGridProp
                 stockQty={stock?.[product.id]}
                 cartQty={inCart}
               />
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary transition group-hover:bg-primary group-hover:text-primary-foreground">
                 <Plus size={16} aria-hidden="true" />
               </span>
             </div>

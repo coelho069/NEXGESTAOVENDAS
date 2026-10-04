@@ -53,9 +53,90 @@
 }
 
 /*
- * Dark-mode token overrides are disabled until components adopt tokens
- * instead of hardcoded bg-white / text-slate-* classes (PR #33 follow-up).
+ * PDV dark theme — alinhado ao landingTheme (#0B0F19 / #2563EB / #10B981).
+ * Escopo via `.pdv-theme` para não afetar outras rotas.
  */
+.pdv-theme {
+  --background: #0b0f19;
+  --foreground: #f1f5f9;
+  --card: rgba(30, 41, 59, 0.78);
+  --card-foreground: #f1f5f9;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --success: #10b981;
+  --success-foreground: #ffffff;
+  --warning: #f59e0b;
+  --warning-foreground: #1c1917;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --muted-foreground: #94a3b8;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.1);
+  --ring: #2563eb;
+  --radius-card: 1rem;
+  --radius-modal: 1.5rem;
+  color-scheme: dark;
+}
+
+@layer components {
+  .pdv-panel {
+    @apply rounded-2xl border border-border bg-card p-4 shadow-sm backdrop-blur-md;
+  }
+  .pdv-glass-bar {
+    @apply rounded-xl border border-border bg-card p-3 backdrop-blur-md;
+  }
+  .pdv-input {
+    @apply w-full rounded-xl border border-input bg-card px-3 py-2 text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary;
+  }
+  .pdv-btn-ghost {
+    @apply rounded-xl border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground transition hover:border-primary hover:bg-card;
+  }
+  .pdv-btn-primary {
+    @apply rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .pdv-btn-success {
+    @apply rounded-2xl bg-success font-bold text-success-foreground shadow-lg shadow-emerald-900/30 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none;
+  }
+  .pdv-modal-overlay {
+    @apply absolute inset-0 bg-black/65 backdrop-blur-sm;
+  }
+  .pdv-modal-shell {
+    @apply relative w-full rounded-xl border border-border bg-card p-5 shadow-2xl backdrop-blur-xl;
+  }
+  .pdv-alert-warning {
+    @apply rounded-lg border border-warning bg-warning px-4 py-3 text-sm text-amber-200;
+    background-color: color-mix(in srgb, var(--warning) 12%, transparent);
+    border-color: color-mix(in srgb, var(--warning) 35%, transparent);
+  }
+  .pdv-alert-error {
+    @apply rounded-lg border border-destructive px-4 py-3 text-sm text-red-200;
+    background-color: color-mix(in srgb, var(--destructive) 12%, transparent);
+    border-color: color-mix(in srgb, var(--destructive) 35%, transparent);
+  }
+  .pdv-alert-info {
+    @apply rounded-lg border border-border bg-card px-4 py-3 text-sm text-foreground;
+  }
+  .pdv-line-selected {
+    @apply rounded-lg border border-success p-3;
+    background-color: color-mix(in srgb, var(--success) 12%, transparent);
+  }
+  .pdv-line-default {
+    @apply rounded-lg border border-border bg-card p-3 transition hover:border-primary;
+  }
+  .pdv-kbd {
+    @apply rounded border border-border bg-card px-1.5 py-0.5 font-mono text-[10px] font-semibold text-foreground;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pdv-theme *,
+  .pdv-theme *::before,
+  .pdv-theme *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
 @layer base {
   body {

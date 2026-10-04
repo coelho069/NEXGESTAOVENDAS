@@ -36,36 +36,35 @@ export function ProductSearch({
   };
 
   return (
-    <section
-      data-testid="pdv-search"
-      className="flex min-h-0 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-    >
+    <section data-testid="pdv-search" className="pdv-panel flex min-h-0 flex-col">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Produtos</h2>
-          <p className="text-xs text-slate-500">F2 · Enter adiciona o 1º resultado · scanner HID</p>
+          <h2 className="text-lg font-semibold text-foreground">Produtos</h2>
+          <p className="text-xs text-muted-foreground">F2 · Enter adiciona o 1º resultado · scanner HID</p>
         </div>
         {loading ? (
           <span
             data-testid="pdv-search-loading"
-            className="rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700"
+            className="rounded-full border border-warning/30 bg-warning/10 px-2 py-1 text-xs font-medium text-amber-200"
           >
             Atualizando…
           </span>
         ) : (
-          <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-500">Catálogo</span>
+          <span className="rounded-full border border-border bg-background/40 px-2 py-1 text-xs text-muted-foreground">
+            Catálogo
+          </span>
         )}
       </div>
       <div className="relative mt-3">
         <Search
           size={18}
           aria-hidden="true"
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
         />
         <input
           id="pdv-search-input"
           data-testid="pdv-search-input"
-          className="w-full rounded-xl border border-slate-200 py-2 pl-10 pr-4 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+          className="pdv-input py-2.5 pl-10 pr-4"
           placeholder="Produto, SKU ou código de barras"
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}

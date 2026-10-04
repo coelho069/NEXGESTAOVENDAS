@@ -37,14 +37,14 @@ export function QtyDialog({
 
   return (
     <div data-testid="qty-dialog" className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button type="button" className="absolute inset-0 bg-slate-900/40" aria-label="Fechar quantidade" onClick={onClose} />
-      <div className="relative w-full max-w-sm rounded-xl bg-white p-5 shadow-xl">
-        <h2 className="text-lg font-semibold">Editar quantidade (F4)</h2>
-        <p className="mt-1 truncate text-sm text-slate-500">{productName ?? "Nenhum item selecionado"}</p>
+      <button type="button" className="pdv-modal-overlay" aria-label="Fechar quantidade" onClick={onClose} />
+      <div className="pdv-modal-shell max-w-sm">
+        <h2 className="text-lg font-semibold text-foreground">Editar quantidade (F4)</h2>
+        <p className="mt-1 truncate text-sm text-muted-foreground">{productName ?? "Nenhum item selecionado"}</p>
         <input
           ref={inputRef}
           data-testid="qty-input"
-          className="mt-4 w-full rounded-lg border border-slate-300 px-3 py-2 tabular-nums"
+          className="pdv-input mt-4 tabular-nums"
           inputMode="numeric"
           value={value}
           onChange={(event) => onChange(event.target.value)}
@@ -53,15 +53,10 @@ export function QtyDialog({
           }}
         />
         {lineTotal ? (
-          <p className="mt-2 text-sm text-slate-600 tabular-nums">Subtotal da linha: {formatBRL(lineTotal)}</p>
+          <p className="mt-2 text-sm text-muted-foreground tabular-nums">Subtotal da linha: {formatBRL(lineTotal)}</p>
         ) : null}
-        {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
-        <button
-          type="button"
-          data-testid="qty-confirm"
-          onClick={onConfirm}
-          className="mt-4 min-h-[44px] w-full rounded-lg bg-indigo-600 px-4 py-2 font-semibold text-white transition hover:bg-indigo-700"
-        >
+        {error ? <p className="mt-2 text-sm text-red-400">{error}</p> : null}
+        <button type="button" data-testid="qty-confirm" onClick={onConfirm} className="pdv-btn-primary mt-4 min-h-[44px] w-full">
           Confirmar
         </button>
       </div>

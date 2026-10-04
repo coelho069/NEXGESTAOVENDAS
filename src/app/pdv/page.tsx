@@ -1,5 +1,20 @@
+import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import { SubscriptionAccessFrame } from "@/components/auth/subscription-access-frame";
 import { PdvScreen } from "@/components/pdv/pdv-screen";
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-inter",
+});
+
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  display: "swap",
+  variable: "--font-jakarta",
+});
 import { getAuthedContext } from "@/lib/auth/session";
 import { fixtureStoreOptions, pdvFixturesEnabled } from "@/lib/pdv/fixtures";
 import type { MemberRole } from "@/lib/domain/rbac";
@@ -36,7 +51,7 @@ export default async function PdvPage({
   const role = auth?.role ?? (fixtureMode ? fixtureRole : null);
 
   return (
-    <main>
+    <main className={`pdv-theme ${inter.variable} ${jakarta.variable}`}>
       <SubscriptionAccessFrame orgId={auth?.orgId ?? null} role={role} skip={fixtureMode}>
         <PdvScreen stores={stores} initialStoreId={initialStoreId} role={role} />
       </SubscriptionAccessFrame>

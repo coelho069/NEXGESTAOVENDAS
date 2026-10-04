@@ -330,18 +330,20 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
   }, modalOpen);
 
   return (
-    <div className="flex min-h-screen bg-slate-50 text-slate-900">
+    <div className="flex min-h-screen bg-background text-foreground">
       <PdvSidebar storeId={storeId} onOpenSalesHistory={openSalesHistory} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col gap-4 overflow-y-auto p-4 lg:p-6">
           <header className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 font-bold text-white lg:hidden">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground lg:hidden">
                 P
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">Vendas</h1>
-                <p className="text-sm text-slate-500">PDV local-first · scanner HID e recibo</p>
+                <h1 className="text-2xl font-bold tracking-tight text-foreground" style={{ fontFamily: "var(--font-jakarta), system-ui, sans-serif" }}>
+                  Vendas
+                </h1>
+                <p className="text-sm text-muted-foreground">PDV local-first · scanner HID e recibo</p>
               </div>
             </div>
             <SyncStatusBadge
@@ -353,14 +355,14 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             />
           </header>
 
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
-            <label className="text-sm font-medium text-slate-700" htmlFor="store">
+          <div className="pdv-glass-bar flex flex-wrap items-center gap-3">
+            <label className="text-sm font-medium text-foreground" htmlFor="store">
               Loja
             </label>
             <StoreSelect
               id="store"
               testId="store-select"
-              className="rounded-lg border border-slate-300 px-3 py-2"
+              className="pdv-input w-auto min-w-[12rem]"
               stores={stores}
               value={storeId}
               disabled={Boolean(sale.checkoutAttemptId) || sale.checkoutInFlight || sale.lines.length > 0}
@@ -373,16 +375,16 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
                 setContextMessage(null);
               }}
             />
-            <span data-testid="role-display" className="text-sm text-slate-500">
+            <span data-testid="role-display" className="text-sm text-muted-foreground">
               Papel: {roleLabel(displayRole)}
             </span>
             {fromCatalog ? (
-              <span className="text-xs text-slate-500">Catálogo local</span>
+              <span className="text-xs text-muted-foreground">Catálogo local</span>
             ) : null}
           </div>
 
           {!hasStoreContext ? (
-            <div data-testid="store-context-denied" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div data-testid="store-context-denied" className="pdv-alert-warning">
               Selecione uma loja autorizada antes de adicionar produtos ou fechar uma venda.
             </div>
           ) : null}
@@ -390,23 +392,19 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
           <CashRegisterPanel storeId={storeId} cash={cash} />
 
           {contextMessage ? (
-            <div data-testid="store-context-message" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div data-testid="store-context-message" className="pdv-alert-warning">
               {contextMessage}
             </div>
           ) : null}
 
           {sessionEnded ? (
-            <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <div className="pdv-alert-warning">
               Sessão encerrada. Faça login novamente.
             </div>
           ) : null}
 
           {quotaExceeded ? (
-            <div
-              role="alert"
-              data-testid="quota-exceeded"
-              className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900"
-            >
+            <div role="alert" data-testid="quota-exceeded" className="pdv-alert-error">
               Armazenamento local cheio. Libere espaço antes de fechar novas vendas.
             </div>
           ) : null}
@@ -414,27 +412,19 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
           <ConflictBanner conflicts={conflicts} onReconcile={reconcileConflict} />
 
           {draftReason ? (
-            <div
-              role="status"
-              data-testid="sale-draft-banner"
-              className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
-            >
+            <div role="status" data-testid="sale-draft-banner" className="pdv-alert-warning">
               Rascunho local: {draftReason}
             </div>
           ) : null}
 
           {sale.message ? (
-            <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800">
+            <div className="pdv-alert-info">
               {sale.message}
             </div>
           ) : null}
 
           {error ? (
-            <div
-              role="alert"
-              data-testid="catalog-error"
-              className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
-            >
+            <div role="alert" data-testid="catalog-error" className="pdv-alert-error">
               {error}
             </div>
           ) : null}

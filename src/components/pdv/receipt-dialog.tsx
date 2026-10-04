@@ -16,22 +16,22 @@ export function ReceiptDialog({ open, receipt, onClose, onReconcile }: ReceiptDi
 
   return (
     <div data-testid="receipt" className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button type="button" className="absolute inset-0 bg-slate-900/40" aria-label="Fechar recibo" onClick={onClose} />
-      <div className="relative flex h-[90vh] w-full max-w-2xl flex-col rounded-xl bg-white p-4 shadow-xl">
+      <button type="button" className="pdv-modal-overlay" aria-label="Fechar recibo" onClick={onClose} />
+      <div className="relative flex h-[90vh] w-full max-w-2xl flex-col rounded-xl bg-card p-4 shadow-xl">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">Recibo</h2>
-            <p data-testid="receipt-sync-status" className="text-sm text-slate-600">
+            <p data-testid="receipt-sync-status" className="text-sm text-muted-foreground">
               Sincronização: {receipt.syncStatus} · {receipt.saleStatus}
             </p>
-            <p data-testid="receipt-fiscal-status" className="text-sm text-slate-600">
+            <p data-testid="receipt-fiscal-status" className="text-sm text-muted-foreground">
               Fiscal: {fiscalStatusLabel(receipt.fiscalStatus ?? "pending")}
             </p>
           </div>
           <button
             type="button"
             data-testid="receipt-close"
-            className="relative z-10 text-sm text-slate-500"
+            className="relative z-10 text-sm text-muted-foreground"
             onClick={onClose}
           >
             Esc
@@ -41,7 +41,7 @@ export function ReceiptDialog({ open, receipt, onClose, onReconcile }: ReceiptDi
           <div
             role="alert"
             data-testid="payment-unknown"
-            className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+            className="mb-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-amber-200"
           >
             <p className="font-semibold">Pagamento desconhecido</p>
             <p className="mt-1">
@@ -67,7 +67,7 @@ export function ReceiptDialog({ open, receipt, onClose, onReconcile }: ReceiptDi
             ) : null}
           </div>
         ) : null}
-        <iframe title="Recibo HTML" className="min-h-0 flex-1 rounded-lg border border-slate-200" srcDoc={html} />
+        <iframe title="Recibo HTML" className="min-h-0 flex-1 rounded-lg border border-border" srcDoc={html} />
       </div>
     </div>
   );

@@ -29,14 +29,14 @@ export function SyncStatusBadge({
     : resolveSyncBadge(online, pendingCount, { conflictCount, failed: failedCount > 0 });
   const tone =
     status === "synced"
-      ? "bg-emerald-100 text-emerald-800"
+      ? "border border-success/30 bg-success/15 text-emerald-200"
       : status === "offline"
-        ? "bg-slate-200 text-slate-700"
+        ? "border border-border bg-background/50 text-muted-foreground"
         : status === "processing"
-          ? "bg-blue-100 text-blue-800"
+          ? "border border-primary/30 bg-primary/15 text-blue-200"
           : status === "conflict"
-            ? "bg-red-100 text-red-800"
-            : "bg-amber-100 text-amber-800";
+            ? "border border-destructive/30 bg-destructive/15 text-red-200"
+            : "border border-warning/30 bg-warning/15 text-amber-200";
 
   return (
     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tone}`}>

@@ -11,6 +11,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+import { BrandMark } from "@/components/landing/components/BrandMark";
 import { endClientSession } from "@/lib/offline/end-session";
 
 type NavItem = {
@@ -28,8 +29,8 @@ const navItems: NavItem[] = [
 
 function navItemClass(active: boolean): string {
   return active
-    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
-    : "text-slate-500 hover:bg-slate-100 hover:text-slate-900";
+    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
+    : "text-muted-foreground hover:bg-white/5 hover:text-foreground";
 }
 
 function storeHref(path: string, storeId: string | null): string {
@@ -44,12 +45,15 @@ export function PdvSidebar({
   onOpenSalesHistory?: () => void;
 }) {
   return (
-    <aside className="hidden w-64 shrink-0 flex-col gap-8 border-r border-slate-200 bg-white p-4 lg:flex">
-      <Link href={storeHref("/pdv", storeId)} className="flex items-center gap-2 px-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 font-bold text-white">
-          P
+    <aside className="hidden w-64 shrink-0 flex-col gap-8 border-r border-border bg-card/50 p-4 backdrop-blur-xl lg:flex">
+      <Link href={storeHref("/pdv", storeId)} className="flex items-center gap-2.5 px-2">
+        <BrandMark size={32} gradientId="nx-pdv-sidebar-grad" />
+        <span
+          className="text-xl font-bold tracking-tight text-foreground"
+          style={{ fontFamily: "var(--font-jakarta), system-ui, sans-serif" }}
+        >
+          NexPDV
         </span>
-        <span className="text-xl font-bold tracking-tight text-slate-900">NexPDV</span>
       </Link>
 
       <nav aria-label="Navegação principal" className="flex flex-1 flex-col gap-2">
@@ -69,7 +73,7 @@ export function PdvSidebar({
           data-testid="sidebar-sales-history"
           onClick={onOpenSalesHistory}
           disabled={!onOpenSalesHistory}
-          className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:text-slate-400"
+          className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-muted-foreground transition-all hover:bg-white/5 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
           title="Consultar vendas da loja"
         >
           <History size={20} aria-hidden="true" />
@@ -77,11 +81,11 @@ export function PdvSidebar({
         </button>
       </nav>
 
-      <div className="flex flex-col gap-2 border-t border-slate-100 pt-4">
+      <div className="flex flex-col gap-2 border-t border-border pt-4">
         <button
           type="button"
           disabled
-          className="flex w-full cursor-not-allowed items-center gap-3 rounded-lg px-4 py-3 text-left text-slate-400"
+          className="flex w-full cursor-not-allowed items-center gap-3 rounded-lg px-4 py-3 text-left text-muted-foreground/60"
           title="Configurações ainda não disponíveis"
         >
           <Settings size={20} aria-hidden="true" />
@@ -90,7 +94,7 @@ export function PdvSidebar({
         <button
           type="button"
           onClick={() => void endClientSession()}
-          className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-red-500 transition-all hover:bg-red-50"
+          className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-destructive transition-all hover:bg-destructive/10"
         >
           <LogOut size={20} aria-hidden="true" />
           <span className="font-medium">Sair</span>
