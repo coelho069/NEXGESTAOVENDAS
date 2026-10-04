@@ -63,7 +63,7 @@ export function RefundPolicyPage({
             </span>
           </Link>
           <Link
-            href="/#planos"
+            href="/planos"
             className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
           >
             <ArrowLeft size={16} aria-hidden="true" />
@@ -317,7 +317,7 @@ export function RefundPolicyPage({
               <Link href="/" className="text-slate-600 transition-colors hover:text-slate-900">
                 Início
               </Link>
-              <Link href="/#planos" className="text-slate-600 transition-colors hover:text-slate-900">
+              <Link href="/planos" className="text-slate-600 transition-colors hover:text-slate-900">
                 Planos
               </Link>
               <Link href="/login" className="text-slate-600 transition-colors hover:text-slate-900">

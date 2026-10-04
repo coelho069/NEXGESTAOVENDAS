@@ -253,7 +253,7 @@ export function PaymentConfirmationScreen({ variant, query, loginHref }: Props) 
 
             <div className="mt-6 flex flex-col gap-3">
               <Link
-                href="/#planos"
+                href="/planos"
                 className="inline-flex w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
               >
                 Tentar novamente
