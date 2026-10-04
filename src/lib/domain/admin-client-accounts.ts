@@ -29,16 +29,16 @@ export const CLIENT_ACCOUNT_STATUSES = [
 export type ClientAccountStatus = (typeof CLIENT_ACCOUNT_STATUSES)[number];
 
 export const CLIENT_ACCOUNT_STATUS_LABELS: Record<ClientAccountStatus, string> = {
-  created: "Conta criada",
-  invite_pending: "Convite pendente",
-  invite_sent: "Convite enviado",
-  invite_expired: "Convite expirado",
-  activated: "Conta ativada",
+  created: "Conta provisionada",
+  invite_pending: "Acesso pendente",
+  invite_sent: "Acesso enviado",
+  invite_expired: "Link expirado",
+  activated: "Senha definida",
   invite_failed: "Falha no envio",
   suspended: "Conta suspensa",
 };
 
-/** Statuses whose e-mail delivery state is still actionable by an admin. */
+/** Statuses whose access e-mail can be re-sent by an admin. */
 export const RESENDABLE_CLIENT_ACCOUNT_STATUSES: readonly ClientAccountStatus[] = [
   "created",
   "invite_pending",
@@ -136,6 +136,25 @@ export function describeClientAccountState(input: {
 
 export const INVITE_EXPIRY_WARNING_MS = 24 * 60 * 60 * 1000; // warn when < 24h remain
 
+export const CLIENT_ACCOUNT_EVENT_LABELS: Record<string, string> = {
+  account_created: "Conta provisionada",
+  invite_sent: "E-mail de acesso enviado",
+  invite_resent: "E-mail de acesso reenviado",
+  invite_failed: "Falha no envio do e-mail",
+  account_activated: "Senha definida / conta ativada",
+  account_suspended: "Acesso suspenso",
+  account_reactivated: "Acesso reativado",
+};
+
+export type AdminClientAccountEventRecord = {
+  id: string;
+  clientAccountId: string;
+  eventType: string;
+  eventLabel: string;
+  errorCode: string;
+  createdAt: string;
+};
+
 export type AdminClientAccountRecord = {
   id: string;
   userId: string | null;
@@ -185,6 +204,7 @@ export type AdminClientAccountOrganizationOption = {
 
 export type AdminClientAccountPayload = {
   records: AdminClientAccountRecord[];
+  eventsByAccountId: Record<string, AdminClientAccountEventRecord[]>;
   overview: AdminClientAccountOverview;
   plans: AdminPlanRecord[];
   organizations: AdminClientAccountOrganizationOption[];

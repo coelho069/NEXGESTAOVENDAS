@@ -15,6 +15,8 @@ import {
   normalizeAccountEmail,
   type AdminClientAccountFilters,
   type AdminClientAccountOrganizationOption,
+  CLIENT_ACCOUNT_EVENT_LABELS,
+  type AdminClientAccountEventRecord,
   type AdminClientAccountPayload,
   type AdminClientAccountRecord,
   type ClientAccountStatus,
@@ -83,7 +85,7 @@ export async function loadAdminClientAccounts(
   try {
     const supabase = await createClient();
 
-    const [accountsResult, organizationsResult, subscriptionsResult, plansResult] =
+    const [accountsResult, eventsResult, organizationsResult, subscriptionsResult, plansResult] =
       await Promise.all([
         readAllRows<AccountRow>(async (from, to) =>
           supabase
@@ -92,6 +94,19 @@ export async function loadAdminClientAccounts(
               "id, user_id, org_id, subscription_id, email, full_name, company_name, status, last_error, invite_sent_at, invite_expires_at, activated_at, suspended_at, created_at, updated_at"
             )
             .order("id")
+            .range(from, to)
+        ),
+        readAllRows<{
+          id: string;
+          client_account_id: string;
+          event_type: string;
+          error_code: string;
+          created_at: string;
+        }>(async (from, to) =>
+          supabase
+            .from("client_account_events")
+            .select("id, client_account_id, event_type, error_code, created_at")
+            .order("created_at", { ascending: false })
             .range(from, to)
         ),
         readAllRows<{ id: string; name: string }>(async (from, to) =>
@@ -128,11 +143,27 @@ export async function loadAdminClientAccounts(
 
     if (
       accountsResult.error ||
+      eventsResult.error ||
       organizationsResult.error ||
       subscriptionsResult.error ||
       plansResult.error
     ) {
       return { data: null, error: DATA_QUERY_ERROR };
+    }
+
+    const eventsByAccountId: Record<string, AdminClientAccountEventRecord[]> = {};
+    for (const event of eventsResult.data) {
+      const mapped: AdminClientAccountEventRecord = {
+        id: event.id,
+        clientAccountId: event.client_account_id,
+        eventType: event.event_type,
+        eventLabel: CLIENT_ACCOUNT_EVENT_LABELS[event.event_type] ?? event.event_type,
+        errorCode: event.error_code,
+        createdAt: event.created_at,
+      };
+      const bucket = eventsByAccountId[event.client_account_id] ?? [];
+      bucket.push(mapped);
+      eventsByAccountId[event.client_account_id] = bucket;
     }
 
     const orgNames = new Map(organizationsResult.data.map((org) => [org.id, org.name]));
@@ -211,6 +242,7 @@ export async function loadAdminClientAccounts(
     return {
       data: {
         records: filtered,
+        eventsByAccountId,
         overview: buildAdminClientAccountOverview(filtered),
         plans,
         organizations,

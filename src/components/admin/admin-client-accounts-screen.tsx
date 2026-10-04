@@ -146,8 +146,9 @@ export function AdminClientAccountsScreen({
             Contas de clientes
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Crie contas de acesso para clientes assinantes e envie o convite de ativação por e-mail.
-            O estado da assinatura é apenas consultado — nunca alterado por esta tela.
+            Após a confirmação do pagamento, o acesso é provisionado automaticamente e o cliente
+            recebe um e-mail com link seguro para definir a senha. Use esta tela para consultar o
+            status, reenviar o acesso quando necessário ou provisionar manualmente em casos excepcionais.
           </p>
         </div>
         <Link href="/admin/assinaturas" className="pdv-btn-ghost inline-flex justify-center">
@@ -188,7 +189,7 @@ export function AdminClientAccountsScreen({
             tone="indigo"
           />
           <AdminMetricCard
-            label="Convites pendentes"
+            label="Acessos pendentes"
             value={String(data.overview.pendingInvites)}
             caption={`Expirando em 24h: ${data.overview.expiringInvites}`}
             icon={Mail}
@@ -225,7 +226,13 @@ export function AdminClientAccountsScreen({
       {data ? (
         <>
           <CreateAccountForm organizations={data.organizations} pending={pending} onCreate={runAction} />
-          <AccountsTable data={data} filters={filters} pending={pending} onAction={runAction} />
+          <AccountsTable
+            data={data}
+            eventsByAccountId={data.eventsByAccountId}
+            filters={filters}
+            pending={pending}
+            onAction={runAction}
+          />
         </>
       ) : !error ? (
         <div className="pdv-panel py-12 text-center text-sm text-muted-foreground">
@@ -255,12 +262,12 @@ function CreateAccountForm({
       <div className="flex items-center gap-2">
         <UserPlus size={18} className="text-primary" aria-hidden="true" />
         <h2 id="create-account-heading" className="font-semibold text-foreground">
-          Criar conta e enviar convite
+          Provisionamento manual (exceção)
         </h2>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        O cliente recebe um link seguro para definir a própria senha. Nenhuma senha é gerada ou
-        enviada por e-mail.
+        O fluxo normal é automático após a compra. Use apenas quando o cliente não foi provisionado
+        pelo webhook. O e-mail contém um link seguro para definir a senha — nunca uma senha em texto.
       </p>
 
       <form
@@ -279,7 +286,7 @@ function CreateAccountForm({
                 subscription_id: subscriptionId ? subscriptionId : undefined,
                 send_invite: true,
               }),
-            "Conta criada e convite enviado."
+            "Conta provisionada e e-mail de acesso enviado."
           );
         }}
       >
@@ -356,7 +363,7 @@ function CreateAccountForm({
 
         <div className="flex items-end">
           <button type="submit" disabled={pending} className="pdv-btn-primary w-full">
-            {pending ? "Processando..." : "Criar conta e enviar convite"}
+            {pending ? "Processando..." : "Provisionar e enviar acesso"}
           </button>
         </div>
       </form>
@@ -376,15 +383,18 @@ function CreateAccountForm({
 
 function AccountsTable({
   data,
+  eventsByAccountId,
   filters,
   pending,
   onAction,
 }: {
   data: AdminClientAccountPayload;
+  eventsByAccountId: AdminClientAccountPayload["eventsByAccountId"];
   filters: AdminClientAccountFilters;
   pending: boolean;
   onAction: RunAction;
 }) {
+  const [expandedAccountId, setExpandedAccountId] = useState<string | null>(null);
   const searchParams = new URLSearchParams();
   if (filters.query) searchParams.set("query", filters.query);
   if (filters.status) searchParams.set("status", filters.status);
@@ -470,7 +480,7 @@ function AccountsTable({
                 <th className="px-4 py-3 font-semibold">Conta</th>
                 <th className="px-4 py-3 font-semibold">Assinatura</th>
                 <th className="px-4 py-3 font-semibold">Criada</th>
-                <th className="px-4 py-3 font-semibold">Convite</th>
+                <th className="px-4 py-3 font-semibold">E-mail de acesso</th>
                 <th className="px-4 py-3 font-semibold">Ativação</th>
                 <th className="px-5 py-3 font-semibold">Ações</th>
               </tr>
@@ -482,7 +492,10 @@ function AccountsTable({
                   subscriptionStatus: record.subscriptionStatus,
                   inviteExpiresAt: record.inviteExpiresAt,
                 });
+                const events = eventsByAccountId[record.id] ?? [];
+                const expanded = expandedAccountId === record.id;
                 return (
+                  <>
                   <tr key={record.id} className="border-t border-border align-middle hover:bg-white/5">
                     <td className="px-5 py-4">
                       <p className="font-semibold text-foreground">{record.fullName}</p>
@@ -532,7 +545,7 @@ function AccountsTable({
                             className="pdv-btn-ghost inline-flex items-center gap-1.5 text-xs"
                             onClick={() => {
                               const confirmed = window.confirm(
-                                `Reenviar o convite de ativação para ${record.email}? O link anterior deixa de funcionar.`
+                                `Reenviar o e-mail de acesso para ${record.email}? O link anterior deixa de funcionar.`
                               );
                               if (!confirmed) return;
                               onAction(
@@ -540,12 +553,12 @@ function AccountsTable({
                                   resendAdminClientAccountInviteAction({
                                     client_account_id: record.id,
                                   }),
-                                "Convite reenviado."
+                                "E-mail de acesso reenviado."
                               );
                             }}
                           >
                             <RefreshCw size={13} aria-hidden="true" />
-                            Reenviar convite
+                            Reenviar acesso
                           </button>
                         ) : null}
 
@@ -607,9 +620,39 @@ function AccountsTable({
                             Ver assinatura
                           </Link>
                         ) : null}
+
+                        {events.length > 0 ? (
+                          <button
+                            type="button"
+                            className="pdv-btn-ghost inline-flex items-center gap-1.5 text-xs"
+                            onClick={() =>
+                              setExpandedAccountId(expanded ? null : record.id)
+                            }
+                          >
+                            {expanded ? "Ocultar histórico" : `Histórico (${events.length})`}
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
+                  {expanded ? (
+                    <tr key={`${record.id}-events`} className="border-t border-border bg-background/30">
+                      <td colSpan={9} className="px-5 py-4">
+                        <ul className="space-y-2 text-xs text-muted-foreground">
+                          {events.map((event) => (
+                            <li key={event.id} className="flex flex-wrap items-center gap-2">
+                              <span className="font-semibold text-foreground">{event.eventLabel}</span>
+                              <span className="tabular-nums">{formatAdminDate(event.createdAt)}</span>
+                              {event.errorCode ? (
+                                <span className="text-red-300">({event.errorCode})</span>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </td>
+                    </tr>
+                  ) : null}
+                  </>
                 );
               })}
             </tbody>

@@ -164,7 +164,7 @@ describe("applyMercadoPagoCheckoutProWebhookEvent", () => {
     expect(mocks.sendTelegram).toHaveBeenCalledOnce();
     expect(result.access_delivery).toMatchObject({
       login: "cliente@exemplo.com",
-      credential: "temp_password",
+      credential: "activation_link",
       access_email_sent: true,
       verified_user_created: true,
     });

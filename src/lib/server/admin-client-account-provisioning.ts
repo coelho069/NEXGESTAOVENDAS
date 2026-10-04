@@ -22,6 +22,7 @@ import {
   normalizeAccountEmail,
   type ClientAccountStatus,
 } from "@/lib/domain/admin-client-accounts";
+import { ACCESS_LINK_TTL_MS, generateAccessLink } from "@/lib/server/access-link";
 import { getGmailInviteConfig, sendGmailInvite } from "@/lib/server/gmail-invite-sender";
 import type {
   CreateAdminClientAccountInput,
@@ -35,8 +36,8 @@ import {
 
 const logger = createLogger({ service: "nexgestaovendas", component: "client-account-provisioning" });
 
-/** Supabase default invite lifetime is 24h; mirrored here for the UI countdown. */
-export const CLIENT_ACCOUNT_INVITE_TTL_MS = 24 * 60 * 60 * 1000;
+/** Supabase default access-link lifetime is 24h; mirrored here for the UI countdown. */
+export const CLIENT_ACCOUNT_INVITE_TTL_MS = ACCESS_LINK_TTL_MS;
 
 export type ClientAccountError =
   | "forbidden"
@@ -242,27 +243,13 @@ async function ensureTenantAccess(
   return { ok: true };
 }
 
-/**
- * Generates a Supabase admin invite link.
- *
- * `type: "invite"` makes Supabase create the user (unconfirmed, no password)
- * and return a single-use `action_link` bound to `redirectTo`. The link is the
- * only credential material produced here and it is returned to the caller
- * solely to be e-mailed; it is never persisted and never logged.
- */
 async function generateInviteLink(
   admin: SupabaseClient<Database>,
   input: { email: string; redirectTo: string }
 ): Promise<{ ok: true; actionLink: string } | { ok: false; error: ClientAccountError }> {
-  const { data, error } = await admin.auth.admin.generateLink({
-    type: "invite",
-    email: input.email,
-    options: { redirectTo: input.redirectTo },
-  });
-  if (error || !data?.properties?.action_link) {
-    return { ok: false, error: "invite_generation_failed" };
-  }
-  return { ok: true, actionLink: data.properties.action_link };
+  const link = await generateAccessLink(admin, input);
+  if (!link.ok) return { ok: false, error: "invite_generation_failed" };
+  return { ok: true, actionLink: link.actionLink };
 }
 
 async function validateSubscriptionLink(

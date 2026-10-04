@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   getEmailConfig: vi.fn(),
   sendEmail: vi.fn(),
+  generateAccessLink: vi.fn(),
+  syncClientAccount: vi.fn(),
 }));
 
 vi.mock("@/lib/server/public-checkout-sessions", () => ({
@@ -18,6 +20,17 @@ vi.mock("@/lib/server/public-checkout-sessions", () => ({
 vi.mock("@/lib/server/access-email", () => ({
   getEmailSenderConfig: mocks.getEmailConfig,
   sendAccessEmail: mocks.sendEmail,
+}));
+
+vi.mock("@/lib/server/access-link", () => ({
+  ACCESS_LINK_TTL_MS: 86_400_000,
+  generateAccessLink: mocks.generateAccessLink,
+}));
+
+vi.mock("@/lib/server/client-account-sync", () => ({
+  syncClientAccountAfterPurchase: mocks.syncClientAccount,
+  markClientAccountAccessEmailSent: vi.fn(async () => {}),
+  markClientAccountAccessEmailFailed: vi.fn(async () => {}),
 }));
 
 const MUTATION = "22222222-2222-4222-8222-222222222222";
@@ -82,11 +95,10 @@ function createAdmin(state: OnboardingState) {
           },
           error: null,
         })),
-        createUser: vi.fn(async () => {
-          state.userExists = true;
-          return { data: { user: { id: USER_ID } }, error: null };
-        }),
-        updateUserById: vi.fn(async () => ({ data: { user: { id: USER_ID } }, error: null })),
+        generateLink: vi.fn(async () => ({
+          data: { properties: { action_link: "https://example.com/auth/verify?type=invite" } },
+          error: null,
+        })),
         getUserById: vi.fn(async (id: string) => ({
           data: { user: { id } },
           error: null,
@@ -208,6 +220,21 @@ function configureMocks(state: OnboardingState) {
       ? { ok: false, error: "access_email_send_failed_status_500" }
       : { ok: true, emailId: "email-1" }
   );
+  mocks.generateAccessLink.mockImplementation(async () => {
+    state.userExists = true;
+    return {
+      ok: true,
+      actionLink: "https://example.com/auth/verify?type=invite",
+      userId: USER_ID,
+      linkType: "invite",
+    };
+  });
+  mocks.syncClientAccount.mockResolvedValue({
+    ok: true,
+    clientAccountId: "account-1",
+    created: true,
+    status: "created",
+  });
   mocks.resolve.mockImplementation(async () => ({
     ok: true,
     session: state.session,
@@ -281,6 +308,8 @@ describe("resumable visitor onboarding", () => {
     mocks.save.mockReset();
     mocks.getEmailConfig.mockReset();
     mocks.sendEmail.mockReset();
+    mocks.generateAccessLink.mockReset();
+    mocks.syncClientAccount.mockReset();
   });
 
   it("reuses the user and organization after a partial organization failure", async () => {
@@ -319,7 +348,7 @@ describe("resumable visitor onboarding", () => {
     });
 
     expect(second.status).toBe("completed");
-    expect(admin.auth.admin.createUser).toHaveBeenCalledTimes(1);
+    expect(mocks.generateAccessLink).toHaveBeenCalled();
     expect(state.session.onboarding_organization_id).toBe(ORG_ID);
     expect(state.session.onboarding_subscription_id).toBe(SUBSCRIPTION_ID);
   });
@@ -360,7 +389,7 @@ describe("resumable visitor onboarding", () => {
 
     expect(second.status).toBe("completed");
     expect(third.status).toBe("replayed");
-    expect(admin.auth.admin.createUser).toHaveBeenCalledTimes(1);
+    expect(mocks.generateAccessLink).toHaveBeenCalled();
     expect(mocks.sendEmail).toHaveBeenCalledTimes(2);
     expect(state.session.onboarding_email_sent_at).not.toBeNull();
   });
@@ -389,7 +418,7 @@ describe("resumable visitor onboarding", () => {
       error: "checkout_session_claim_busy",
       retryable: true,
     });
-    expect(admin.auth.admin.createUser).not.toHaveBeenCalled();
+    expect(mocks.generateAccessLink).not.toHaveBeenCalled();
     expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 

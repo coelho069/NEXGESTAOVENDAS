@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   GENERATED_PASSWORD_MIN_LENGTH,
-  buildAccessEmailContent,
   buildCheckoutSessionExternalReference,
+  buildTransactionalAccessEmailContent,
   buildOrganizationDisplayName,
   buildOrganizationSlug,
   generateTemporaryPassword,
@@ -71,21 +71,24 @@ describe("checkout session external reference", () => {
   });
 });
 
-describe("access email content", () => {
-  it("embeds login URL, email, password and plan with a change-password instruction", () => {
-    const content = buildAccessEmailContent({
-      appOrigin: "https://nex.example.com/",
+describe("transactional access email content", () => {
+  it("embeds activation URL and plan without passwords", () => {
+    const content = buildTransactionalAccessEmailContent({
       email: "cliente@exemplo.com",
-      temporaryPassword: "Senha-Temporal-9!",
+      fullName: "Cliente Exemplo",
       planName: "Profissional",
+      activationUrl: "https://nex.example.com/auth/v1/verify?token=abc&type=invite",
+      loginUrl: "https://nex.example.com/login",
+      expiresAt: "2026-10-06T12:00:00.000Z",
     });
-    expect(content.subject).toContain("Nex Gestão Vendas");
-    expect(content.text).toContain("https://nex.example.com/login");
+    expect(content.subject).toContain("NEXGESTAOVENDAS");
     expect(content.text).toContain("cliente@exemplo.com");
-    expect(content.text).toContain("Senha-Temporal-9!");
     expect(content.text).toContain("Profissional");
-    expect(content.text).toContain("troque esta senha");
-    expect(content.html).toContain("https://nex.example.com/login");
+    expect(content.text).toContain("https://nex.example.com/auth/v1/verify");
+    expect(content.text).toContain("https://nex.example.com/login");
+    expect(content.text).toContain("recuperação de senha");
+    expect(content.text).not.toMatch(/senha inicial/i);
+    expect(content.html).not.toContain("Senha-Temporal");
   });
 });
 

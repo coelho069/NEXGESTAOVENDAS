@@ -31,7 +31,7 @@ const logger = createLogger({
 export type PostPaymentAccessDelivery = {
   to: string;
   login: string;
-  credential: "temp_password" | "claim_link";
+  credential: "activation_link" | "claim_link";
   access_email_sent: boolean;
   verified_user_created: boolean;
   skipped?: boolean;
@@ -61,7 +61,7 @@ function buildAccessDelivery(
     return {
       to: "",
       login: "",
-      credential: "temp_password",
+      credential: "activation_link",
       access_email_sent: false,
       verified_user_created: false,
       skipped: true,
@@ -79,7 +79,7 @@ function buildAccessDelivery(
   return {
     to: login,
     login,
-    credential: "temp_password",
+    credential: "activation_link",
     access_email_sent: onboarding.accessEmailSent === true,
     verified_user_created: onboarding.verifiedUserCreated === true,
     ...(!onboarding.accessEmailSent && onboarding.status === "completed"

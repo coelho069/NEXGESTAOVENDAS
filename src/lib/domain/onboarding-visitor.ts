@@ -102,8 +102,8 @@ export function parseCheckoutSessionExternalReference(
 }
 
 // ---------------------------------------------------------------------------
-// Access email content (pt-BR) — rendered by the sender; no secrets besides the
-// temporary password, never logged, never persisted as plaintext.
+// Post-purchase access email (pt-BR). Uses a secure activation link only —
+// never embeds passwords or tokens in the message body.
 // ---------------------------------------------------------------------------
 
 export type AccessEmailContent = {
@@ -112,41 +112,115 @@ export type AccessEmailContent = {
   html: string;
 };
 
+export const POST_PURCHASE_ACCESS_EMAIL_SUBJECT =
+  "Seu acesso ao NEXGESTAOVENDAS está pronto";
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export function buildTransactionalAccessEmailContent(input: {
+  email: string;
+  fullName: string;
+  planName: string;
+  activationUrl: string;
+  loginUrl: string;
+  expiresAt: string | null;
+  supportEmail?: string | null;
+}): AccessEmailContent {
+  const url = new URL(input.activationUrl);
+  if (url.protocol !== "https:") throw new Error("activation_url_must_be_https");
+
+  const firstName =
+    input.fullName.trim().split(/\s+/)[0] ?? input.email.split("@")[0] ?? "Cliente";
+  const safeFirstName = escapeHtml(firstName);
+  const safePlan = escapeHtml(input.planName.trim());
+  const safeLink = escapeHtml(url.toString());
+  const safeLoginUrl = escapeHtml(input.loginUrl.replace(/\/+$/, ""));
+  const safeSupport = escapeHtml((input.supportEmail ?? "").trim());
+
+  const validity =
+    input.expiresAt
+      ? `Este link é válido até ${new Intl.DateTimeFormat("pt-BR", {
+          dateStyle: "long",
+          timeStyle: "short",
+          timeZone: "America/Sao_Paulo",
+        }).format(new Date(input.expiresAt))}.`
+      : "Este link tem prazo de validade. Se expirar, solicite um novo envio ao suporte.";
+
+  const text = [
+    `Olá, ${firstName}!`,
+    "",
+    "Sua compra foi confirmada e seu acesso ao NEXGESTAOVENDAS está pronto.",
+    `Plano contratado: ${input.planName}`,
+    `E-mail de login: ${input.email}`,
+    "",
+    "Para definir sua senha e entrar no sistema, acesse:",
+    url.toString(),
+    "",
+    validity,
+    "",
+    `Após definir sua senha, entre em ${input.loginUrl.replace(/\/+$/, "")} com este e-mail.`,
+    "",
+    "Se o link expirar, solicite um novo envio ao suporte ou use a recuperação de senha em /login.",
+    "",
+    "Segurança: não compartilhe este link. Ele é pessoal e permite definir sua senha.",
+    safeSupport ? `Dúvidas? Fale com o suporte: ${input.supportEmail}` : "",
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
+
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+  <body style="margin:0;padding:0;background:#0B0F19;font-family:Inter,Arial,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0B0F19;padding:32px 12px;">
+      <tr><td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#111827;border:1px solid rgba(255,255,255,0.08);border-radius:16px;">
+          <tr><td style="padding:28px 32px 8px;">
+            <p style="margin:0;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#2563EB;font-weight:700;">NEXGESTAOVENDAS</p>
+            <h1 style="margin:10px 0 0;font-size:22px;color:#F1F5F9;">Pagamento confirmado — defina sua senha</h1>
+          </td></tr>
+          <tr><td style="padding:20px 32px 32px;">
+            <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#E2E8F0;">Olá, ${safeFirstName}!</p>
+            <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#E2E8F0;">Sua compra foi confirmada. Use o botão abaixo para definir sua senha e acessar o sistema.</p>
+            <p style="margin:0 0 8px;font-size:14px;color:#94A3B8;">Plano: <strong style="color:#F1F5F9;">${safePlan}</strong></p>
+            <p style="margin:0 0 24px;font-size:14px;color:#94A3B8;">Login: <strong style="color:#F1F5F9;">${escapeHtml(input.email)}</strong></p>
+            <a href="${safeLink}" style="display:inline-block;background:#2563EB;color:#FFF;text-decoration:none;font-size:15px;font-weight:600;padding:13px 24px;border-radius:12px;">Definir senha e entrar</a>
+            <p style="margin:20px 0 0;font-size:13px;color:#94A3B8;">Link alternativo:<br /><a href="${safeLink}" style="color:#2563EB;word-break:break-all;">${safeLink}</a></p>
+            <p style="margin:20px 0 0;font-size:13px;color:#A7F3D0;">${escapeHtml(validity)}</p>
+            <p style="margin:20px 0 0;font-size:13px;color:#94A3B8;">Depois de definir sua senha, acesse <a href="${safeLoginUrl}" style="color:#2563EB;">${safeLoginUrl}</a> para entrar.</p>
+            <p style="margin:12px 0 0;font-size:13px;color:#94A3B8;">Se o link expirar, solicite um novo envio ao suporte ou use a recuperação de senha na página de login.</p>
+            <p style="margin:16px 0 0;font-size:13px;color:#FCA5A5;"><strong>Segurança:</strong> não compartilhe este link.</p>
+            ${safeSupport ? `<p style="margin:12px 0 0;font-size:13px;color:#94A3B8;">Suporte: <a href="mailto:${safeSupport}" style="color:#2563EB;">${safeSupport}</a></p>` : ""}
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body>
+</html>`;
+
+  return { subject: POST_PURCHASE_ACCESS_EMAIL_SUBJECT, html, text };
+}
+
+/** @deprecated Use buildTransactionalAccessEmailContent — passwords are never emailed. */
 export function buildAccessEmailContent(input: {
   appOrigin: string;
   email: string;
   temporaryPassword: string;
   planName: string;
 }): AccessEmailContent {
-  const loginUrl = `${input.appOrigin.replace(/\/$/, "")}/login`;
-  const subject = "Seu acesso ao Nex Gestão Vendas está pronto";
-  const text = [
-    "Bem-vindo ao Nex Gestão Vendas!",
-    "",
-    `Plano contratado: ${input.planName}`,
-    "",
-    "Acesse a plataforma:",
-    loginUrl,
-    "",
-    `E-mail (login): ${input.email}`,
-    `Senha inicial temporária: ${input.temporaryPassword}`,
-    "",
-    "IMPORTANTE: por segurança, troque esta senha no primeiro acesso.",
-    "Nunca compartilhe estes dados.",
-  ].join("\n");
-  const html = [
-    '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#0f172a;">',
-    '  <h2 style="color:#059669;">Bem-vindo ao Nex Gestão Vendas!</h2>',
-    `  <p>Plano contratado: <strong>${input.planName}</strong></p>`,
-    '  <p>Acesse a plataforma:</p>',
-    `  <p><a href="${loginUrl}">${loginUrl}</a></p>`,
-    '  <div style="border:1px solid #e2e8f0;border-radius:8px;padding:16px;background:#f8fafc;">',
-    `    <p>E-mail (login): <strong>${input.email}</strong></p>`,
-    `    <p>Senha inicial temporária: <strong>${input.temporaryPassword}</strong></p>`,
-    "  </div>",
-    '  <p style="color:#b91c1c;"><strong>IMPORTANTE:</strong> por segurança, troque esta senha no primeiro acesso.</p>',
-    "  <p style=\"color:#64748b;font-size:12px;\">Nunca compartilhe estes dados. Se você não solicitou este acesso, ignore este e-mail.</p>",
-    "</div>",
-  ].join("");
-  return { subject, text, html };
+  const origin = input.appOrigin.replace(/\/$/, "");
+  return buildTransactionalAccessEmailContent({
+    email: input.email,
+    fullName: input.email.split("@")[0] ?? "Cliente",
+    planName: input.planName,
+    activationUrl: `${origin}/ativar-conta`,
+    loginUrl: `${origin}/login`,
+    expiresAt: null,
+  });
 }

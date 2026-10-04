@@ -1,7 +1,9 @@
-# Contas de clientes assinantes e convites por e-mail (Gmail)
+# Contas de clientes assinantes e acesso automático pós-compra
 
-Fluxo administrativo para provisionar o acesso de clientes assinantes do
-NEXGESTAOVENDAS e enviar um convite de ativação por e-mail.
+Fluxo automático após confirmação de pagamento (Stripe / Mercado Pago) que
+provisiona o acesso do cliente e envia um e-mail transacional com link seguro
+para definir a senha. A tela administrativa serve para consulta, reenvio e
+casos excepcionais de provisionamento manual.
 
 - Tela: `/admin/clientes/contas` (somente `platform_admins.is_active`)
 - Ativação: `/ativar-conta` (pública — o link precisa chegar sem sessão)
@@ -107,6 +109,31 @@ pnpm db:types             # regenera src/lib/db/types.ts
 A migração é **aditiva** (duas tabelas novas, dois enums, políticas). Não altera
 tabelas existentes nem dados. Ordem: deve ser aplicada antes do deploy do código
 que lê `client_accounts`.
+
+## Clientes antigos (backfill)
+
+Compras confirmadas **antes** desta implementação podem não ter linha em
+`client_accounts`, embora já possuam `checkout_sessions.onboarding_status =
+completed`.
+
+Procedimento auditável (não executar em massa sem autorização):
+
+1. Listar sessões concluídas:
+   ```sql
+   SELECT client_mutation_id, payer_email, onboarding_user_id,
+          onboarding_organization_id, onboarding_subscription_id
+   FROM public.checkout_sessions
+   WHERE onboarding_status = 'completed'
+     AND payer_email IS NOT NULL;
+   ```
+2. Para cada linha, verificar se já existe `client_accounts` com `lower(email)`.
+3. Se ausente, provisionar via painel admin (exceção) **ou** script de serviço
+   que chame `syncClientAccountAfterPurchase` + reenvio de acesso — nunca altere
+   `subscriptions.status` nem dados de pagamento históricos.
+4. Registrar cada operação em `client_account_events`.
+
+Nunca associe assinatura a e-mail diferente do `payer_email` da sessão sem
+confirmação manual.
 
 ## Teste manual (sem conta Gmail real em CI)
 

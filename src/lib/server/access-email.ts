@@ -1,7 +1,7 @@
 /**
  * Transactional email sender (server-only). Uses Resend HTTP API via fetch —
- * no SDK dependency. Never logs subject/body (they contain the temporary
- * password). Called exclusively from the post-confirmation onboarding path.
+ * no SDK dependency. Never logs subject/body (they may contain activation
+ * links). Called from the post-confirmation onboarding path.
  */
 import { createLogger } from "@/lib/observability/logger";
 import type { AccessEmailContent } from "@/lib/domain/onboarding-visitor";

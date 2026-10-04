@@ -1,21 +1,26 @@
 /**
  * Post-confirmation onboarding for public visitor checkouts (SaaS).
- * Runs ONLY from the Mercado Pago webhook path after the provider confirms the
- * subscription. Uses the checkout-session claim/lease and checkpoint RPCs to
- * prevent concurrent provisioning and resume partial attempts safely.
+ * Runs ONLY from payment webhooks after the provider confirms the subscription.
+ * Uses the checkout-session claim/lease and checkpoint RPCs to prevent
+ * concurrent provisioning and resume partial attempts safely.
  *
  * Security invariants:
- * - The temporary password is generated here, embedded in a single email,
- *   and never logged nor stored in plaintext (Supabase auth hashes it).
+ * - No password is generated or emailed. Access is delivered via a single-use
+ *   Supabase link to `/ativar-conta`.
  * - Onboarding failure is recorded (onboarding_status='failed') so the next
  *   webhook retry can re-run provisioning; success never re-runs.
  */
-import { createHmac } from "node:crypto";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { Database } from "@/lib/db/types";
 import { createLogger } from "@/lib/observability/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getEmailSenderConfig, sendAccessEmail } from "@/lib/server/access-email";
+import { ACCESS_LINK_TTL_MS, generateAccessLink } from "@/lib/server/access-link";
+import {
+  markClientAccountAccessEmailFailed,
+  markClientAccountAccessEmailSent,
+  syncClientAccountAfterPurchase,
+} from "@/lib/server/client-account-sync";
 import {
   addBillingPeriodStart,
   formatDateOnlyUtc,
@@ -27,10 +32,9 @@ import {
   type PublicCheckoutSessionState,
 } from "@/lib/server/public-checkout-sessions";
 import {
-  buildAccessEmailContent,
   buildOrganizationDisplayName,
   buildOrganizationSlug,
-  generateTemporaryPassword,
+  buildTransactionalAccessEmailContent,
 } from "@/lib/domain/onboarding-visitor";
 
 const logger = createLogger({ service: "nexgestaovendas", component: "visitor-onboarding" });
@@ -86,21 +90,8 @@ function sanitizeOnboardingError(error: unknown): string {
   return "onboarding_provisioning_failed";
 }
 
-function generateOnboardingPassword(
-  clientMutationId: string,
-  envSource: Record<string, string | undefined>
-): string {
-  const secret =
-    envSource.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
-    envSource.MERCADOPAGO_ASSINATURAS_WEBHOOK_SECRET?.trim() ||
-    "";
-  if (!secret) return generateTemporaryPassword();
-
-  const digest = createHmac("sha256", secret)
-    .update(`nex-public-onboarding:${clientMutationId}`)
-    .digest("base64url")
-    .replace(/[0O1lI]/g, "x");
-  return `N${digest.slice(0, 18)}a9!`;
+function supportEmail(envSource: Record<string, string | undefined>): string | null {
+  return envSource.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || null;
 }
 
 async function verifyAuthUserExists(
@@ -230,9 +221,10 @@ export async function runVisitorOnboarding(
   let organizationId = session.onboarding_organization_id;
   let userId = session.onboarding_user_id;
   let subscriptionId = session.onboarding_subscription_id;
-  let temporaryPassword: string | null = null;
   let accessEmailSent = Boolean(session.onboarding_email_sent_at);
   let verifiedUserCreated = false;
+  let clientAccountId: string | null = null;
+  let pendingAccessLink: string | null = null;
 
   const saveProgress = async (progress: {
     organizationId?: string | null;
@@ -256,28 +248,24 @@ export async function runVisitorOnboarding(
   try {
     const organizationName = buildOrganizationDisplayName(payerEmail);
 
-    // 1. Reuse the checkpointed auth user, or find it by normalized email
-    // before creating one. The password is deterministic for this session,
-    // allowing a retry to produce the same email payload without storing it.
+    // 1. Reuse the checkpointed auth user, or provision via a secure access
+    // link (invite for new e-mails, recovery for existing logins).
     if (!userId) {
       const existingUser = await findAuthUserByEmail(admin, payerEmail);
       if (existingUser.error) throw new Error(existingUser.error);
-      if (existingUser.user) {
-        userId = existingUser.user.id;
-      } else {
-        temporaryPassword = generateOnboardingPassword(input.clientMutationId, envSource);
-        const { data: created, error: createError } = await admin.auth.admin.createUser({
-          email: payerEmail,
-          password: temporaryPassword,
-          email_confirm: true,
-          user_metadata: { full_name: organizationName },
-        });
-        if (createError || !created.user) {
-          throw new Error("onboarding_user_create_failed");
-        }
-        userId = created.user.id;
-        verifiedUserCreated = true;
-      }
+
+      const redirectTo = `${appOrigin(envSource).replace(/\/+$/, "")}/ativar-conta`;
+      const link = await generateAccessLink(admin, {
+        email: payerEmail,
+        redirectTo,
+        userExists: Boolean(existingUser.user),
+      });
+      if (!link.ok) throw new Error("onboarding_user_create_failed");
+
+      userId = link.userId;
+      pendingAccessLink = link.actionLink;
+      verifiedUserCreated = link.linkType === "invite" && !existingUser.user;
+
       if (!(await verifyAuthUserExists(admin, userId))) {
         throw new Error("onboarding_auth_user_verify_failed");
       }
@@ -443,27 +431,62 @@ export async function runVisitorOnboarding(
     }
     await saveProgress({ subscriptionId });
 
-    // 6. Email delivery is guarded by the persisted marker and by Resend's
-    // deterministic idempotency key. The password is never logged/stored.
+    // 6. Mirror provisioning in client_accounts for admin visibility (best-effort).
+    const synced = await syncClientAccountAfterPurchase(admin, {
+      userId,
+      email: payerEmail,
+      fullName: organizationName,
+      companyName: organizationName,
+      orgId,
+      subscriptionId,
+      checkoutClientMutationId: input.clientMutationId,
+    });
+    if (synced.ok) {
+      clientAccountId = synced.clientAccountId;
+    } else {
+      onboardingLogger.warn("client_account_sync_skipped", {
+        client_mutation_id: input.clientMutationId,
+        error_code: synced.error,
+      });
+    }
+
+    // 7. Transactional access e-mail — guarded by the persisted marker and by
+    // Resend's deterministic idempotency key. The activation link is never logged.
     if (!session.onboarding_email_sent_at) {
       if (!emailConfig.configured) {
         onboardingLogger.warn("onboarding_email_skipped", {
           client_mutation_id: input.clientMutationId,
           reason: emailConfig.reason,
         });
-      } else {
-        if (!temporaryPassword) {
-          temporaryPassword = generateOnboardingPassword(input.clientMutationId, envSource);
-          const { error: passwordError } = await admin.auth.admin.updateUserById(userId, {
-            password: temporaryPassword,
+        if (clientAccountId) {
+          await markClientAccountAccessEmailFailed(admin, {
+            clientAccountId,
+            errorCode: emailConfig.reason,
           });
-          if (passwordError) throw new Error("onboarding_user_password_update_failed");
         }
-        const emailContent = buildAccessEmailContent({
-          appOrigin: appOrigin(envSource),
+      } else {
+        const redirectTo = `${appOrigin(envSource).replace(/\/+$/, "")}/ativar-conta`;
+        let actionLink = pendingAccessLink;
+        if (!actionLink) {
+          const link = await generateAccessLink(admin, {
+            email: payerEmail,
+            redirectTo,
+            userExists: true,
+          });
+          if (!link.ok) throw new Error("onboarding_access_email_failed");
+          actionLink = link.actionLink;
+        }
+
+        const now = Date.now();
+        const origin = appOrigin(envSource).replace(/\/+$/, "");
+        const emailContent = buildTransactionalAccessEmailContent({
           email: payerEmail,
-          temporaryPassword,
+          fullName: organizationName,
           planName: planRow.name,
+          activationUrl: actionLink,
+          loginUrl: `${origin}/login`,
+          expiresAt: new Date(now + ACCESS_LINK_TTL_MS).toISOString(),
+          supportEmail: supportEmail(envSource),
         });
         const sent = await sendAccessEmail({
           to: payerEmail,
@@ -471,8 +494,23 @@ export async function runVisitorOnboarding(
           config: emailConfig,
           idempotencyKey: `nex-onboarding/${input.clientMutationId}`,
         });
-        if (!sent.ok) throw new Error("onboarding_access_email_failed");
+        if (!sent.ok) {
+          if (clientAccountId) {
+            await markClientAccountAccessEmailFailed(admin, {
+              clientAccountId,
+              errorCode: sent.error,
+            });
+          }
+          throw new Error("onboarding_access_email_failed");
+        }
         accessEmailSent = true;
+        if (clientAccountId) {
+          await markClientAccountAccessEmailSent(admin, {
+            clientAccountId,
+            now,
+            isResend: synced.ok ? !synced.created : false,
+          });
+        }
         await saveProgress({
           organizationId: orgId,
           userId,

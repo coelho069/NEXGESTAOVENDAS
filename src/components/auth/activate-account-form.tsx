@@ -73,7 +73,7 @@ export function ActivateAccountForm() {
       // Never echo the provider message: it can contain identifiers.
       setError(
         /expired|invalid/i.test(updateError.message)
-          ? "Este convite expirou ou já foi utilizado. Solicite um novo convite ao suporte."
+          ? "Este link expirou ou já foi utilizado. Solicite um novo envio ao suporte ou use a recuperação de senha em /login."
           : "Não foi possível definir a senha. Tente novamente."
       );
       return;
@@ -103,16 +103,19 @@ export function ActivateAccountForm() {
         {phase === "checking" ? (
           <p role="status" className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-            Validando seu convite...
+            Validando seu link de acesso...
           </p>
         ) : null}
 
         {phase === "invalid" ? (
           <div role="alert" className="pdv-alert-error mt-6">
-            <p className="font-semibold">Convite inválido ou expirado</p>
+            <p className="font-semibold">Link inválido ou expirado</p>
             <p className="mt-1">
-              Peça um novo convite ao suporte da NEXGESTAOVENDAS. Nenhuma conta foi alterada.
+              Solicite um novo envio ao suporte ou use a recuperação de senha na página de login.
             </p>
+            <a href="/login" className="mt-3 inline-block text-sm font-semibold text-primary hover:underline">
+              Ir para o login
+            </a>
           </div>
         ) : null}
 
@@ -196,7 +199,7 @@ export function ActivateAccountForm() {
             </button>
 
             <p className="text-xs text-muted-foreground">
-              Nunca compartilhe seu link de convite. Em caso de dúvida, procure o suporte oficial.
+              Após ativar, entre em /login com seu e-mail. Nunca compartilhe este link.
             </p>
           </form>
         ) : null}
