@@ -20,7 +20,7 @@ export function Reveal({ children, delay = 0, style, className }: RevealProps) {
   const [visible, setVisible] = useState(reduced);
 
   useEffect(() => {
-    if (reduced) {
+    if (reduced || typeof IntersectionObserver === 'undefined') {
       setVisible(true);
       return;
     }

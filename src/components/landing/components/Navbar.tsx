@@ -8,12 +8,22 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { landingTheme as t } from '../theme/landing-theme';
 
-const LINKS: ReadonlyArray<{ label: string; href: string }> = [
+export type NavbarLink = { label: string; href: string };
+
+const DEFAULT_LINKS: ReadonlyArray<NavbarLink> = [
   { label: 'Recursos', href: '#recursos' },
   { label: 'Benefícios', href: '#beneficios' },
   { label: 'Planos', href: '#planos' },
   { label: 'FAQ', href: '#faq' },
 ];
+
+export type NavbarProps = {
+  links?: ReadonlyArray<NavbarLink>;
+  brandLabel?: string;
+  loginLabel?: string;
+  loginHref?: string;
+  primaryCta?: { label: string; href: string };
+};
 
 const CSS = `
 .nx-nav-link { position: relative; color: #CBD5E1; text-decoration: none; font-size: 14px; font-weight: 500; white-space: nowrap; transition: color ${t.motion.fast} ease; }
@@ -44,7 +54,13 @@ function BrandMark({ size = 28 }: { size?: number }) {
   );
 }
 
-export function Navbar() {
+export function Navbar({
+  links = DEFAULT_LINKS,
+  brandLabel = 'NexGestão',
+  loginLabel = 'Entrar na Conta',
+  loginHref = '/login',
+  primaryCta = { label: 'Testar Gratuitamente por 14 Dias', href: '/planos' },
+}: NavbarProps = {}) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -79,12 +95,12 @@ export function Navbar() {
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }} aria-label="NexGestão — início">
             <BrandMark />
             <span style={{ color: t.color.text, fontFamily: t.font.heading, fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em' }}>
-              NexGestão
+              {brandLabel}
             </span>
           </Link>
 
           <div className="nx-nav-links" style={{ display: 'flex', alignItems: 'center', gap: 26 }}>
-            {LINKS.map((link) => (
+            {links.map((link) => (
               <a key={link.label} className="nx-nav-link" href={link.href}>
                 {link.label}
               </a>
@@ -94,7 +110,7 @@ export function Navbar() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <a
               className="nx-nav-ghost"
-              href="/login"
+              href={loginHref}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -109,11 +125,11 @@ export function Navbar() {
                 background: 'transparent',
               }}
             >
-              Entrar na Conta
+              {loginLabel}
             </a>
             <a
               className="nx-nav-cta"
-              href="/planos"
+              href={primaryCta.href}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -129,7 +145,7 @@ export function Navbar() {
                 border: 'none',
               }}
             >
-              Testar Gratuitamente por 14 Dias
+              {primaryCta.label}
             </a>
             <button
               type="button"
@@ -176,7 +192,7 @@ export function Navbar() {
               WebkitBackdropFilter: 'blur(16px)',
             }}
           >
-            {LINKS.map((link) => (
+            {links.map((link) => (
               <a
                 key={link.label}
                 href={link.href}
@@ -196,11 +212,18 @@ export function Navbar() {
             ))}
             <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${t.color.border}` }}>
               <a
-                href="/login"
+                href={loginHref}
                 onClick={() => setMenuOpen(false)}
                 style={{ display: 'block', padding: '10px 12px', color: t.color.text, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}
               >
-                Entrar na Conta
+                {loginLabel}
+              </a>
+              <a
+                href={primaryCta.href}
+                onClick={() => setMenuOpen(false)}
+                style={{ display: 'block', padding: '10px 12px', marginTop: 4, color: t.color.accent, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}
+              >
+                {primaryCta.label}
               </a>
             </div>
           </div>

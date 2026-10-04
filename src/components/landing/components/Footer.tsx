@@ -46,7 +46,7 @@ export function Footer() {
   const ano = new Date().getFullYear();
 
   return (
-    <footer style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)', padding: '56px 0 40px' }}>
+    <footer role="contentinfo" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)', padding: '56px 0 40px' }}>
       <style>{CSS}</style>
       <div style={{ maxWidth: t.layout.max, margin: '0 auto', padding: '0 24px' }}>
         <div className="nx-foot-grid" style={{ display: 'grid', gridTemplateColumns: '1.4fr repeat(3, 1fr)', gap: 32 }}>
