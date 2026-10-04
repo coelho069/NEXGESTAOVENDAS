@@ -6,6 +6,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { BrandMark } from './BrandMark';
 import { landingTheme as t } from '../theme/landing-theme';
 
 export type NavbarLink = { label: string; href: string };
@@ -38,21 +39,6 @@ const CSS = `
 @media (min-width: 901px) { .nx-nav-menu-btn { display: none !important; } .nx-nav-mobile { display: none !important; } }
 @media (max-width: 620px) { .nx-nav-ghost { display: none !important; } }
 `;
-
-function BrandMark({ size = 28 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">
-      <defs>
-        <linearGradient id="nx-brand-grad" x1="4" y1="28" x2="28" y2="4">
-          <stop offset="0%" stopColor={t.color.accent} />
-          <stop offset="100%" stopColor={t.color.secondary} />
-        </linearGradient>
-      </defs>
-      <rect x="1.5" y="1.5" width="29" height="29" rx="8.5" stroke="url(#nx-brand-grad)" strokeWidth="1.5" opacity="0.55" />
-      <path d="M9.5 23V9.5l13 13V9" stroke="url(#nx-brand-grad)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 
 export function Navbar({
   links = DEFAULT_LINKS,
