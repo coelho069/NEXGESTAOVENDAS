@@ -183,8 +183,62 @@ async function ensureProfile(
     org_id: input.orgId,
     email: input.email,
     full_name: input.fullName,
+    default_role: "admin",
   });
   if (error) return { ok: false, error: "account_create_failed" };
+  return { ok: true };
+}
+
+/**
+ * Ensures the invited client can pass tenant RLS (`user_has_org_membership`).
+ * Mirrors the visitor-onboarding path: profile + MATRIZ store + store_members.
+ */
+async function ensureTenantAccess(
+  admin: SupabaseClient<Database>,
+  input: { userId: string; email: string; fullName: string; orgId: string; companyName: string }
+): Promise<{ ok: true } | { ok: false; error: ClientAccountError }> {
+  const profile = await ensureProfile(admin, input);
+  if (!profile.ok) return profile;
+
+  const storeName = input.companyName.trim() || "Loja principal";
+
+  const { data: existingStore, error: storeLookupError } = await admin
+    .from("stores")
+    .select("id")
+    .eq("org_id", input.orgId)
+    .eq("code", "MATRIZ")
+    .maybeSingle();
+  if (storeLookupError) return { ok: false, error: "account_create_failed" };
+
+  let storeId = existingStore?.id;
+  if (!storeId) {
+    const { data: store, error: storeError } = await admin
+      .from("stores")
+      .insert({ org_id: input.orgId, name: storeName, code: "MATRIZ" })
+      .select("id")
+      .single();
+    if (storeError || !store) return { ok: false, error: "account_create_failed" };
+    storeId = store.id;
+  }
+
+  const { data: existingMember, error: memberLookupError } = await admin
+    .from("store_members")
+    .select("id")
+    .eq("store_id", storeId)
+    .eq("user_id", input.userId)
+    .maybeSingle();
+  if (memberLookupError) return { ok: false, error: "account_create_failed" };
+  if (existingMember) return { ok: true };
+
+  const { error: memberError } = await admin.from("store_members").insert({
+    org_id: input.orgId,
+    store_id: storeId,
+    user_id: input.userId,
+    role: "admin",
+  });
+  if (memberError && memberError.code !== "23505") {
+    return { ok: false, error: "account_create_failed" };
+  }
   return { ok: true };
 }
 
@@ -488,13 +542,14 @@ export async function createAdminClientAccountAction(
       return { ok: false, error: "email_already_exists" };
     }
 
-    const profile = await ensureProfile(admin, {
+    const tenant = await ensureTenantAccess(admin, {
       userId: existingUserId,
       email,
       fullName: input.full_name,
       orgId: input.org_id,
+      companyName: input.company_name,
     });
-    if (!profile.ok) return profile;
+    if (!tenant.ok) return tenant;
 
     await recordEvent(admin, {
       clientAccountId: linked.id,
@@ -529,13 +584,14 @@ export async function createAdminClientAccountAction(
   const userId = await resolveGeneratedLinkUserId(admin, email);
   if (!userId) return { ok: false, error: "account_create_failed" };
 
-  const profile = await ensureProfile(admin, {
+  const tenant = await ensureTenantAccess(admin, {
     userId,
     email,
     fullName: input.full_name,
     orgId: input.org_id,
+    companyName: input.company_name,
   });
-  if (!profile.ok) return profile;
+  if (!tenant.ok) return tenant;
 
   const { data: created, error: insertError } = await admin
     .from("client_accounts")

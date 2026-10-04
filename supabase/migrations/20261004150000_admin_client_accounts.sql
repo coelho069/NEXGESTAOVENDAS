@@ -59,6 +59,19 @@ CREATE TABLE IF NOT EXISTS public.client_accounts (
   org_id uuid NOT NULL REFERENCES public.organizations (id) ON DELETE RESTRICT,
   subscription_id uuid REFERENCES public.subscriptions (id) ON DELETE SET NULL,
   email text NOT NULL CHECK (position('@' IN email) > 1),
+  full_name text NOT NULL CHECK (btrim(full_name) <> ''),
+  company_name text NOT NULL DEFAULT '',
+  status public.client_account_status NOT NULL DEFAULT 'created',
+  last_error text NOT NULL DEFAULT '',
+  invite_sent_at timestamptz,
+  invite_expires_at timestamptz,
+  activated_at timestamptz,
+  suspended_at timestamptz,
+  created_by uuid REFERENCES auth.users (id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- Append-only audit trail. Payload holds identifiers and event codes only —
 -- never passwords, tokens or full activation links.
 CREATE TABLE IF NOT EXISTS public.client_account_events (
@@ -72,6 +85,22 @@ CREATE TABLE IF NOT EXISTS public.client_account_events (
 
 CREATE INDEX IF NOT EXISTS client_account_events_account_idx
   ON public.client_account_events (client_account_id, created_at DESC);
+
+-- Case-insensitive single account per e-mail: idempotency anchor for the
+-- create-account flow (duplicate requests can never provision twice).
+CREATE UNIQUE INDEX IF NOT EXISTS client_accounts_email_unique_idx
+  ON public.client_accounts (lower(email));
+
+-- One provisioned login per auth user.
+CREATE UNIQUE INDEX IF NOT EXISTS client_accounts_user_unique_idx
+  ON public.client_accounts (user_id)
+  WHERE user_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS client_accounts_org_idx ON public.client_accounts (org_id);
+CREATE INDEX IF NOT EXISTS client_accounts_subscription_idx
+  ON public.client_accounts (subscription_id)
+  WHERE subscription_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS client_accounts_status_idx ON public.client_accounts (status);
 
 DROP TRIGGER IF EXISTS client_accounts_set_updated_at ON public.client_accounts;
 CREATE TRIGGER client_accounts_set_updated_at
@@ -97,10 +126,20 @@ CREATE TRIGGER client_account_events_no_update
   BEFORE UPDATE OR DELETE ON public.client_account_events
   FOR EACH ROW
   EXECUTE FUNCTION public.client_account_events_append_only();
-  full_name text NOT NULL CHECK (btrim(full_name) <> ''),
-  company_name text NOT NULL DEFAULT '',
-  status public.client_account_status NOT NULL DEFAULT 'created',
-  last_error text NOT NULL DEFAULT '',
+
+ALTER TABLE public.client_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.client_account_events ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE public.client_accounts FROM PUBLIC;
+REVOKE ALL ON TABLE public.client_accounts FROM anon;
+REVOKE ALL ON TABLE public.client_accounts FROM authenticated;
+GRANT SELECT, UPDATE ON TABLE public.client_accounts TO authenticated;
+
+REVOKE ALL ON TABLE public.client_account_events FROM PUBLIC;
+REVOKE ALL ON TABLE public.client_account_events FROM anon;
+REVOKE ALL ON TABLE public.client_account_events FROM authenticated;
+GRANT SELECT, INSERT ON TABLE public.client_account_events TO authenticated;
+
 -- Platform admins read/write; tenants never see this table.
 -- Provisioning itself runs through the service-role client, which bypasses RLS.
 DROP POLICY IF EXISTS client_accounts_select_platform_admin ON public.client_accounts;
@@ -130,27 +169,3 @@ CREATE POLICY client_account_events_insert_platform_admin
   ON public.client_account_events
   FOR INSERT TO authenticated
   WITH CHECK (public.is_platform_admin() IS TRUE);
-  invite_sent_at timestamptz,
-  invite_expires_at timestamptz,
-  activated_at timestamptz,
-  suspended_at timestamptz,
-  created_by uuid REFERENCES auth.users (id) ON DELETE SET NULL,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
-
--- Case-insensitive single account per e-mail: idempotency anchor for the
--- create-account flow (duplicate requests can never provision twice).
-CREATE UNIQUE INDEX IF NOT EXISTS client_accounts_email_unique_idx
-  ON public.client_accounts (lower(email));
-
--- One provisioned login per auth user.
-CREATE UNIQUE INDEX IF NOT EXISTS client_accounts_user_unique_idx
-  ON public.client_accounts (user_id)
-  WHERE user_id IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS client_accounts_org_idx ON public.client_accounts (org_id);
-CREATE INDEX IF NOT EXISTS client_accounts_subscription_idx
-  ON public.client_accounts (subscription_id)
-  WHERE subscription_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS client_accounts_status_idx ON public.client_accounts (status);

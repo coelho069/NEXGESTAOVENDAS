@@ -61,6 +61,8 @@ function makeAdmin() {
     accounts: [] as Record<string, unknown>[],
     events: [] as Record<string, unknown>[],
     profiles: [] as Record<string, unknown>[],
+    stores: [] as Record<string, unknown>[],
+    storeMembers: [] as Record<string, unknown>[],
     updates: [] as Record<string, unknown>[],
     bans: [] as { userId: string; banDuration: string }[],
   };
@@ -78,7 +80,17 @@ function makeAdmin() {
     plans: [{ id: "plan-pro", name: "Plano Pro" }],
   };
 
-  const table = (name: "client_accounts" | "client_account_events" | "profiles" | "subscriptions" | "organizations" | "plans") => {
+  const table = (
+    name:
+      | "client_accounts"
+      | "client_account_events"
+      | "profiles"
+      | "stores"
+      | "store_members"
+      | "subscriptions"
+      | "organizations"
+      | "plans"
+  ) => {
     const rows =
       name === "client_accounts"
         ? state.accounts
@@ -86,7 +98,11 @@ function makeAdmin() {
           ? state.events
           : name === "profiles"
             ? state.profiles
-            : (seeded[name] as Record<string, unknown>[]);
+            : name === "stores"
+              ? state.stores
+              : name === "store_members"
+                ? state.storeMembers
+                : (seeded[name] as Record<string, unknown>[]);
     const api: Record<string, unknown> = {};
     let criteria: Record<string, unknown> = {};
 
@@ -265,6 +281,27 @@ describe("create account + invite", () => {
       new Date(NOW + CLIENT_ACCOUNT_INVITE_TTL_MS).toISOString()
     );
     expect(JSON.stringify(admin.state)).not.toContain("secret-token");
+
+    // Tenant access: profile + MATRIZ store + store membership for RLS.
+    expect(admin.state.profiles).toHaveLength(1);
+    expect(admin.state.profiles[0]).toMatchObject({
+      id: USER_ID,
+      org_id: ORG_ID,
+      email: "maria@empresa.com.br",
+      default_role: "admin",
+    });
+    expect(admin.state.stores).toHaveLength(1);
+    expect(admin.state.stores[0]).toMatchObject({
+      org_id: ORG_ID,
+      code: "MATRIZ",
+      name: "Souza Varejo",
+    });
+    expect(admin.state.storeMembers).toHaveLength(1);
+    expect(admin.state.storeMembers[0]).toMatchObject({
+      org_id: ORG_ID,
+      user_id: USER_ID,
+      role: "admin",
+    });
   });
 
   it("never sets a password on the auth user", async () => {

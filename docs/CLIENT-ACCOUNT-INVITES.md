@@ -19,7 +19,7 @@ NEXGESTAOVENDAS e enviar um convite de ativação por e-mail.
         ├─ consumeRateLimit()             20 convites/hora por admin
         └─ admin-client-account-provisioning.ts   (service role)
            ├─ generateLink(type=invite)   cria o usuário sem senha
-           ├─ profiles                    vínculo com a organização
+           ├─ profiles + store_members     vínculo com a organização (RLS)
            ├─ client_accounts             estado da conta
            ├─ gmail-invite-sender.ts      Gmail API (OAuth2)
            └─ client_account_events       auditoria append-only
@@ -92,8 +92,10 @@ nunca é persistido nem logado.
   contas (autorização no servidor em cada ação).
 - **Auditoria.** `client_account_events` é append-only (trigger bloqueia
   UPDATE/DELETE). Não guarda senhas, tokens nem links de ativação.
-- **Assinaturas intactas.** Nenhuma rota desta funcionalidade escreve em
-  `subscriptions`, `plans`, `store_members` ou `platform_admins`.
+- **Assinaturas intactas.** Nenhuma rota desta funcionalidade altera estado
+  financeiro em `subscriptions` ou `plans`. O provisionamento cria apenas o
+  vínculo mínimo em `store_members` (loja `MATRIZ`) para que o cliente passe
+  pelas políticas RLS existentes após a ativação.
 
 ## Aplicar a migração
 
@@ -119,6 +121,40 @@ ponta com uma conta real:
 5. Abra o link recebido, defina a senha e confirme o acesso ao `/pdv`.
 6. Verifique o estado em "Conta ativada" e o evento `account_activated`.
 
+## Diagnóstico e reenvio
+
+| Sintoma | Causa provável | Ação |
+| --- | --- | --- |
+| `gmail_not_configured` | `GMAIL_INVITE_ENABLED` ausente ou credenciais incompletas | Configure as variáveis no servidor e redeploy |
+| `invite_failed` na tabela | Falha de envio ou link inválido | Use "Reenviar convite" na tela admin — nunca crie outra conta |
+| `invite_expired` | Passou o TTL de 24h do convite Supabase | Reenviar convite (gera novo link) |
+| Cliente ativa mas PDV nega acesso | `store_members` ausente (corrigido em `ensureTenantAccess`) | Reprovisionar membership manualmente ou recriar via admin |
+| Link não retorna ao app | `/ativar-conta` ausente nas Redirect URLs do Supabase | Adicionar `<APP_ORIGIN>/ativar-conta` |
+
+Os logs registram `client_account_id`, `error_code` e eventos de auditoria — **nunca** o link de ativação completo.
+
 ## Procedimento de release
 
-Seguir `docs/ATOMIC_DEPLOY.md`. Nesta etapa **não houve commit, push nem deploy**.
+Ordem obrigatória (não inverter):
+
+1. **Revisar** a migração `20261004150000_admin_client_accounts.sql`.
+2. **Backup** do banco remoto (snapshot Supabase ou `pg_dump`).
+3. **Aplicar migração:** `supabase db push` (ou pipeline equivalente).
+4. **Regenerar tipos** se necessário: `pnpm db:types`.
+5. **Deploy atômico** conforme `docs/ATOMIC_DEPLOY.md`:
+   - `systemctl stop nexgestao.service`
+   - `pnpm build` (inclui `nex-standalone-finalize.sh`)
+   - `bash scripts/nex-atomic-deploy-check.sh`
+   - `systemctl start nexgestao.service`
+   - readiness check em `http://127.0.0.1:3211/health/readiness`
+6. **Verificar rotas:** `/`, `/planos`, `/login`, `/ativar-conta`, `/admin/clientes/contas`.
+7. **Configurar Gmail** no ambiente de produção (credenciais novas, rotacionadas).
+8. **Teste manual** com um e-mail de homologação (não em CI).
+
+### Rollback
+
+- **Código:** reverter para o commit anterior e redeploy atômico.
+- **Banco:** a migração é aditiva; rollback de schema exige script manual (não destrutivo por padrão).
+- **Gmail:** revogar refresh token comprometido no Google Cloud.
+
+Nunca sobrescrever o `.next` ativo sem parar o serviço primeiro.

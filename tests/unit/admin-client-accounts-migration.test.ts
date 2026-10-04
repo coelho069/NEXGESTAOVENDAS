@@ -28,6 +28,23 @@ describe("client accounts migration", () => {
     expect(migration).toContain("REFERENCES public.subscriptions (id) ON DELETE SET NULL");
   });
 
+  it("defines client_accounts before client_account_events and closes the DDL block", () => {
+    const accountsIdx = migration.indexOf("CREATE TABLE IF NOT EXISTS public.client_accounts");
+    const eventsIdx = migration.indexOf("CREATE TABLE IF NOT EXISTS public.client_account_events");
+    const accountsCloseIdx = migration.indexOf("updated_at timestamptz NOT NULL DEFAULT now()\n);");
+    expect(accountsIdx).toBeGreaterThan(-1);
+    expect(eventsIdx).toBeGreaterThan(accountsIdx);
+    expect(accountsCloseIdx).toBeGreaterThan(accountsIdx);
+    expect(accountsCloseIdx).toBeLessThan(eventsIdx);
+  });
+
+  it("enables RLS and grants narrow authenticated access", () => {
+    expect(migration).toContain("ALTER TABLE public.client_accounts ENABLE ROW LEVEL SECURITY");
+    expect(migration).toContain("ALTER TABLE public.client_account_events ENABLE ROW LEVEL SECURITY");
+    expect(migration).toContain("GRANT SELECT, UPDATE ON TABLE public.client_accounts TO authenticated");
+    expect(migration).toContain("GRANT SELECT, INSERT ON TABLE public.client_account_events TO authenticated");
+  });
+
   it("enforces one account per e-mail, case-insensitively", () => {
     expect(migration).toContain("client_accounts_email_unique_idx");
     expect(migration).toContain("ON public.client_accounts (lower(email))");
