@@ -450,8 +450,10 @@ export async function runVisitorOnboarding(
       });
     }
 
-    // 7. Transactional access e-mail — guarded by the persisted marker and by
-    // Resend's deterministic idempotency key. The activation link is never logged.
+    // 7. Transactional access e-mail — guarded by the persisted sent-at marker.
+    // Complete SMTP_* uses Hostinger. Resend is used only when no SMTP_*
+    // variable is set, and still receives an idempotency key. SMTP does not.
+    // The activation link is never logged.
     if (!session.onboarding_email_sent_at) {
       if (!emailConfig.configured) {
         onboardingLogger.warn("onboarding_email_skipped", {

@@ -37,6 +37,27 @@ Três estados independentes, nunca confundidos:
 | Convite | esta funcionalidade | `client_accounts.status` |
 | Financeiro | domínio de cobrança | `subscriptions.status` |
 
+O e-mail automático de onboarding (pós-confirmação de pagamento) sai por
+`getEmailSenderConfig` em `src/lib/server/access-email.ts`. Com `SMTP_HOST`,
+`SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER` e `SMTP_PASSWORD` completos, o
+transporte é SMTP da Hostinger (`smtp.hostinger.com`, porta 465, TLS
+implícito). `SMTP_USER` autentica; `EMAIL_FROM` pode ser outro endereço,
+inclusive o alias, e é só o remetente visível. Sem nenhuma variável `SMTP_*`,
+o mesmo fluxo usa o Resend (`RESEND_API_KEY` + `EMAIL_FROM`), que ainda recebe
+a chave de idempotência. Qualquer `SMTP_*` presente com o conjunto incompleto
+não cai no Resend.
+
+Falha de envio com SMTP válido grava `client_accounts.status = invite_failed`
+quando a conta já foi sincronizada, e a sessão de checkout fica `failed` para
+o webhook tentar de novo. Não há segundo envio pelo Resend nessa falha. O SMTP
+não tem chave de idempotência do provedor: se a mensagem for aceita e o
+processo cair antes de gravar `onboarding_email_sent_at`, o retry pode enviar
+outra cópia. Com esse marcador, ou com a sessão já `completed`, o replay não
+reenvia.
+
+Convites manuais do admin continuam em `gmail-invite-sender.ts` (Gmail OAuth)
+e não usam este transporte.
+
 `client_accounts.status`: `created`, `invite_pending`, `invite_sent`,
 `invite_expired`, `activated`, `invite_failed`, `suspended`.
 

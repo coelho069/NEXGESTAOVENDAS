@@ -44,7 +44,7 @@ const contentSecurityPolicy = [
 const nextConfig = {
   distDir,
   output: "standalone",
-  serverExternalPackages: ["stripe"],
+  serverExternalPackages: ["stripe", "nodemailer"],
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
   eslint: { ignoreDuringBuilds: true },
