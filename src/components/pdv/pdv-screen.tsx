@@ -331,7 +331,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      <PdvSidebar storeId={storeId} onOpenSalesHistory={openSalesHistory} />
+      <PdvSidebar storeId={storeId} role={role} onOpenSalesHistory={openSalesHistory} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col gap-4 overflow-y-auto p-4 lg:p-6">
           <header className="flex flex-wrap items-center justify-between gap-3">
@@ -629,5 +629,6 @@ function roleLabel(role: MemberRole | null): string {
   if (role === "admin") return "Admin";
   if (role === "manager") return "Gerente";
   if (role === "cashier") return "Caixa";
+  if (role === "client") return "Cliente";
   return "Não disponível";
 }

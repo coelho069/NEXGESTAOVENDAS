@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { PaymentConfirmationScreen } from "@/components/marketing/payment-confirmation-screen";
 
 export const metadata: Metadata = {
-  title: "Pagamento confirmado — Nex Gestão Vendas",
+  title: "Pagamento aprovado — Nex Gestão Vendas",
   robots: { index: false },
 };
 

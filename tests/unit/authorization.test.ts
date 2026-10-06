@@ -63,6 +63,14 @@ describe("store membership authorization", () => {
     await expect(resolveStoreRole(client, { userId: USER_ID, storeId: STORE_A })).resolves.toBe("cashier");
   });
 
+  it("recognizes a client membership without treating it as an operator", async () => {
+    const { client } = createSupabaseMock({
+      [STORE_A]: { orgId: ORG_ID, isActive: true, role: "client" },
+    });
+
+    await expect(resolveStoreRole(client, { userId: USER_ID, storeId: STORE_A })).resolves.toBe("client");
+  });
+
   it("does not resolve a role for an inactive store", async () => {
     const { client } = createSupabaseMock({
       [STORE_A]: { orgId: ORG_ID, isActive: false, role: "manager" },

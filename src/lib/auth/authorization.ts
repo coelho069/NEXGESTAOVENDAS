@@ -5,7 +5,7 @@ import type { MemberRole } from "@/lib/domain/rbac";
 type AppSupabaseClient = SupabaseClient<Database>;
 
 function isMemberRole(value: unknown): value is MemberRole {
-  return value === "admin" || value === "manager" || value === "cashier";
+  return value === "admin" || value === "manager" || value === "cashier" || value === "client";
 }
 
 export async function resolveStoreRole(

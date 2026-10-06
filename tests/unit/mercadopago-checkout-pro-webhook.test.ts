@@ -128,6 +128,8 @@ describe("applyMercadoPagoCheckoutProWebhookEvent", () => {
       preferenceId: "pref-1",
       payerEmail: "cliente@exemplo.com",
       transactionAmount: "79.90",
+      currencyId: "BRL",
+      dateApproved: "2026-10-06T15:04:05.000Z",
     });
     mocks.gateway.getPreference.mockResolvedValue({
       id: "pref-1",
@@ -158,6 +160,11 @@ describe("applyMercadoPagoCheckoutProWebhookEvent", () => {
         paymentId: "123456789",
         paymentStatus: "approved",
         preferenceId: "pref-1",
+        confirmedSnapshot: {
+          transactionAmount: "79.90",
+          transactionCurrency: "BRL",
+          transactionPaidAt: "2026-10-06T15:04:05.000Z",
+        },
       })
     );
     expect(mocks.runOnboarding).toHaveBeenCalledOnce();
@@ -178,6 +185,8 @@ describe("applyMercadoPagoCheckoutProWebhookEvent", () => {
       preferenceId: null,
       payerEmail: "cliente@exemplo.com",
       transactionAmount: "79.90",
+      currencyId: "BRL",
+      dateApproved: "2026-10-06T15:04:05.000Z",
     });
 
     const result = await applyMercadoPagoCheckoutProWebhookEvent(notification("999"));
@@ -190,7 +199,7 @@ describe("applyMercadoPagoCheckoutProWebhookEvent", () => {
   });
 
   it("ignora payment_id já processado (idempotência)", async () => {
-    mocks.findByPayment.mockResolvedValue(session());
+    mocks.findByPayment.mockResolvedValue({ ...session(), onboarding_status: "completed" });
 
     const result = await applyMercadoPagoCheckoutProWebhookEvent(notification("123456789"));
 
@@ -200,5 +209,135 @@ describe("applyMercadoPagoCheckoutProWebhookEvent", () => {
     expect(mocks.applyPayment).not.toHaveBeenCalled();
     expect(mocks.runOnboarding).not.toHaveBeenCalled();
     expect(mocks.sendTelegram).not.toHaveBeenCalled();
+  });
+
+  it("retoma o onboarding quando o pagamento já foi gravado e o e-mail não saiu", async () => {
+    mocks.findByPayment.mockResolvedValue(session());
+    mocks.gateway.getPayment.mockResolvedValue({
+      id: "123456789",
+      status: "approved",
+      externalReference: MUTATION,
+      preferenceId: null,
+      payerEmail: "cliente@exemplo.com",
+      transactionAmount: "79.90",
+      currencyId: "BRL",
+      dateApproved: "2026-10-06T15:04:05.000Z",
+    });
+    mocks.applyPayment.mockResolvedValue({
+      ok: true,
+      replay: true,
+      session: session(),
+    });
+    mocks.runOnboarding.mockResolvedValue({
+      status: "completed",
+      subscriptionId: "sub-1",
+      loginEmail: "cliente@exemplo.com",
+      accessEmailSent: true,
+      verifiedUserCreated: false,
+    });
+
+    const result = await applyMercadoPagoCheckoutProWebhookEvent(notification());
+
+    expect(result.replay).toBe(false);
+    expect(result.access_delivery?.access_email_sent).toBe(true);
+    expect(mocks.runOnboarding).toHaveBeenCalledOnce();
+    expect(mocks.applyPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        confirmedSnapshot: {
+          transactionAmount: "79.90",
+          transactionCurrency: "BRL",
+          transactionPaidAt: "2026-10-06T15:04:05.000Z",
+        },
+      })
+    );
+  });
+
+  it("compara uma nova confirmação com o snapshot e não reinicia o onboarding", async () => {
+    mocks.findByPayment.mockResolvedValue({
+      ...session(),
+      onboarding_status: "completed",
+      mp_payment_id: "123456789",
+      transaction_amount: "79.90",
+      transaction_currency: "BRL",
+      transaction_paid_at: "2026-10-06T15:04:05.000Z",
+    });
+    mocks.gateway.getPayment.mockResolvedValue({
+      id: "123456789",
+      status: "approved",
+      externalReference: MUTATION,
+      preferenceId: "pref-1",
+      payerEmail: "cliente@exemplo.com",
+      transactionAmount: "10.00",
+      currencyId: "BRL",
+      dateApproved: "2026-10-06T16:00:00.000Z",
+    });
+    mocks.applyPayment.mockResolvedValue({
+      ok: true,
+      replay: true,
+      snapshotConflict: "amount",
+      session: session(),
+    });
+
+    const result = await applyMercadoPagoCheckoutProWebhookEvent(notification());
+
+    expect(result.replay).toBe(true);
+    expect(result.snapshot_conflict).toBe("amount");
+    expect(mocks.applyPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        confirmedSnapshot: {
+          transactionAmount: "10.00",
+          transactionCurrency: "BRL",
+          transactionPaidAt: "2026-10-06T16:00:00.000Z",
+        },
+      })
+    );
+    expect(mocks.runOnboarding).not.toHaveBeenCalled();
+    expect(mocks.sendTelegram).not.toHaveBeenCalled();
+  });
+
+  it("não persiste pagamento aprovado quando a reconsulta não traz o snapshot", async () => {
+    mocks.gateway.getPayment.mockResolvedValue({
+      id: "123456789",
+      status: "approved",
+      externalReference: MUTATION,
+      preferenceId: "pref-1",
+      payerEmail: "cliente@exemplo.com",
+      transactionAmount: "79.90",
+      currencyId: "BRL",
+      dateApproved: null,
+    });
+
+    const result = await applyMercadoPagoCheckoutProWebhookEvent(notification());
+
+    expect(result).toMatchObject({
+      ignored: true,
+      ignored_reason: "snapshot_unavailable",
+      retryable: true,
+    });
+    expect(mocks.applyPayment).not.toHaveBeenCalled();
+    expect(mocks.runOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("propaga falha de persistência sem iniciar o onboarding", async () => {
+    mocks.gateway.getPayment.mockResolvedValue({
+      id: "123456789",
+      status: "approved",
+      externalReference: MUTATION,
+      preferenceId: null,
+      payerEmail: "cliente@exemplo.com",
+      transactionAmount: "79.90",
+      currencyId: "BRL",
+      dateApproved: "2026-10-06T15:04:05.000Z",
+    });
+    mocks.applyPayment.mockResolvedValue({
+      ok: false,
+      error: "checkout_session_payment_update_failed",
+      status: "database",
+    });
+
+    await expect(applyMercadoPagoCheckoutProWebhookEvent(notification())).rejects.toThrow(
+      "checkout_session_payment_update_failed"
+    );
+    expect(mocks.runOnboarding).not.toHaveBeenCalled();
   });
 });

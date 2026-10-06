@@ -76,6 +76,13 @@ export function validateProductionConfig(
       severity: "fatal",
     });
   }
+  if (read(envSource, "REFUND_SANDBOX_PROCESSING")) {
+    fatal.push({
+      code: "refund_sandbox_processing",
+      message: "REFUND_SANDBOX_PROCESSING must not be set in production",
+      severity: "fatal",
+    });
+  }
 
   if (trustProxy && trustProxy !== "1") {
     warnings.push({

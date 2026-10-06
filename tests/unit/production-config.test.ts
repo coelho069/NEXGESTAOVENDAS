@@ -44,6 +44,18 @@ describe("production configuration fail-closed", () => {
     expect(report.fatal).toEqual([]);
   });
 
+  it("rejects the local refund sandbox flag in production", () => {
+    const report = validateProductionConfig({
+      NODE_ENV: "production",
+      NEXT_PUBLIC_SUPABASE_URL: "https://proj.supabase.co",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key-with-enough-length",
+      APP_ORIGIN: "https://pdv.example.com",
+      REFUND_SANDBOX_PROCESSING: "local",
+    });
+    expect(report.ok).toBe(false);
+    expect(report.fatal.map((issue) => issue.code)).toContain("refund_sandbox_processing");
+  });
+
   it("throws on assert when fatal issues exist", () => {
     expect(() =>
       assertProductionConfigOrThrow({

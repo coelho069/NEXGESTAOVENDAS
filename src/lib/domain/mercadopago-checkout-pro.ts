@@ -1,3 +1,4 @@
+import { exactConfirmedMoney } from "@/lib/domain/checkout-payment-snapshot";
 import { money, toMoneyString } from "@/lib/money";
 
 /**
@@ -75,6 +76,8 @@ export type MercadoPagoCheckoutProPaymentSnapshot = {
   preferenceId: string | null;
   payerEmail: string | null;
   transactionAmount: string | null;
+  currencyId: string | null;
+  dateApproved: string | null;
 };
 
 export type MercadoPagoCheckoutProPreferenceMetadata = {
@@ -140,13 +143,8 @@ export function parseMercadoPagoCheckoutProPaymentResponse(
       ? ((payer as Record<string, unknown>).email as string)
       : null;
 
-  const amount = record.transaction_amount;
-  const transactionAmount =
-    typeof amount === "number"
-      ? amount.toFixed(2)
-      : typeof amount === "string"
-        ? amount
-        : null;
+  const currencyRaw = record.currency_id;
+  const approvedRaw = record.date_approved;
 
   return {
     id: String(id),
@@ -160,7 +158,12 @@ export function parseMercadoPagoCheckoutProPaymentResponse(
         ? record.preference_id
         : null,
     payerEmail,
-    transactionAmount,
+    transactionAmount: exactConfirmedMoney(record.transaction_amount),
+    currencyId:
+      typeof currencyRaw === "string" && currencyRaw.trim().length > 0
+        ? currencyRaw.trim().toUpperCase()
+        : null,
+    dateApproved: typeof approvedRaw === "string" && approvedRaw.trim().length > 0 ? approvedRaw : null,
   };
 }
 

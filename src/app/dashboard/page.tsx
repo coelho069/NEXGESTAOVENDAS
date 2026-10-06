@@ -3,7 +3,9 @@ import { DashboardScreen } from "@/components/dashboard/dashboard-screen";
 import { AppNav } from "@/components/layout/app-nav";
 import { getElectronicPaymentAdapterAlerts } from "@/lib/adapters/payment";
 import { getPlatformAdminAccess } from "@/lib/auth/admin";
+import { redirect } from "next/navigation";
 import { getAuthedContext } from "@/lib/auth/session";
+import { isClientRole } from "@/lib/domain/rbac";
 import { loadDashboard } from "@/lib/server/dashboard-query";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +20,9 @@ export default async function DashboardPage({
     getAuthedContext(resolvedSearchParams?.store),
     getPlatformAdminAccess(),
   ]);
+  if (isClientRole(auth?.role)) {
+    redirect(auth?.storeId ? `/clientes?store=${encodeURIComponent(auth.storeId)}` : "/clientes");
+  }
   const initial = await loadDashboard({
     storeId: resolvedSearchParams?.store,
     from: resolvedSearchParams?.from,

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthedContext } from "@/lib/auth/session";
+import { canUsePdv } from "@/lib/domain/rbac";
 import { createClient } from "@/lib/supabase/server";
 import {
   cashActionSchema,
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
   }
 
   const auth = await getAuthedContext(parsed.data.store_id);
-  if (!auth?.orgId || !auth.role) {
+  if (!auth?.orgId || !canUsePdv(auth.role)) {
     return errorResponse("forbidden_cash", 403);
   }
 
@@ -83,7 +84,7 @@ export async function POST(request: Request) {
   }
 
   const auth = await getAuthedContext(parsed.data.store_id);
-  if (!auth?.orgId || !auth.role) {
+  if (!auth?.orgId || !canUsePdv(auth.role)) {
     return errorResponse("forbidden_cash", 403);
   }
 

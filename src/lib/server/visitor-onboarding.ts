@@ -35,6 +35,7 @@ import {
   buildOrganizationDisplayName,
   buildOrganizationSlug,
   buildTransactionalAccessEmailContent,
+  orgHasForeignOpenSubscription,
 } from "@/lib/domain/onboarding-visitor";
 
 const logger = createLogger({ service: "nexgestaovendas", component: "visitor-onboarding" });
@@ -92,6 +93,27 @@ function sanitizeOnboardingError(error: unknown): string {
 
 function supportEmail(envSource: Record<string, string | undefined>): string | null {
   return envSource.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || null;
+}
+
+async function organizationHasForeignSubscription(
+  admin: SupabaseClient<Database>,
+  orgId: string,
+  input: { clientMutationId: string; providerRef: string }
+): Promise<boolean> {
+  const { data, error } = await admin
+    .from("subscriptions")
+    .select("checkout_client_mutation_id, mp_preapproval_id")
+    .eq("org_id", orgId)
+    .in("status", ["active", "trialing", "past_due"]);
+  if (error) throw new Error("onboarding_subscription_lookup_failed");
+  return orgHasForeignOpenSubscription(
+    (data ?? []).map((row) => ({
+      checkoutClientMutationId: row.checkout_client_mutation_id,
+      providerRef: row.mp_preapproval_id,
+    })),
+    input.clientMutationId,
+    input.providerRef
+  );
 }
 
 async function verifyAuthUserExists(
@@ -274,20 +296,27 @@ export async function runVisitorOnboarding(
 
     if (!userId) throw new Error("onboarding_user_missing");
 
-    // 2. Reuse an existing profile's organization when a previous attempt
-    // created it before its checkpoint was written.
+    // 2. Reuse the payer's organization only when it does not already hold
+    // another open subscription. A paid checkout stays a client of its own
+    // subscription and is not attached to an admin subscription.
     const { data: existingProfile, error: profileLookupError } = await admin
       .from("profiles")
       .select("org_id")
       .eq("id", userId)
       .maybeSingle();
     if (profileLookupError) throw new Error("onboarding_profile_lookup_failed");
-    if (existingProfile?.org_id) {
-      if (organizationId && organizationId !== existingProfile.org_id) {
-        throw new Error("onboarding_profile_organization_conflict");
+    const previousOrgId = existingProfile?.org_id ?? null;
+    if (organizationId && (await organizationHasForeignSubscription(admin, organizationId, input))) {
+      organizationId = null;
+    }
+    if (previousOrgId && !organizationId) {
+      const foreign = await organizationHasForeignSubscription(admin, previousOrgId, input);
+      if (!foreign) {
+        organizationId = previousOrgId;
+        await saveProgress({ organizationId });
       }
-      organizationId = existingProfile.org_id;
-      await saveProgress({ organizationId });
+    } else if (previousOrgId && organizationId && organizationId !== previousOrgId) {
+      throw new Error("onboarding_profile_organization_conflict");
     }
 
     // 3. Organization.
@@ -314,11 +343,31 @@ export async function runVisitorOnboarding(
         org_id: orgId,
         full_name: organizationName,
         email: payerEmail,
-        default_role: "admin",
+        default_role: "client",
       });
       if (profileError && profileError.code !== "23505") {
         throw new Error("onboarding_profile_create_failed");
       }
+    } else if (previousOrgId !== orgId) {
+      const { error: profileMoveError } = await admin
+        .from("profiles")
+        .update({ org_id: orgId, default_role: "client" })
+        .eq("id", userId);
+      if (profileMoveError) throw new Error("onboarding_profile_create_failed");
+      if (previousOrgId) {
+        const { error: detachError } = await admin
+          .from("store_members")
+          .delete()
+          .eq("user_id", userId)
+          .eq("org_id", previousOrgId);
+        if (detachError) throw new Error("onboarding_member_create_failed");
+      }
+    } else {
+      const { error: roleError } = await admin
+        .from("profiles")
+        .update({ default_role: "client" })
+        .eq("id", userId);
+      if (roleError) throw new Error("onboarding_profile_create_failed");
     }
 
     const { data: existingStore, error: storeLookupError } = await admin
@@ -342,7 +391,7 @@ export async function runVisitorOnboarding(
 
     const { data: existingMember, error: memberLookupError } = await admin
       .from("store_members")
-      .select("id")
+      .select("id, role")
       .eq("store_id", storeId)
       .eq("user_id", userId)
       .maybeSingle();
@@ -352,11 +401,17 @@ export async function runVisitorOnboarding(
         org_id: orgId,
         store_id: storeId,
         user_id: userId,
-        role: "admin",
+        role: "client",
       });
       if (memberError && memberError.code !== "23505") {
         throw new Error("onboarding_member_create_failed");
       }
+    } else if (existingMember.role !== "client") {
+      const { error: memberRoleError } = await admin
+        .from("store_members")
+        .update({ role: "client" })
+        .eq("id", existingMember.id);
+      if (memberRoleError) throw new Error("onboarding_member_create_failed");
     }
 
     // 5. Reuse a subscription already created by a partial attempt or by the

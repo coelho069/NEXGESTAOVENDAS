@@ -29,6 +29,7 @@ export const DISCOUNT_LIMIT_PERCENT: Record<MemberRole, string> = {
   cashier: "5.00",
   manager: "20.00",
   admin: "100.00",
+  client: "0.00",
 };
 
 const MONEY_PATTERN = /^(?:0|[1-9]\d{0,9})\.\d{2}$/;

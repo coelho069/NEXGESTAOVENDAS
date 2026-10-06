@@ -8,6 +8,7 @@ import {
   Building2,
   CreditCard,
   KeyRound,
+  RotateCcw,
   Settings2,
 } from "lucide-react";
 import { BrandMark } from "@/components/landing/components/BrandMark";
@@ -30,6 +31,7 @@ export function AdminSidebar() {
   const isSubscriptions = pathname.startsWith("/admin/assinaturas");
   const isPlans = pathname.startsWith("/admin/planos");
   const isClientAccounts = pathname.startsWith("/admin/clientes/contas");
+  const isRefunds = pathname.startsWith("/admin/reembolsos");
 
   return (
     <>
@@ -66,6 +68,10 @@ export function AdminSidebar() {
           <Link href="/admin/clientes/contas" className={navClass(isClientAccounts)}>
             <KeyRound size={19} aria-hidden="true" />
             Contas de clientes
+          </Link>
+          <Link href="/admin/reembolsos" className={navClass(isRefunds)}>
+            <RotateCcw size={19} aria-hidden="true" />
+            Reembolsos
           </Link>
 
           <p className="mt-8 px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
@@ -111,6 +117,10 @@ export function AdminSidebar() {
         <Link href="/admin/clientes/contas" className={mobileNavClass(isClientAccounts)}>
           <KeyRound size={17} aria-hidden="true" />
           Contas
+        </Link>
+        <Link href="/admin/reembolsos" className={mobileNavClass(isRefunds)}>
+          <RotateCcw size={17} aria-hidden="true" />
+          Reembolsos
         </Link>
         <Link href="/admin/planos" className={mobileNavClass(isPlans)}>
           <Building2 size={17} aria-hidden="true" />

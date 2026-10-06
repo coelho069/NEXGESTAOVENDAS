@@ -1,24 +1,13 @@
 import type { Metadata } from "next";
 import { RefundPolicyPage } from "@/components/marketing/refund-policy-page";
 import {
+  POLICY_EFFECTIVE_DATE_ISO,
   REFUND_POLICY_CANONICAL_URL,
+  REFUND_REVIEW_BUSINESS_DAYS,
+  REFUND_WINDOW_DAYS,
+  YEARLY_PLAN_REFUND_WINDOW_DAYS,
   getPublicCompanyProfile,
 } from "@/lib/domain/refund-policy";
-
-/** Dias corridos após a primeira cobrança paga para pedir reembolso. Edite aqui. */
-const REFUND_WINDOW_DAYS = 7;
-
-/**
- * Dias corridos após a primeira cobrança paga de um plano anual.
- * Depois deste prazo o ciclo anual restante não é estornado. Edite aqui.
- */
-const YEARLY_PLAN_REFUND_WINDOW_DAYS = 7;
-
-/** Prazo máximo de análise do pedido, em dias úteis. Edite aqui. */
-const REFUND_REVIEW_BUSINESS_DAYS = 5;
-
-/** Data de vigência desta versão (ISO YYYY-MM-DD). Edite aqui. */
-const POLICY_EFFECTIVE_DATE_ISO = "2026-09-27";
 
 export const metadata: Metadata = {
   title: "Política de Reembolsos e Devoluções — Nex Gestão Vendas",

@@ -2,15 +2,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/db/types";
 
-const { getPlatformAdminAccess, createAdminClient, createServerClient } = vi.hoisted(() => ({
+const { getPlatformAdminAccess, createAdminClient, createServerClient, sendAccessEmail } = vi.hoisted(() => ({
   getPlatformAdminAccess: vi.fn(),
   createAdminClient: vi.fn(),
   createServerClient: vi.fn(),
+  sendAccessEmail: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/admin", () => ({ getPlatformAdminAccess }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: createServerClient }));
+vi.mock("@/lib/server/access-email", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/server/access-email")>(
+    "@/lib/server/access-email"
+  );
+  return { ...actual, sendAccessEmail };
+});
 
 /** Recovery session double: only auth.getUser() is exercised. */
 function withSessionUser(user: { id: string; email: string } | null) {
@@ -23,6 +30,7 @@ import {
   createAdminClientAccountAction,
   resendAdminClientAccountInviteAction,
   setAdminClientAccountSuspendedAction,
+  getClientActivationEligibility,
   markClientAccountActivatedAction,
   CLIENT_ACCOUNT_INVITE_TTL_MS,
 } from "@/lib/server/admin-client-account-provisioning";
@@ -288,7 +296,7 @@ describe("create account + invite", () => {
       id: USER_ID,
       org_id: ORG_ID,
       email: "maria@empresa.com.br",
-      default_role: "admin",
+      default_role: "client",
     });
     expect(admin.state.stores).toHaveLength(1);
     expect(admin.state.stores[0]).toMatchObject({
@@ -300,7 +308,7 @@ describe("create account + invite", () => {
     expect(admin.state.storeMembers[0]).toMatchObject({
       org_id: ORG_ID,
       user_id: USER_ID,
-      role: "admin",
+      role: "client",
     });
   });
 
@@ -434,7 +442,40 @@ describe("idempotency and partial failures", () => {
 
     expect(result).toEqual({ ok: false, error: "gmail_not_configured" });
     expect(okInvite).not.toHaveBeenCalled();
+    expect(sendAccessEmail).not.toHaveBeenCalled();
     expect(admin.state.accounts[0].status).toBe("invite_failed");
+  });
+
+  it("sends the invite through SMTP when Gmail OAuth is not configured", async () => {
+    authorizeAdmin();
+    const admin = makeAdmin();
+    sendAccessEmail.mockResolvedValue({ ok: true, emailId: "smtp-message-1" });
+
+    const result = await createAdminClientAccountAction(VALID_INPUT, {
+      admin,
+      env: {
+        APP_ORIGIN: "https://app.nexgestaovendas.com.br",
+        SMTP_HOST: "smtp.hostinger.com",
+        SMTP_PORT: "465",
+        SMTP_SECURE: "true",
+        SMTP_USER: "nexgestaovendas@nexgestaovendas.com.br",
+        SMTP_PASSWORD: "smtp-secret",
+        EMAIL_FROM: "contato@nexgestaovendas.com.br",
+      },
+      sendInvite: okInvite,
+      now: () => NOW,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      clientAccountId: admin.state.accounts[0].id,
+      status: "invite_sent",
+      inviteSent: true,
+    });
+    expect(okInvite).not.toHaveBeenCalled();
+    expect(sendAccessEmail).toHaveBeenCalledOnce();
+    expect(sendAccessEmail.mock.calls[0][0].to).toBe("maria@empresa.com.br");
+    expect(admin.state.accounts[0].status).toBe("invite_sent");
   });
 
   it("can provision without sending the invitation", async () => {
@@ -634,5 +675,39 @@ describe("activation marking", () => {
     const result = await markClientAccountActivatedAction({ admin: admin });
     expect(result).toEqual({ ok: false, error: "forbidden" });
     expect(admin.state.accounts).toHaveLength(0);
+  });
+});
+
+describe("activation eligibility", () => {
+  it("rejects a session that does not own a client account", async () => {
+    const admin = makeAdmin();
+    withSessionUser({ id: ADMIN_ID, email: "admin@nexgestaovendas.com.br" });
+
+    const result = await getClientActivationEligibility({ admin });
+
+    expect(result).toEqual({ ok: false, error: "account_not_found" });
+  });
+
+  it("returns the pending status for the invited session", async () => {
+    const admin = makeAdmin();
+    admin.state.accounts.push({
+      id: ACCOUNT_ID,
+      user_id: USER_ID,
+      status: "invite_sent",
+    });
+    withSessionUser({ id: USER_ID, email: "maria@empresa.com.br" });
+
+    const result = await getClientActivationEligibility({ admin });
+
+    expect(result).toEqual({ ok: true, status: "invite_sent" });
+  });
+
+  it("refuses when there is no session", async () => {
+    const admin = makeAdmin();
+    withSessionUser(null);
+
+    const result = await getClientActivationEligibility({ admin });
+
+    expect(result).toEqual({ ok: false, error: "forbidden" });
   });
 });

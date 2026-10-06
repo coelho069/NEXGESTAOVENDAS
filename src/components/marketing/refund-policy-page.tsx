@@ -115,10 +115,10 @@ export function RefundPolicyPage({
               </h2>
               <p className="mt-3">
                 O {company.tradeName} é um software de gestão de vendas (SaaS): PDV, estoque, clientes,
-                dashboard e recursos do plano contratado. A cobrança é a assinatura recorrente da
-                plataforma (mensal ou anual, conforme o plano), processada pelo Stripe. Não vendemos
-                produto físico nesta contratação — não há envio, troca de mercadoria nem devolução de
-                item em caixa.
+                dashboard e recursos do plano contratado. A contratação pública é cobrada pelo Mercado
+                Pago (Checkout Pro): um pagamento do período contratado, mensal ou anual conforme o
+                plano. Não vendemos produto físico nesta contratação — não há envio, troca de
+                mercadoria nem devolução de item em caixa.
               </p>
               <dl className="mt-4 grid gap-2 rounded-2xl border border-slate-200 bg-white p-4">
                 <div>
@@ -171,17 +171,13 @@ export function RefundPolicyPage({
             <section id="como-solicitar" className="scroll-mt-24">
               <h2 className="text-xl font-semibold tracking-tight text-slate-900">3. Como solicitar</h2>
               <p className="mt-3">
-                Envie um e-mail para o suporte com o assunto “Pedido de reembolso — Nex Gestão Vendas”.
-                Informe:
+                O pedido é registrado na área autenticada, pelo botão Solicitar reembolso, somente para um
+                pagamento elegível da própria conta. O envio não devolve o valor. O prazo de {refundWindowDays}{" "}
+                dias é conferido a partir do instante do pagamento em America/Sao_Paulo.
               </p>
-              <ul className="mt-3 list-disc space-y-1 pl-5">
-                <li>o e-mail da conta assinante;</li>
-                <li>o ID da fatura ou da sessão de pagamento no Stripe (começa com <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">in_</code> ou <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">cs_</code>, visível no comprovante);</li>
-                <li>o motivo do pedido, em poucas linhas;</li>
-                <li>se já emitiu documento fiscal ou processou vendas reais nesta conta.</li>
-              </ul>
               <p className="mt-4">
-                E-mail de suporte:{" "}
+                Se o formulário não abrir, envie um e-mail para o suporte com o assunto “Pedido de
+                reembolso — Nex Gestão Vendas” e os mesmos dados. E-mail de suporte:{" "}
                 {supportMailto ? (
                   <a className="font-semibold text-emerald-700 hover:text-emerald-800" href={supportMailto}>
                     {company.supportEmail}
@@ -189,8 +185,7 @@ export function RefundPolicyPage({
                 ) : (
                   <span className="font-semibold text-slate-800">{company.supportEmail}</span>
                 )}
-                . Pedidos só pelo canal de e-mail entram na fila de análise; WhatsApp pode orientar, mas
-                o registro formal do reembolso é o e-mail.
+                . WhatsApp pode orientar, mas o registro formal é o formulário ou o e-mail.
               </p>
             </section>
 
@@ -199,14 +194,14 @@ export function RefundPolicyPage({
                 4. Análise e estorno
               </h2>
               <p className="mt-3">
-                Analisamos o pedido em até {reviewBusinessDays} dias úteis após o e-mail completo. Se o
-                reembolso for aprovado, o estorno é feito pelo Stripe no mesmo meio de pagamento da
-                cobrança original.
+                Analisamos o pedido em até {reviewBusinessDays} dias úteis depois do registro completo.
+                Registrar ou aprovar o pedido nesta página não movimenta dinheiro. Se o reembolso for
+                aprovado, o estorno é feito depois pelo Mercado Pago, no mesmo meio da cobrança original.
               </p>
               <p className="mt-3">
-                O crédito no extrato do cartão depende do banco ou da bandeira — em geral alguns dias
-                úteis após o Stripe confirmar o refund. Não controlamos esse prazo do emissor. Quando
-                aprovado, enviamos a confirmação no mesmo e-mail usado no pedido.
+                O crédito no extrato do cartão ou na conta do PIX depende do banco — em geral alguns
+                dias úteis depois que o Mercado Pago confirma o estorno. Não controlamos esse prazo.
+                Quando aprovado, enviamos a confirmação no mesmo e-mail usado no pedido.
               </p>
             </section>
 
@@ -220,7 +215,10 @@ export function RefundPolicyPage({
                   ciclo já utilizado depois do trial ou depois dos {refundWindowDays} dias da primeira
                   cobrança;
                 </li>
-                <li>renovações seguintes (segunda cobrança em diante), ainda que o período esteja em curso;</li>
+                <li>
+                  uma nova contratação fora da janela da primeira cobrança paga, ainda que o período
+                  esteja em curso;
+                </li>
                 <li>
                   conta com emissão fiscal em produção ou uso intensivo do PDV no período cujo estorno
                   foi pedido;
@@ -230,8 +228,8 @@ export function RefundPolicyPage({
                   devolução do saldo dos meses restantes;
                 </li>
                 <li>
-                  contestação/chargeback no cartão ou PIX sem ter pedido reembolso por e-mail, ou de
-                  forma reiterada/abusiva;
+                  contestação/chargeback no cartão ou PIX sem ter registrado o pedido, ou de forma
+                  reiterada/abusiva;
                 </li>
                 <li>cobrança gerada por uso da sua loja (vendas no PDV a clientes finais).</li>
               </ul>
@@ -242,9 +240,9 @@ export function RefundPolicyPage({
                 6. Cancelamento vs reembolso
               </h2>
               <p className="mt-3">
-                Cancelar a assinatura impede a renovação automática. O acesso segue até o fim do período
-                já pago. Cancelar <strong className="font-semibold text-slate-800">não</strong> estorna o
-                ciclo corrente.
+                O checkout público é um pagamento único do período contratado. Encerrar o acesso não
+                devolve esse pagamento e não há renovação automática nesse fluxo. Cancelar{" "}
+                <strong className="font-semibold text-slate-800">não</strong> estorna o período já pago.
               </p>
               <p className="mt-3">
                 Reembolso é um pedido separado, só nas hipóteses desta política, e só sobre cobrança já
@@ -256,10 +254,9 @@ export function RefundPolicyPage({
             <section id="pix" className="scroll-mt-24">
               <h2 className="text-xl font-semibold tracking-tight text-slate-900">7. Pagamentos via PIX</h2>
               <p className="mt-3">
-                Quando a assinatura for paga via PIX pelo Stripe, o estorno também é iniciado no Stripe,
-                de volta à mesma transação PIX. O crédito na conta do pagador pode levar de algumas horas
-                a alguns dias úteis, conforme o banco. O prazo não é o mesmo do cartão e não depende só
-                da nossa análise.
+                Quando o plano for pago via PIX no Mercado Pago, o estorno aprovado volta pela mesma
+                transação PIX. O crédito na conta do pagador pode levar de algumas horas a alguns dias
+                úteis, conforme o banco. O prazo não é o mesmo do cartão e não depende só da nossa análise.
               </p>
             </section>
 

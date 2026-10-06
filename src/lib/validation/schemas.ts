@@ -1,7 +1,7 @@
 import Decimal from "decimal.js";
 import { z } from "zod";
 import { isValidDateOnly, parseDashboardPeriod } from "@/lib/domain/dashboard";
-import { toInventoryDelta } from "@/lib/domain/quantity";
+import { toInventoryDelta, toInventoryQuantity } from "@/lib/domain/quantity";
 
 const moneyPattern = /^(?:0|[1-9]\d{0,9})\.\d{2}$/;
 const signedMoneyPattern = /^-?(?:0|[1-9]\d{0,9})\.\d{2}$/;
@@ -489,6 +489,20 @@ export const pullChangesQuerySchema = z.object({
 
 export type PullChangesQuery = z.infer<typeof pullChangesQuerySchema>;
 
+const stockQuantitySchema = z
+  .union([z.number().finite(), z.string().trim().min(1)])
+  .transform((value, context) => {
+    try {
+      return toInventoryQuantity(value);
+    } catch {
+      context.addIssue({
+        code: "custom",
+        message: "quantity must be a non-negative numeric(12,3)",
+      });
+      return z.NEVER;
+    }
+  });
+
 const quantitySchema = z
   .union([z.number().finite(), z.string().trim().min(1)])
   .transform((value, context) => {
@@ -583,16 +597,18 @@ export const productWriteSchema = z.object({
   barcode: z.string().trim().max(64).nullable().optional(),
   is_active: z.boolean().optional().default(true),
   category_id: z.string().uuid().nullable().optional(),
+  quantity: stockQuantitySchema.optional().default("0.000"),
 });
 
 export type ProductWriteInput = z.infer<typeof productWriteSchema>;
 
 export const productPatchSchema = productWriteSchema
-  .omit({ store_id: true, is_active: true })
+  .omit({ store_id: true, is_active: true, quantity: true })
   .partial()
   .extend({
     store_id: storeIdSchema,
     is_active: z.boolean().optional(),
+    quantity: stockQuantitySchema.optional(),
   });
 
 export type ProductPatchInput = z.infer<typeof productPatchSchema>;
@@ -900,3 +916,95 @@ export const adminClientAccountListQuerySchema = z.object({
 });
 
 export type AdminClientAccountListQuery = z.infer<typeof adminClientAccountListQuerySchema>;
+
+// ---------------------------------------------------------------------------
+// SaaS refund requests — analysis only, no provider refund
+// ---------------------------------------------------------------------------
+
+const refundRequestEmailSchema = z
+  .string()
+  .trim()
+  .min(3)
+  .max(254)
+  .email()
+  .transform((value) => value.toLowerCase());
+
+export const createRefundRequestSchema = z
+  .object({
+    client_mutation_id: z.string().uuid(),
+    payer_email: refundRequestEmailSchema,
+    mp_payment_id: z.string().trim().regex(/^\d{6,20}$/),
+    reason: z.enum([
+      "arrependimento",
+      "cobranca_indevida",
+      "cobranca_duplicada",
+      "falha_no_servico",
+      "problema_tecnico",
+      "outro",
+    ]),
+    notes: z.string().trim().max(2000).optional().default(""),
+    intensive_use_declared: z.boolean(),
+    paid_on: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.reason === "outro" && value.notes.trim().length < 3) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["notes"],
+        message: "Informe o motivo em pelo menos 3 caracteres.",
+      });
+    }
+  });
+
+export type CreateRefundRequestBody = z.infer<typeof createRefundRequestSchema>;
+
+export const reviewRefundRequestSchema = z.object({
+  id: z.string().uuid(),
+  action: z.enum(["start_review", "approve", "reject"]),
+  resolution_note: z.string().trim().max(2000).optional().default(""),
+  acknowledge_outside_window: z.boolean().optional().default(false),
+});
+
+export type ReviewRefundRequestBody = z.infer<typeof reviewRefundRequestSchema>;
+
+/** Local admin sandbox only. Amount, provider, and provider ids are not fields. */
+export const adminSandboxRefundProcessSchema = z
+  .object({
+    id: z.string().uuid(),
+    confirm: z.literal(true),
+    retry: z.boolean().optional().default(false),
+  })
+  .strict();
+
+export type AdminSandboxRefundProcessBody = z.infer<typeof adminSandboxRefundProcessSchema>;
+
+/** Authenticated client request. Email, payment ownership, and paid date come from the server. */
+export const createOwnedRefundRequestSchema = z
+  .object({
+    client_mutation_id: z.string().uuid(),
+    mp_payment_id: z.string().trim().regex(/^\d{6,20}$/),
+    reason: z.enum([
+      "arrependimento",
+      "cobranca_indevida",
+      "cobranca_duplicada",
+      "falha_no_servico",
+      "problema_tecnico",
+      "outro",
+    ]),
+    notes: z.string().trim().max(2000).optional().default(""),
+    confirmed: z.literal(true),
+  })
+  .superRefine((value, ctx) => {
+    if (value.reason === "outro" && value.notes.trim().length < 3) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["notes"],
+        message: "Informe o motivo em pelo menos 3 caracteres.",
+      });
+    }
+  });
+
+export type CreateOwnedRefundRequestBody = z.infer<typeof createOwnedRefundRequestSchema>;

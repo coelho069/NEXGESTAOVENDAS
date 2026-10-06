@@ -6,6 +6,7 @@ import {
   storeIdSchema,
 } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
+import { canUsePdv } from "@/lib/domain/rbac";
 import { discountLimitHttpStatus, salePayloadExceedsDiscountCap } from "@/lib/domain/sale-ops";
 import { mapProcessSaleRpcError, rpcFailureLogFields } from "@/lib/domain/sale-process-error";
 import { requestFiscalIssueAfterCommit } from "@/lib/server/fiscal-operation";
@@ -76,11 +77,12 @@ export async function POST(request: Request) {
   }
 
   const auth = await getAuthedContext(parsed.data.store_id);
-  if (!auth?.orgId || !auth.role) {
+  const role = auth?.role ?? null;
+  if (!auth?.orgId || !canUsePdv(role)) {
     return NextResponse.json({ error: "forbidden_store" }, { status: 403 });
   }
 
-  if (salePayloadExceedsDiscountCap(parsed.data, auth.role)) {
+  if (salePayloadExceedsDiscountCap(parsed.data, role)) {
     return NextResponse.json({ error: "discount_limit_exceeded" }, { status: discountLimitHttpStatus(true) });
   }
 

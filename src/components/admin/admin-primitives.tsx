@@ -140,5 +140,6 @@ export function adminRoleLabel(role: MemberRole | null): string {
   if (role === "admin") return "Administrador";
   if (role === "manager") return "Gerente";
   if (role === "cashier") return "Caixa";
+  if (role === "client") return "Cliente";
   return "Sem papel";
 }

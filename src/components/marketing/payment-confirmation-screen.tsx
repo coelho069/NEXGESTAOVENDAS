@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PaymentApprovedScreen } from "@/components/marketing/payment-approved-screen";
 
 export type PaymentScreenOutcome = "paid" | "pending" | "failed" | "unknown";
 
@@ -106,12 +107,26 @@ export function PaymentConfirmationScreen({ variant, query, loginHref }: Props) 
   }, [state.data, state.loading, state.error, variant, fetchStatus]);
 
   const outcome = state.data?.outcome ?? null;
-  const isPaid = outcome === "paid";
   const isPending = outcome === "pending";
   const isFailed = outcome === "failed";
-  const showNeutral = outcome === "unknown" || outcome === null;
+  const showNeutral = variant !== "sucesso" && (outcome === "unknown" || outcome === null);
+  // /pagamento/sucesso is the Mercado Pago auto_return for an approved payment.
+  // Show that screen immediately; only leave it when the status API says otherwise.
+  const showApproved = variant === "sucesso" ? !isPending && !isFailed : outcome === "paid";
 
   const amount = state.data?.amount != null ? formatBRL(state.data.amount, state.data.currency) : null;
+
+  if (showApproved) {
+    return (
+      <PaymentApprovedScreen
+        planName={state.data?.plan_name ?? null}
+        amountLabel={amount}
+        maskedEmail={state.data?.masked_email ?? null}
+        accessEmailSent={state.data?.access_email_sent === true}
+        loginHref={loginHref}
+      />
+    );
+  }
 
   return (
     <main className="flex min-h-screen flex-col bg-slate-50">
@@ -131,56 +146,6 @@ export function PaymentConfirmationScreen({ variant, query, loginHref }: Props) 
       <section className="mx-auto w-full max-w-md flex-1 px-4 py-10 sm:py-16">
         {showNeutral ? (
           <NeutralState loading={state.loading} error={state.error} onRetry={fetchStatus} />
-        ) : isPaid ? (
-          <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-            <div
-              className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-2xl"
-              aria-hidden="true"
-            >
-              ✅
-            </div>
-            <h1 className="mt-4 text-2xl font-bold tracking-tight text-slate-900">Pagamento confirmado</h1>
-            <p className="mt-2 text-sm text-slate-600">
-              Tudo certo{state.data?.masked_email ? `, ${state.data.masked_email}` : ""}! Sua assinatura está ativa.
-            </p>
-
-            <dl className="mt-6 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
-              {state.data?.plan_name ? (
-                <div className="flex items-center justify-between gap-4">
-                  <dt className="text-slate-500">Plano</dt>
-                  <dd className="font-semibold text-slate-900">{state.data.plan_name}</dd>
-                </div>
-              ) : null}
-              {amount ? (
-                <div className="flex items-center justify-between gap-4">
-                  <dt className="text-slate-500">Valor</dt>
-                  <dd className="font-semibold tabular-nums text-slate-900">{amount}</dd>
-                </div>
-              ) : null}
-            </dl>
-
-            <p className="mt-4 text-sm leading-relaxed text-slate-600">
-              {state.data?.access_email_sent ? (
-                <>
-                  Enviamos o acesso do PDV para{" "}
-                  <span className="font-medium text-slate-900">{state.data.masked_email}</span>. Confira também a
-                  caixa de spam.
-                </>
-              ) : (
-                <>
-                  Sua conta foi criada. O e-mail de acesso será enviado em instantes — se não chegar em alguns
-                  minutos, fale com o suporte.
-                </>
-              )}
-            </p>
-
-            <Link
-              href={loginHref}
-              className="mt-6 inline-flex w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
-            >
-              Ir para o login do PDV
-            </Link>
-          </article>
         ) : isPending ? (
           <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
             <div

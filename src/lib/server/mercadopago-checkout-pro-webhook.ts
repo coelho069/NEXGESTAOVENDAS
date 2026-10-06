@@ -3,6 +3,7 @@
  * Validates signature, confirms payment status via MP API, persists checkout_sessions
  * idempotently by mp_payment_id, then triggers onboarding email (Resend) and Telegram.
  */
+import { confirmedSnapshotFromPayment } from "@/lib/domain/checkout-payment-snapshot";
 import {
   isMercadoPagoCheckoutProPaymentApproved,
   isMercadoPagoCheckoutProWebhookTypeAllowed,
@@ -48,6 +49,7 @@ export type MercadoPagoCheckoutProWebhookApplyResult = {
   subscription_id?: string;
   retryable?: boolean;
   access_delivery?: PostPaymentAccessDelivery;
+  snapshot_conflict?: "amount" | "currency" | "amount_and_currency";
 };
 
 function buildAccessDelivery(
@@ -86,6 +88,17 @@ function buildAccessDelivery(
       ? { skipped: true, skip_reason: "email_sender_unconfigured_or_failed" }
       : {}),
   };
+}
+
+function onboardingSettled(session: {
+  onboarding_status?: string | null;
+  onboarding_email_sent_at?: string | null;
+}): boolean {
+  return session.onboarding_status === "completed" || Boolean(session.onboarding_email_sent_at);
+}
+
+function hasFinancialSnapshot(session: { transaction_amount?: string | number | null }): boolean {
+  return session.transaction_amount != null && String(session.transaction_amount).trim() !== "";
 }
 
 function resolveClientMutationId(input: {
@@ -169,7 +182,7 @@ export async function applyMercadoPagoCheckoutProWebhookEvent(
     paymentId,
     correlationId: options.correlationId,
   });
-  if (existing) {
+  if (existing && onboardingSettled(existing) && !hasFinancialSnapshot(existing)) {
     return {
       replay: true,
       event_id: eventId,
@@ -200,16 +213,38 @@ export async function applyMercadoPagoCheckoutProWebhookEvent(
     };
   }
 
+  const confirmedSnapshot = confirmedSnapshotFromPayment(payment);
+  if (!confirmedSnapshot) {
+    if (existing && hasFinancialSnapshot(existing)) {
+      return {
+        replay: true,
+        event_id: eventId,
+        payment_id: payment.id,
+        notifications_sent: false,
+      };
+    }
+    return {
+      replay: false,
+      event_id: eventId,
+      payment_id: payment.id,
+      ignored: true,
+      ignored_reason: "snapshot_unavailable",
+      retryable: true,
+    };
+  }
+
   let preferenceExternalReference: string | null = null;
   if (payment.preferenceId) {
     const preference = await gateway.getPreference(payment.preferenceId);
     preferenceExternalReference = preference?.externalReference ?? null;
   }
 
-  const clientMutationId = resolveClientMutationId({
-    externalReference: payment.externalReference,
-    preferenceExternalReference,
-  });
+  const clientMutationId =
+    existing?.client_mutation_id?.trim() ||
+    resolveClientMutationId({
+      externalReference: payment.externalReference,
+      preferenceExternalReference,
+    });
   if (!clientMutationId) {
     return {
       replay: false,
@@ -226,6 +261,7 @@ export async function applyMercadoPagoCheckoutProWebhookEvent(
     paymentId: payment.id,
     paymentStatus: payment.status,
     preferenceId: payment.preferenceId,
+    confirmedSnapshot,
     correlationId: options.correlationId,
   });
   if (!persisted.ok) {
@@ -241,12 +277,23 @@ export async function applyMercadoPagoCheckoutProWebhookEvent(
     };
   }
 
-  if (persisted.replay) {
+  if (persisted.snapshotConflict) {
     return {
       replay: true,
       event_id: eventId,
       payment_id: payment.id,
       notifications_sent: false,
+      snapshot_conflict: persisted.snapshotConflict,
+    };
+  }
+
+  if ((existing && onboardingSettled(existing)) || (persisted.replay && onboardingSettled(persisted.session))) {
+    return {
+      replay: true,
+      event_id: eventId,
+      payment_id: payment.id,
+      notifications_sent: false,
+      ...(persisted.snapshotConflict ? { snapshot_conflict: persisted.snapshotConflict } : {}),
     };
   }
 

@@ -83,6 +83,9 @@ export async function syncClientAccountAfterPurchase(
     if (input.subscriptionId && existing.subscription_id !== input.subscriptionId) {
       updates.subscription_id = input.subscriptionId;
     }
+    if (input.orgId && existing.org_id !== input.orgId) {
+      updates.org_id = input.orgId;
+    }
     if (existing.user_id !== input.userId) {
       updates.user_id = input.userId;
     }

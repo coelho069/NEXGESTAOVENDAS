@@ -5,13 +5,18 @@
  *
  * Flow: the invite link establishes a recovery session in the browser client,
  * the visitor sets their own password via `auth.updateUser`, and the account is
- * marked `activated` through a server action. There is no alternative
- * authentication path and no server-side password handling.
+ * marked `activated` through a server action. A session that is already logged
+ * in (an administrator, for example) is not an invitation: the password form
+ * stays closed unless that session owns a client account allowed to set one.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import {
+  canDefineActivationPassword,
+  readActivationCallback,
+} from "@/lib/domain/activation-link";
 import {
   ACCOUNT_PASSWORD_MAX_LENGTH,
   ACCOUNT_PASSWORD_MIN_LENGTH,
@@ -19,7 +24,10 @@ import {
   describePasswordProblems,
   isPasswordAcceptable,
 } from "@/lib/domain/admin-client-accounts";
-import { markClientAccountActivatedAction } from "@/lib/server/admin-client-account-actions";
+import {
+  defineActivationPasswordAction,
+  getClientActivationEligibilityAction,
+} from "@/lib/server/admin-client-account-actions";
 
 type Phase = "checking" | "ready" | "invalid" | "submitting" | "done";
 
@@ -29,20 +37,77 @@ export function ActivateAccountForm() {
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const freshAccessLink = useRef(false);
 
   const checkSession = useCallback(async () => {
-    const supabase = createClient();
-    // The invite link is consumed by the client on load; a short retry window
-    // covers the hash-to-session exchange that Supabase performs.
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      const { data } = await supabase.auth.getSession();
-      if (data.session) {
+    try {
+      const callback = readActivationCallback(window.location.href);
+      freshAccessLink.current = callback !== null;
+      const supabase = createClient();
+
+      if (callback?.kind === "implicit") {
+        const adopted = await fetch("/api/auth/activation-session", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            accessToken: callback.accessToken,
+            refreshToken: callback.refreshToken,
+          }),
+        });
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: callback.accessToken,
+          refresh_token: callback.refreshToken,
+        });
+        const url = new URL(window.location.href);
+        url.hash = "";
+        window.history.replaceState(window.history.state, "", url.toString());
+        if (!adopted.ok || sessionError) {
+          setPhase("invalid");
+          return;
+        }
         setPhase("ready");
         return;
       }
-      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      if (callback?.kind === "pkce") {
+        const exchanged = await supabase.auth.exchangeCodeForSession(callback.code);
+        const session = exchanged.data.session;
+        if (exchanged.error || !session) {
+          setPhase("invalid");
+          return;
+        }
+        const adopted = await fetch("/api/auth/activation-session", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            accessToken: session.access_token,
+            refreshToken: session.refresh_token,
+          }),
+        });
+        if (!adopted.ok) {
+          setPhase("invalid");
+          return;
+        }
+        setPhase("ready");
+        return;
+      }
+
+      await supabase.auth.getSession();
+      const eligibility = await getClientActivationEligibilityAction();
+      if (
+        !eligibility.ok ||
+        !canDefineActivationPassword(eligibility.status, freshAccessLink.current)
+      ) {
+        setPhase("invalid");
+        return;
+      }
+
+      setPhase("ready");
+    } catch {
+      setPhase("invalid");
     }
-    setPhase("invalid");
   }, []);
 
   useEffect(() => {
@@ -65,22 +130,21 @@ export function ActivateAccountForm() {
     }
 
     setPhase("submitting");
-    const supabase = createClient();
-    const { error: updateError } = await supabase.auth.updateUser({ password });
-
-    if (updateError) {
-      setPhase("ready");
-      // Never echo the provider message: it can contain identifiers.
-      setError(
-        /expired|invalid/i.test(updateError.message)
-          ? "Este link expirou ou já foi utilizado. Solicite um novo envio ao suporte ou use a recuperação de senha em /login."
-          : "Não foi possível definir a senha. Tente novamente."
-      );
+    const eligibility = await getClientActivationEligibilityAction();
+    if (
+      !eligibility.ok ||
+      !canDefineActivationPassword(eligibility.status, freshAccessLink.current)
+    ) {
+      setPhase("invalid");
       return;
     }
 
-    // Best-effort bookkeeping: the account is usable even if this fails.
-    await markClientAccountActivatedAction();
+    const defined = await defineActivationPasswordAction(password);
+    if (!defined.ok) {
+      setPhase("ready");
+      setError(defined.error);
+      return;
+    }
 
     setPhase("done");
     router.replace("/pdv");

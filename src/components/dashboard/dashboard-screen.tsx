@@ -307,6 +307,7 @@ function roleLabel(role: MemberRole | null): string {
   if (role === "admin") return "Admin";
   if (role === "manager") return "Gerente";
   if (role === "cashier") return "Caixa";
+  if (role === "client") return "Cliente";
   return "Não disponível";
 }
 

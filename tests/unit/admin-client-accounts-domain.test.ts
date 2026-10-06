@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  canDefineActivationPassword,
+  readActivationCallback,
+} from "@/lib/domain/activation-link";
+import {
   ACCOUNT_INVITE_EMAIL_SUBJECT,
   buildAccountInviteEmailContent,
   buildAdminClientAccountOverview,
@@ -148,6 +152,29 @@ describe("filters", () => {
 
   it("normalizes e-mail for comparison", () => {
     expect(normalizeAccountEmail("  Cliente@Empresa.COM ")).toBe("cliente@empresa.com");
+  });
+});
+
+describe("activation link", () => {
+  it("reads an invite hash and ignores a bare page url", () => {
+    expect(readActivationCallback("https://nexgestaovendas.com.br/ativar-conta")).toBeNull();
+    expect(
+      readActivationCallback(
+        "https://nexgestaovendas.com.br/ativar-conta#access_token=aaa&refresh_token=bbb&type=invite"
+      )
+    ).toEqual({
+      kind: "implicit",
+      accessToken: "aaa",
+      refreshToken: "bbb",
+      type: "invite",
+    });
+  });
+
+  it("allows a password only for a pending client, or a fresh link on an activated one", () => {
+    expect(canDefineActivationPassword("invite_sent", false)).toBe(true);
+    expect(canDefineActivationPassword("activated", false)).toBe(false);
+    expect(canDefineActivationPassword("activated", true)).toBe(true);
+    expect(canDefineActivationPassword("suspended", true)).toBe(false);
   });
 });
 

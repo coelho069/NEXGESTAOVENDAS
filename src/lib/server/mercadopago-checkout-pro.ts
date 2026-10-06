@@ -15,6 +15,7 @@ import {
   type MercadoPagoCheckoutProPaymentSnapshot,
   type MercadoPagoCheckoutProPreferenceMetadata,
 } from "@/lib/domain/mercadopago-checkout-pro";
+import { buildMercadoPagoNotificationUrl } from "@/lib/domain/mercadopago-payment-ipn";
 import { createLogger } from "@/lib/observability/logger";
 
 const logger = createLogger({ service: "nexgestaovendas", component: "mercadopago-checkout-pro" });
@@ -96,7 +97,8 @@ export async function executeCheckoutProPreference(input: {
   }
 
   const amount = normalizeCheckoutProAmount(input.amount);
-  const backUrls = buildMercadoPagoBackUrls(resolveCheckoutProAppOrigin(envSource));
+  const origin = resolveCheckoutProAppOrigin(envSource);
+  const backUrls = buildMercadoPagoBackUrls(origin);
 
   try {
     const response = await checkoutProFetch("/checkout/preferences", {
@@ -120,6 +122,7 @@ export async function executeCheckoutProPreference(input: {
           email: input.payerEmail,
         },
         external_reference: input.clientMutationId,
+        notification_url: buildMercadoPagoNotificationUrl(origin),
         back_urls: {
           success: backUrls.success,
           failure: backUrls.failure,

@@ -4,6 +4,7 @@ import { productPatchSchema, storeIdSchema } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
 import { canEditProducts } from "@/lib/domain/rbac";
 import { asCatalogClient } from "@/lib/db/catalog-rpc";
+import { applyCatalogQuantity } from "@/lib/server/catalog-quantity";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   let json: unknown;
@@ -50,13 +51,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     ...(patch.sku !== undefined ? { sku: patch.sku } : {}),
     ...(patch.name !== undefined ? { name: patch.name } : {}),
     ...(patch.unit_price !== undefined ? { unit_price: patch.unit_price } : {}),
-    ...(patch.cost_price !== undefined ? { cost_price: patch.cost_price } : {}),
+    ...(patch.cost_price !== undefined && auth.role !== "client" ? { cost_price: patch.cost_price } : {}),
     ...(patch.barcode !== undefined ? { barcode: patch.barcode } : {}),
     ...(patch.is_active !== undefined ? { is_active: patch.is_active } : {}),
     ...(patch.category_id !== undefined ? { category_id: patch.category_id } : {}),
   };
-  const supabase = asCatalogClient(await createClient());
-  const { data, error } = await supabase.rpc("update_product", {
+  if (Object.keys(patchPayload).length === 0) {
+    return NextResponse.json({ error: "empty_patch" }, { status: 400 });
+  }
+  const supabase = await createClient();
+  const { data, error } = await asCatalogClient(supabase).rpc("update_product", {
     p_store_id: auth.storeId,
     p_product_id: id,
     p_payload: patchPayload,
@@ -78,5 +82,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "product_write_failed" }, { status: 422 });
   }
 
-  return NextResponse.json(data);
+  if (patch.quantity === undefined) {
+    return NextResponse.json(data);
+  }
+
+  const stock = await applyCatalogQuantity(supabase, {
+    storeId: auth.storeId,
+    productId: id,
+    quantity: patch.quantity,
+    reason: "edição da quantidade do produto",
+  });
+  if ("error" in stock) {
+    return NextResponse.json({ error: stock.error, ...(data as object) }, { status: 422 });
+  }
+
+  return NextResponse.json({ ...(data as object), quantity: stock.quantity });
 }

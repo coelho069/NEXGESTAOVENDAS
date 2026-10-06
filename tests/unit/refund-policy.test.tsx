@@ -94,6 +94,11 @@ describe("refund policy page", () => {
     expect(screen.getAllByText(/7 dias corridos/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/27 de setembro de 2026/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/software de gestão de vendas/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Mercado Pago/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/pelo botão Solicitar reembolso/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/ID do pagamento no Mercado Pago/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/processada pelo Stripe/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/in_/)).not.toBeInTheDocument();
   });
 
   it("declares canonical metadata and editable constants on the route file", () => {
@@ -101,8 +106,12 @@ describe("refund policy page", () => {
       join(process.cwd(), "src/app/politica-de-reembolso/page.tsx"),
       "utf8"
     );
-    expect(source).toContain("const REFUND_WINDOW_DAYS = 7");
-    expect(source).toContain("const YEARLY_PLAN_REFUND_WINDOW_DAYS = 7");
+    const domain = readFileSync(join(process.cwd(), "src/lib/domain/refund-policy.ts"), "utf8");
+    expect(domain).toContain("export const REFUND_WINDOW_DAYS = 7");
+    expect(domain).toContain("export const YEARLY_PLAN_REFUND_WINDOW_DAYS = 7");
+    expect(domain).toContain('export const POLICY_EFFECTIVE_DATE_ISO = "2026-10-06"');
+    expect(source).toContain("REFUND_WINDOW_DAYS");
+    expect(source).toContain("YEARLY_PLAN_REFUND_WINDOW_DAYS");
     expect(source).toContain('canonical: REFUND_POLICY_CANONICAL_URL');
     expect(source).toContain("Política de Reembolsos e Devoluções — Nex Gestão Vendas");
   });
@@ -134,7 +143,7 @@ describe("refund policy links on sales and checkout", () => {
     ).toBe(true);
   });
 
-  it("links the policy from the Stripe checkout modal", () => {
+  it("links the policy from the checkout modal", () => {
     render(
       <SubscribePlanButton
         planId="11111111-1111-4111-8111-111111111111"
@@ -143,7 +152,7 @@ describe("refund policy links on sales and checkout", () => {
         subscriptionEnabled={true}
       />
     );
-    fireEvent.click(screen.getByRole("button", { name: /Assinar com Stripe/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Assinar" }));
     const policyLink = screen.getByRole("link", {
       name: "Política de Reembolsos e Devoluções",
     });

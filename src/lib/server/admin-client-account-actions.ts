@@ -8,9 +8,13 @@
  * routes. The screen never receives the Supabase service-role client, the
  * activation link, or any Gmail credential.
  */
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { ACTIVATION_LINK_COOKIE } from "@/lib/domain/activation-link";
 import {
   createAdminClientAccountAction as provisionAccount,
+  getClientActivationEligibility,
+  defineClientActivationPassword,
   markClientAccountActivatedAction as markClientAccountActivated,
   resendAdminClientAccountInviteAction as resendInvite,
   setAdminClientAccountSuspendedAction as changeSuspension,
@@ -89,6 +93,17 @@ export async function setAdminClientAccountSuspendedAction(
 }
 
 /**
+ * Read-only check used by /ativar-conta before any password update.
+ * Returns the client-account status for the current session, or a closed error
+ * when that session is an administrator (or anyone without a client account).
+ */
+export async function getClientActivationEligibilityAction(): Promise<
+  Awaited<ReturnType<typeof getClientActivationEligibility>>
+> {
+  return getClientActivationEligibility();
+}
+
+/**
  * Called by the invited client from /ativar-conta right after they set their own
  * password. Authorization is the recovery session established by the Supabase
  * invite link — not an admin session — and the row is resolved by that session's
@@ -100,4 +115,14 @@ export async function markClientAccountActivatedAction(): Promise<
   const result = await markClientAccountActivated();
   revalidatePath("/admin/clientes/contas");
   return result.ok ? { ok: true } : { ok: false, error: result.error };
+}
+
+export async function defineActivationPasswordAction(
+  password: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const cookieStore = await cookies();
+  const freshAccessLink = cookieStore.get(ACTIVATION_LINK_COOKIE)?.value === "1";
+  const result = await defineClientActivationPassword(password, { freshAccessLink });
+  if (result.ok) revalidatePath("/admin/clientes/contas");
+  return result;
 }

@@ -12,11 +12,13 @@ vi.mock("@/lib/supabase/server", () => ({ createClient }));
 vi.mock("@/lib/db/catalog-rpc", () => ({ asCatalogClient }));
 
 import { POST } from "@/app/api/products/route";
+import { PATCH } from "@/app/api/products/[id]/route";
 
 const ORG_A = "11111111-1111-4111-8111-111111111111";
 const ORG_B = "99999999-9999-4999-8999-999999999999";
 const STORE_A = "22222222-2222-4222-8222-222222222201";
 const STORE_B = "22222222-2222-4222-8222-222222222202";
+const PRODUCT_ID = "33333333-3333-4333-8333-333333333301";
 
 function managerContext(storeId = STORE_A, orgId = ORG_A): AuthedContext {
   return {
@@ -95,6 +97,25 @@ describe("POST /api/products store authorization", () => {
     expect(response.status).toBe(403);
   });
 
+  it("lets the store client create a product and drops the cost they send", async () => {
+    getAuthedContext.mockResolvedValue({
+      ...managerContext(),
+      role: "client" as const,
+      stores: [{ id: STORE_A, name: "Loja", orgId: ORG_A, role: "client" as const }],
+    });
+
+    const response = await post(productBody({ cost_price: "4.00" }));
+
+    expect(response.status).toBe(201);
+    const client = await createClient.mock.results[0]!.value;
+    expect(client.rpc).toHaveBeenCalledWith(
+      "create_product",
+      expect.objectContaining({
+        p_payload: expect.objectContaining({ cost_price: "0.00", unit_price: "10.00", sku: "NEW-001" }),
+      })
+    );
+  });
+
   it("does not let a client role change authorization", async () => {
     getAuthedContext.mockResolvedValue({ ...managerContext(), role: "cashier" });
 
@@ -120,6 +141,25 @@ describe("POST /api/products store authorization", () => {
     await expect(response.json()).resolves.toEqual({ error: "barcode_conflict" });
   });
 
+  it("records the opening quantity as a restock", async () => {
+    const response = await post(productBody({ quantity: "4" }));
+
+    expect(response.status).toBe(201);
+    const client = await createClient.mock.results[0]!.value;
+    expect(client.rpc).toHaveBeenCalledWith(
+      "adjust_inventory",
+      expect.objectContaining({
+        p_payload: expect.objectContaining({
+          store_id: STORE_A,
+          product_id: "product-id",
+          delta: "4.000",
+          movement_type: "restock",
+          reason: "cadastro do produto",
+        }),
+      })
+    );
+  });
+
   it("keeps a NULL barcode valid", async () => {
     const response = await post(productBody({ barcode: null }));
 
@@ -131,5 +171,95 @@ describe("POST /api/products store authorization", () => {
         p_payload: expect.objectContaining({ barcode: null }),
       })
     );
+  });
+});
+
+describe("PATCH /api/products/[id]", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getAuthedContext.mockResolvedValue(managerContext());
+    createClient.mockResolvedValue({
+      rpc: vi.fn().mockResolvedValue({ data: { id: PRODUCT_ID, sku: "EDIT-001" }, error: null }),
+    });
+  });
+
+  async function patch(body: unknown): Promise<Response> {
+    return PATCH(
+      new Request(`http://localhost/api/products/${PRODUCT_ID}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+      { params: Promise.resolve({ id: PRODUCT_ID }) }
+    );
+  }
+
+  it("lets the store client edit a product and drops the cost", async () => {
+    getAuthedContext.mockResolvedValue({
+      ...managerContext(),
+      role: "client" as const,
+      stores: [{ id: STORE_A, name: "Loja", orgId: ORG_A, role: "client" as const }],
+    });
+
+    const response = await patch({
+      store_id: STORE_A,
+      sku: "EDIT-001",
+      name: "Produto editado",
+      unit_price: "12.50",
+      cost_price: "9.00",
+    });
+
+    expect(response.status).toBe(200);
+    const client = await createClient.mock.results[0]!.value;
+    expect(client.rpc).toHaveBeenCalledWith(
+      "update_product",
+      expect.objectContaining({
+        p_store_id: STORE_A,
+        p_product_id: PRODUCT_ID,
+        p_payload: { sku: "EDIT-001", name: "Produto editado", unit_price: "12.50" },
+      })
+    );
+  });
+
+  it("changes the stored quantity by the difference", async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({ data: { quantity: "2.000" }, error: null });
+    const eqProduct = vi.fn().mockReturnValue({ maybeSingle });
+    const eqStore = vi.fn().mockReturnValue({ eq: eqProduct });
+    const select = vi.fn().mockReturnValue({ eq: eqStore });
+    createClient.mockResolvedValue({
+      rpc: vi.fn().mockResolvedValue({ data: { id: PRODUCT_ID, sku: "EDIT-001" }, error: null }),
+      from: vi.fn().mockReturnValue({ select }),
+    });
+
+    const response = await patch({
+      store_id: STORE_A,
+      name: "Produto editado",
+      quantity: "5",
+    });
+
+    expect(response.status).toBe(200);
+    const client = await createClient.mock.results[0]!.value;
+    expect(client.rpc).toHaveBeenCalledWith(
+      "adjust_inventory",
+      expect.objectContaining({
+        p_payload: expect.objectContaining({
+          product_id: PRODUCT_ID,
+          delta: "3.000",
+          movement_type: "restock",
+          reason: "edição da quantidade do produto",
+        }),
+      })
+    );
+  });
+
+  it("returns 403 for a cashier", async () => {
+    getAuthedContext.mockResolvedValue({ ...managerContext(), role: "cashier" });
+
+    const response = await patch({
+      store_id: STORE_A,
+      name: "Não pode",
+    });
+
+    expect(response.status).toBe(403);
   });
 });

@@ -4,6 +4,7 @@ import { productWriteSchema, storeIdSchema } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
 import { canEditProducts } from "@/lib/domain/rbac";
 import { asCatalogClient } from "@/lib/db/catalog-rpc";
+import { applyCatalogQuantity } from "@/lib/server/catalog-quantity";
 
 export async function POST(request: Request) {
   let json: unknown;
@@ -40,14 +41,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "forbidden_products" }, { status: 403 });
   }
 
-  const supabase = asCatalogClient(await createClient());
-  const { data, error } = await supabase.rpc("create_product", {
+  const supabase = await createClient();
+  const { data, error } = await asCatalogClient(supabase).rpc("create_product", {
     p_store_id: auth.storeId,
     p_payload: {
       sku: parsed.data.sku,
       name: parsed.data.name,
       unit_price: parsed.data.unit_price,
-      cost_price: parsed.data.cost_price,
+      cost_price: auth.role === "client" ? "0.00" : parsed.data.cost_price,
       barcode: parsed.data.barcode ?? null,
       is_active: parsed.data.is_active,
       category_id: parsed.data.category_id ?? null,
@@ -67,5 +68,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "product_write_failed" }, { status: 422 });
   }
 
-  return NextResponse.json(data, { status: 201 });
+  const created = data as { id?: string; sku?: string } | null;
+  const productId = created?.id;
+  if (!productId) {
+    return NextResponse.json({ error: "product_write_failed" }, { status: 422 });
+  }
+  const stock = await applyCatalogQuantity(supabase, {
+    storeId: auth.storeId,
+    productId,
+    quantity: parsed.data.quantity,
+    currentQuantity: "0.000",
+    reason: "cadastro do produto",
+  });
+  if ("error" in stock) {
+    return NextResponse.json(
+      { error: stock.error, id: productId, sku: created.sku },
+      { status: 422 }
+    );
+  }
+
+  return NextResponse.json({ ...created, quantity: stock.quantity }, { status: 201 });
 }

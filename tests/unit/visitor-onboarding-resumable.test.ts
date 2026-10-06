@@ -114,6 +114,15 @@ function createAdmin(state: OnboardingState) {
         eq() {
           return builder;
         },
+        in() {
+          return builder;
+        },
+        update() {
+          return builder;
+        },
+        delete() {
+          return builder;
+        },
         insert(payload: Record<string, unknown>) {
           insertPayload = payload;
           return builder;

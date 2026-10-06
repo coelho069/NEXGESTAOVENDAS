@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { formatBRL } from "@/lib/money";
+import { parseUnitPrice } from "@/lib/domain/sale";
 import { PermissionGate } from "@/components/auth/permission-gate";
 import { StoreSelect } from "@/components/auth/store-select";
 import { parseInventoryCsv, type CsvIssue } from "@/lib/domain/inventory";
-import { canManageInventory, type MemberRole } from "@/lib/domain/rbac";
-import type { InventoryLoadResult } from "@/lib/server/inventory-query";
+import { canEditProducts, canManageInventory, canSeeCostPrice, isClientRole, type MemberRole } from "@/lib/domain/rbac";
+import type { InventoryLoadResult, InventoryRow } from "@/lib/server/inventory-query";
 import { toInventoryDelta, toInventoryQuantity } from "@/lib/domain/quantity";
 import { getPdvLocalDbForUser } from "@/lib/offline/pdv-local-db";
 import { getTerminalId } from "@/lib/offline/terminal-identity";
@@ -36,13 +37,29 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
   const [newPrice, setNewPrice] = useState("0.00");
   const [newCost, setNewCost] = useState("0.00");
   const [newBarcode, setNewBarcode] = useState("");
+  const [newQty, setNewQty] = useState("0");
+  const [rows, setRows] = useState(initial.rows);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editSku, setEditSku] = useState("");
+  const [editName, setEditName] = useState("");
+  const [editPrice, setEditPrice] = useState("0.00");
+  const [editCost, setEditCost] = useState("0.00");
+  const [editQty, setEditQty] = useState("0");
+  const [savingEdit, setSavingEdit] = useState(false);
   const userId = useSessionStore((state) => state.userId);
   const [pendingCount, setPendingCount] = useState(0);
   const canAdjust = Boolean(storeId && canManageInventory(role) && (initial.canAdjust || initial.degraded));
+  const canCreateProduct = Boolean(storeId && canEditProducts(role));
+  const showCost = canSeeCostPrice(role);
+  const productsOnly = isClientRole(role);
   const preview = useMemo(() => parseInventoryCsv(csvText), [csvText]);
   const nextHref = storeId && initial.nextCursor
     ? `/inventory?store=${storeId}&cursor=${encodeURIComponent(initial.nextCursor)}`
     : null;
+
+  useEffect(() => {
+    setRows(initial.rows);
+  }, [initial.rows]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && storeId) {
@@ -256,6 +273,13 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
       setMessage("Produto não enviado: modo degradado.");
       return;
     }
+    let quantity: string;
+    try {
+      quantity = canonicalQuantity(newQty);
+    } catch {
+      setMessage("Quantidade inválida. Use um número a partir de 0.");
+      return;
+    }
     const response = await fetch("/api/products", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -264,28 +288,127 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
         sku: newSku,
         name: newName,
         unit_price: newPrice,
-        cost_price: newCost,
+        cost_price: showCost ? newCost : "0.00",
         barcode: newBarcode || null,
+        quantity,
       }),
     });
-    const body = (await response.json()) as { error?: string; sku?: string };
+    const body = (await response.json()) as { error?: string; sku?: string; id?: string; quantity?: string };
     if (!response.ok) {
       setMessage(
         response.status === 409 && body.error === "barcode_conflict"
           ? "Barcode já cadastrado nesta organização."
-          : body.error ?? "Falha ao criar produto"
+          : body.error === "product_quantity_failed"
+            ? "Produto criado, mas a quantidade não foi gravada."
+            : body.error ?? "Falha ao criar produto"
       );
       return;
     }
+    if (body.id) {
+      setRows((current) => [
+        ...current,
+        {
+          product_id: body.id as string,
+          sku: body.sku ?? newSku,
+          name: newName,
+          is_active: true,
+          unit_price: newPrice,
+          cost_price: showCost ? newCost : "0.00",
+          quantity: body.quantity ?? quantity,
+        },
+      ]);
+    }
     setMessage(`Produto ${body.sku ?? newSku} criado.`);
+  };
+
+  const beginEdit = (row: InventoryRow) => {
+    setEditingId(row.product_id);
+    setEditSku(row.sku);
+    setEditName(row.name);
+    setEditPrice(canonicalMoney(row.unit_price));
+    setEditCost(canonicalMoney(row.cost_price ?? "0.00"));
+    setEditQty(canonicalQuantity(row.quantity));
+    setMessage(null);
+  };
+
+  const submitEdit = async () => {
+    setMessage(null);
+    if (!storeId || !editingId) {
+      setMessage("Selecione uma loja autorizada.");
+      return;
+    }
+    if (initial.degraded) {
+      setMessage("Produto não enviado: modo degradado.");
+      return;
+    }
+    let unitPrice: string;
+    let costPrice: string;
+    let quantity: string;
+    try {
+      unitPrice = canonicalMoney(editPrice);
+      costPrice = canonicalMoney(editCost);
+      quantity = canonicalQuantity(editQty);
+    } catch {
+      setMessage("Preço ou quantidade inválidos. Use preço 0.00 e quantidade 0.");
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const response = await fetch(`/api/products/${editingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          store_id: storeId,
+          sku: editSku,
+          name: editName,
+          unit_price: unitPrice,
+          quantity,
+          ...(showCost ? { cost_price: costPrice } : {}),
+        }),
+      });
+      const body = (await response.json()) as { error?: string; sku?: string; quantity?: string };
+      if (!response.ok) {
+        setMessage(
+          response.status === 409 && body.error === "barcode_conflict"
+            ? "Barcode já cadastrado nesta organização."
+            : body.error === "product_quantity_failed"
+              ? "Dados salvos, mas a quantidade não foi gravada."
+              : body.error ?? "Falha ao editar produto"
+        );
+        return;
+      }
+      const savedSku = body.sku ?? editSku;
+      setRows((current) =>
+        current.map((row) =>
+          row.product_id === editingId
+            ? {
+                ...row,
+                sku: savedSku,
+                name: editName,
+                unit_price: unitPrice,
+                cost_price: showCost ? costPrice : row.cost_price,
+                quantity: body.quantity ?? quantity,
+              }
+            : row
+        )
+      );
+      setEditingId(null);
+      setMessage(`Produto ${savedSku} atualizado.`);
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4 lg:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Inventário</h1>
-          <p className="text-sm text-slate-500">Quantidade só muda via movimento auditado.</p>
+          <h1 className="text-2xl font-bold">{productsOnly ? "Produtos" : "Inventário"}</h1>
+          <p className="text-sm text-slate-500">
+            {productsOnly
+              ? "Cadastre e edite os produtos da loja para vender no PDV."
+              : "Quantidade só muda via movimento auditado."}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <label className="text-sm">
@@ -320,17 +443,32 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
               <th className="px-3 py-2">Produto</th>
               <th className="px-3 py-2">Qtd</th>
               <th className="px-3 py-2">Preço</th>
-              <th className="px-3 py-2">Custo</th>
+              {showCost ? <th className="px-3 py-2">Custo</th> : null}
+              {canCreateProduct ? <th className="px-3 py-2">Ações</th> : null}
             </tr>
           </thead>
           <tbody>
-            {initial.rows.map((row) => (
+            {rows.map((row) => (
               <tr key={row.product_id} className="border-t border-slate-100">
                 <td className="px-3 py-2">{row.sku}</td>
                 <td className="px-3 py-2">{row.name}</td>
                 <td className="px-3 py-2">{row.quantity}</td>
                 <td className="px-3 py-2">{formatBRL(row.unit_price)}</td>
-                <td className="px-3 py-2">{row.cost_price ? formatBRL(row.cost_price) : "—"}</td>
+                {showCost ? (
+                  <td className="px-3 py-2">{row.cost_price ? formatBRL(row.cost_price) : "—"}</td>
+                ) : null}
+                {canCreateProduct ? (
+                  <td className="px-3 py-2">
+                    <button
+                      type="button"
+                      data-testid={`product-edit-${row.sku}`}
+                      onClick={() => beginEdit(row)}
+                      className="font-medium text-emerald-700"
+                    >
+                      Editar
+                    </button>
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>
@@ -342,6 +480,7 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
         </a>
       ) : null}
 
+      {productsOnly ? null : (
       <PermissionGate
         role={role}
         allow={["admin", "manager"]}
@@ -419,9 +558,79 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
               </ul>
             ) : null}
           </div>
-          <div className="space-y-2 md:col-span-2">
+        </section>
+      </PermissionGate>
+      )}
+
+      {editingId ? (
+        <section data-testid="product-edit-form" className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="font-semibold">Editar produto</h2>
+          <div className={`grid gap-2 ${showCost ? "md:grid-cols-5" : "md:grid-cols-4"}`}>
+            <input
+              data-testid="product-edit-sku"
+              className="rounded border px-3 py-2"
+              placeholder="SKU"
+              value={editSku}
+              onChange={(event) => setEditSku(event.target.value)}
+            />
+            <input
+              data-testid="product-edit-name"
+              className="rounded border px-3 py-2"
+              placeholder="Nome"
+              value={editName}
+              onChange={(event) => setEditName(event.target.value)}
+            />
+            <input
+              data-testid="product-edit-price"
+              className="rounded border px-3 py-2"
+              placeholder="Preço 0.00"
+              value={editPrice}
+              onChange={(event) => setEditPrice(event.target.value)}
+            />
+            <input
+              data-testid="product-edit-qty"
+              className="rounded border px-3 py-2"
+              placeholder="Qtd"
+              inputMode="decimal"
+              value={editQty}
+              onChange={(event) => setEditQty(event.target.value)}
+            />
+            {showCost ? (
+              <input
+                data-testid="product-edit-cost"
+                className="rounded border px-3 py-2"
+                placeholder="Custo 0.00"
+                value={editCost}
+                onChange={(event) => setEditCost(event.target.value)}
+              />
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              data-testid="product-edit-save"
+              disabled={!storeId || initial.degraded || savingEdit}
+              onClick={() => void submitEdit()}
+              className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white disabled:bg-slate-300"
+            >
+              Salvar
+            </button>
+            <button
+              type="button"
+              data-testid="product-edit-cancel"
+              onClick={() => setEditingId(null)}
+              className="rounded-lg border border-slate-300 px-4 py-2 font-semibold"
+            >
+              Cancelar
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {canCreateProduct ? (
+        <section data-testid="product-create-form" className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
             <h2 className="font-semibold">Novo produto</h2>
-            <div className="grid gap-2 md:grid-cols-5">
+            <div className={`grid gap-2 ${showCost ? "md:grid-cols-6" : "md:grid-cols-5"}`}>
               <input
                 data-testid="product-sku"
                 className="rounded border px-3 py-2"
@@ -444,12 +653,22 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
                 onChange={(event) => setNewPrice(event.target.value)}
               />
               <input
-                data-testid="product-cost"
+                data-testid="product-qty"
                 className="rounded border px-3 py-2"
-                placeholder="Custo 0.00"
-                value={newCost}
-                onChange={(event) => setNewCost(event.target.value)}
+                placeholder="Qtd"
+                inputMode="decimal"
+                value={newQty}
+                onChange={(event) => setNewQty(event.target.value)}
               />
+              {showCost ? (
+                <input
+                  data-testid="product-cost"
+                  className="rounded border px-3 py-2"
+                  placeholder="Custo 0.00"
+                  value={newCost}
+                  onChange={(event) => setNewCost(event.target.value)}
+                />
+              ) : null}
               <input
                 data-testid="product-barcode"
                 className="rounded border px-3 py-2"
@@ -467,9 +686,8 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
             >
               Criar produto
             </button>
-          </div>
         </section>
-      </PermissionGate>
+      ) : null}
     </div>
   );
 }
@@ -560,9 +778,18 @@ function loadImportId(storeId: string | null): string {
   return uuidv4();
 }
 
+function canonicalMoney(value: string): string {
+  return parseUnitPrice(value.trim().replace(",", "."));
+}
+
+function canonicalQuantity(value: string): string {
+  return toInventoryQuantity(value.trim().replace(",", "."));
+}
+
 function roleLabel(role: MemberRole | null): string {
   if (role === "admin") return "Admin";
   if (role === "manager") return "Gerente";
   if (role === "cashier") return "Caixa";
+  if (role === "client") return "Cliente";
   return "Não disponível";
 }

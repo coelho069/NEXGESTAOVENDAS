@@ -51,6 +51,38 @@ export function generateTemporaryPassword(
   return shuffleString([...required, ...filler].join(""));
 }
 
+export function subscriptionBelongsToCheckout(input: {
+  checkoutClientMutationId: string | null;
+  providerRef: string | null;
+  clientMutationId: string;
+  paymentRef: string;
+}): boolean {
+  if (
+    input.checkoutClientMutationId &&
+    input.checkoutClientMutationId === input.clientMutationId
+  ) {
+    return true;
+  }
+  return Boolean(input.providerRef && input.providerRef === input.paymentRef);
+}
+
+/** A paid checkout must not join an organization that already has another open subscription. */
+export function orgHasForeignOpenSubscription(
+  subscriptions: Array<{ checkoutClientMutationId: string | null; providerRef: string | null }>,
+  clientMutationId: string,
+  paymentRef: string
+): boolean {
+  return subscriptions.some(
+    (subscription) =>
+      !subscriptionBelongsToCheckout({
+        checkoutClientMutationId: subscription.checkoutClientMutationId,
+        providerRef: subscription.providerRef,
+        clientMutationId,
+        paymentRef,
+      })
+  );
+}
+
 /** Stable organization slug derived from the payer email local part. */
 export function buildOrganizationSlug(email: string): string {
   const localPart = email.split("@")[0] ?? "";

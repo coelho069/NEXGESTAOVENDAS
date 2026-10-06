@@ -3,6 +3,7 @@ import { updateSession } from "@/lib/supabase/middleware";
 import { createServerClient } from "@supabase/ssr";
 import type { Database } from "@/lib/db/types";
 import { isMutatingMethod, isSameOriginRequest } from "@/lib/security/request";
+import { isMercadoPagoRootPaymentIpn } from "@/lib/domain/mercadopago-payment-ipn";
 import {
   applyCorrelationHeaders,
   readCorrelationId,
@@ -10,6 +11,21 @@ import {
 
 export async function middleware(request: NextRequest) {
   const correlationId = readCorrelationId(request.headers);
+  if (
+    isMercadoPagoRootPaymentIpn({
+      method: request.method,
+      pathname: request.nextUrl.pathname,
+      topic: request.nextUrl.searchParams.get("topic"),
+      id: request.nextUrl.searchParams.get("id"),
+    })
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/api/subscriptions/mercadopago/public-checkout/ipn";
+    const rewritten = NextResponse.rewrite(url);
+    applyCorrelationHeaders(rewritten.headers, correlationId);
+    return withSecurityHeaders(rewritten, correlationId);
+  }
+
   const isHealthRoute = request.nextUrl.pathname.startsWith("/health/");
   if (isHealthRoute) {
     const response = NextResponse.next();

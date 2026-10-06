@@ -1,3 +1,6 @@
+import { ClientRefundRequestPanel } from "@/components/account/client-refund-request-panel";
+import type { ClientRefundPaymentView } from "@/lib/domain/client-refund-eligibility";
+import type { RefundGmailAccess } from "@/lib/domain/refund-gmail-access";
 import type { MemberRole } from "@/lib/domain/rbac";
 import { canViewReports } from "@/lib/domain/rbac";
 import {
@@ -8,12 +11,31 @@ import {
 type SubscriptionAccessViewProps = {
   decision: SubscriptionGateDecision;
   role: MemberRole | null;
+  refundPayments?: ClientRefundPaymentView[];
+  refundAccess?: RefundGmailAccess;
   children: React.ReactNode;
 };
+
+function ClientRefundSlot({
+  payments,
+  access,
+}: {
+  payments: ClientRefundPaymentView[];
+  access: RefundGmailAccess;
+}) {
+  if (access === "allowed" && payments.length === 0) return null;
+  return (
+    <div data-testid="client-refund-slot" className="w-full px-4 py-4 sm:px-6">
+      <ClientRefundRequestPanel payments={payments} access={access} />
+    </div>
+  );
+}
 
 export function SubscriptionAccessView({
   decision,
   role,
+  refundPayments = [],
+  refundAccess = "allowed",
   children,
 }: SubscriptionAccessViewProps) {
   if (!decision.allowed) {
@@ -23,8 +45,9 @@ export function SubscriptionAccessView({
         data-testid="subscription-blocked"
         data-effective-state={decision.effectiveState}
         data-reason={decision.reason}
-        className="mx-auto max-w-lg p-6"
+        className="mx-auto w-full max-w-lg p-6"
       >
+        <ClientRefundSlot payments={refundPayments} access={refundAccess} />
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-6 text-rose-950">
           <h1 className="text-xl font-semibold">{subscriptionBlockTitle(decision.effectiveState)}</h1>
           <p className="mt-2 text-sm text-rose-800">
@@ -42,6 +65,7 @@ export function SubscriptionAccessView({
 
   return (
     <div data-testid="subscription-access-allowed" data-effective-state={decision.effectiveState}>
+      <ClientRefundSlot payments={refundPayments} access={refundAccess} />
       {showAdminAlert ? (
         <div
           role="status"

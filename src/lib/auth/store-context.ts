@@ -24,7 +24,7 @@ export type StoreContextRow = {
 };
 
 function isMemberRole(value: unknown): value is MemberRole {
-  return value === "admin" || value === "manager" || value === "cashier";
+  return value === "admin" || value === "manager" || value === "cashier" || value === "client";
 }
 
 export function buildAuthorizedStores(

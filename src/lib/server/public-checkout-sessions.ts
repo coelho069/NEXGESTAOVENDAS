@@ -4,6 +4,7 @@
  * (unique). Post-webhook: resolves the session to run onboarding exactly once.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { ConfirmedPaymentSnapshot } from "@/lib/domain/checkout-payment-snapshot";
 import type { Database } from "@/lib/db/types";
 import { createLogger } from "@/lib/observability/logger";
 
@@ -25,7 +26,14 @@ export type PublicCheckoutSessionState = PublicCheckoutSessionRow & {
   onboarding_claim_token: string | null;
   onboarding_claimed_at: string | null;
   onboarding_attempt_count: number;
+  transaction_amount: string | number | null;
+  transaction_currency: string | null;
+  transaction_paid_at: string | null;
+  transaction_snapshot_conflict: "amount" | "currency" | "amount_and_currency" | null;
+  transaction_snapshot_conflict_at: string | null;
 };
+
+export type CheckoutSnapshotConflict = "amount" | "currency" | "amount_and_currency";
 
 type RpcError = { code?: string | null; message?: string | null } | null;
 
@@ -226,8 +234,18 @@ export async function findCheckoutSessionByMpPaymentId(input: {
 }
 
 export type ApplyCheckoutSessionMpPaymentResult =
-  | { ok: true; session: PublicCheckoutSessionState; replay: boolean }
+  | {
+      ok: true;
+      session: PublicCheckoutSessionState;
+      replay: boolean;
+      snapshotConflict: CheckoutSnapshotConflict | null;
+    }
   | { ok: false; error: string; status: "not_found" | "database" };
+
+function asSnapshotConflict(value: unknown): CheckoutSnapshotConflict | null {
+  if (value === "amount" || value === "currency" || value === "amount_and_currency") return value;
+  return null;
+}
 
 export async function applyCheckoutSessionMpPayment(input: {
   admin: AdminClient;
@@ -235,6 +253,7 @@ export async function applyCheckoutSessionMpPayment(input: {
   paymentId: string;
   paymentStatus: string;
   preferenceId?: string | null;
+  confirmedSnapshot?: ConfirmedPaymentSnapshot | null;
   correlationId?: string;
 }): Promise<ApplyCheckoutSessionMpPaymentResult> {
   const paymentId = input.paymentId.trim();
@@ -242,13 +261,41 @@ export async function applyCheckoutSessionMpPayment(input: {
     return { ok: false, error: "payment_id_required", status: "not_found" };
   }
 
-  const existingByPayment = await findCheckoutSessionByMpPaymentId({
-    admin: input.admin,
-    paymentId,
-    correlationId: input.correlationId,
+  const snapshot = input.confirmedSnapshot ?? null;
+  const { data, error } = await asUntypedRpcClient(input.admin).rpc("record_checkout_payment_snapshot", {
+    p_client_mutation_id: input.clientMutationId,
+    p_payment_id: paymentId,
+    p_payment_status: input.paymentStatus,
+    p_preference_id: input.preferenceId ?? null,
+    p_transaction_amount: snapshot?.transactionAmount ?? null,
+    p_transaction_currency: snapshot?.transactionCurrency ?? null,
+    p_transaction_paid_at: snapshot?.transactionPaidAt ?? null,
   });
-  if (existingByPayment) {
-    return { ok: true, session: existingByPayment, replay: true };
+
+  if (error) {
+    logCheckoutSessionDbFailure({
+      operation: "checkout_sessions.rpc.record_checkout_payment_snapshot",
+      table: "checkout_sessions",
+      code: error.code,
+      message: error.message,
+      correlationId: input.correlationId,
+    });
+    return { ok: false, error: "checkout_session_payment_update_failed", status: "database" };
+  }
+
+  const result = asRecord(data);
+  if (result.ok !== true) {
+    const reason = typeof result.error === "string" ? result.error : "checkout_session_payment_update_failed";
+    if (reason === "checkout_session_not_found" || reason === "payment_id_required") {
+      return { ok: false, error: reason, status: "not_found" };
+    }
+    if (reason === "checkout_session_payment_conflict") {
+      logSessionResolution(input.correlationId, "public_checkout_payment_conflict", {
+        client_mutation_id: input.clientMutationId,
+      });
+      return { ok: false, error: reason, status: "not_found" };
+    }
+    return { ok: false, error: "checkout_session_payment_update_failed", status: "database" };
   }
 
   const resolved = await resolveSessionForOnboarding({
@@ -264,64 +311,20 @@ export async function applyCheckoutSessionMpPayment(input: {
     };
   }
 
-  if (resolved.session.mp_payment_id?.trim() === paymentId) {
-    return { ok: true, session: resolved.session, replay: true };
-  }
-  if (
-    resolved.session.mp_payment_id &&
-    resolved.session.mp_payment_id.trim() !== paymentId
-  ) {
-    logSessionResolution(input.correlationId, "public_checkout_payment_conflict", {
+  const snapshotConflict = asSnapshotConflict(result.snapshot_conflict);
+  if (snapshotConflict) {
+    logSessionResolution(input.correlationId, "checkout_payment_snapshot_conflict", {
       client_mutation_id: input.clientMutationId,
+      conflict: snapshotConflict,
     });
-    return { ok: false, error: "checkout_session_payment_conflict", status: "not_found" };
   }
 
-  const paidAt = new Date().toISOString();
-  const { data, error } = await input.admin
-    .from("checkout_sessions")
-    .update({
-      mp_payment_id: paymentId,
-      mp_payment_status: input.paymentStatus,
-      mp_preference_id: input.preferenceId ?? null,
-      mp_payment_paid_at: paidAt,
-      updated_at: paidAt,
-    } as never)
-    .eq("client_mutation_id", input.clientMutationId)
-    .is("mp_payment_id", null)
-    .select("*")
-    .maybeSingle();
-
-  if (error) {
-    if (error.code === "23505") {
-      const raced = await findCheckoutSessionByMpPaymentId({
-        admin: input.admin,
-        paymentId,
-        correlationId: input.correlationId,
-      });
-      if (raced) return { ok: true, session: raced, replay: true };
-    }
-    logCheckoutSessionDbFailure({
-      operation: "checkout_sessions.update.mp_payment_id",
-      table: "checkout_sessions",
-      code: error.code,
-      message: error.message,
-      correlationId: input.correlationId,
-    });
-    return { ok: false, error: "checkout_session_payment_update_failed", status: "database" };
-  }
-
-  if (!data) {
-    const raced = await findCheckoutSessionByMpPaymentId({
-      admin: input.admin,
-      paymentId,
-      correlationId: input.correlationId,
-    });
-    if (raced) return { ok: true, session: raced, replay: true };
-    return { ok: false, error: "checkout_session_payment_update_failed", status: "database" };
-  }
-
-  return { ok: true, session: asSessionState(data), replay: false };
+  return {
+    ok: true,
+    session: resolved.session,
+    replay: result.replay === true,
+    snapshotConflict,
+  };
 }
 
 export type PublicCheckoutSessionResolution =

@@ -19,10 +19,17 @@ import { getPlatformAdminAccess } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   buildAccountInviteEmailContent,
+  isClientAccountStatus,
+  isPasswordAcceptable,
   normalizeAccountEmail,
   type ClientAccountStatus,
 } from "@/lib/domain/admin-client-accounts";
+import {
+  canDefineActivationPassword,
+  describeActivationPasswordError,
+} from "@/lib/domain/activation-link";
 import { ACCESS_LINK_TTL_MS, generateAccessLink } from "@/lib/server/access-link";
+import { getEmailSenderConfig, sendAccessEmail } from "@/lib/server/access-email";
 import { getGmailInviteConfig, sendGmailInvite } from "@/lib/server/gmail-invite-sender";
 import type {
   CreateAdminClientAccountInput,
@@ -184,7 +191,7 @@ async function ensureProfile(
     org_id: input.orgId,
     email: input.email,
     full_name: input.fullName,
-    default_role: "admin",
+    default_role: "client",
   });
   if (error) return { ok: false, error: "account_create_failed" };
   return { ok: true };
@@ -235,7 +242,7 @@ async function ensureTenantAccess(
     org_id: input.orgId,
     store_id: storeId,
     user_id: input.userId,
-    role: "admin",
+    role: "client",
   });
   if (memberError && memberError.code !== "23505") {
     return { ok: false, error: "account_create_failed" };
@@ -317,6 +324,46 @@ async function markInviteFailed(
 }
 
 /**
+ * Gmail OAuth is used only when it is explicitly configured. Otherwise the
+ * invite goes through the same sender as post-purchase onboarding (Hostinger
+ * SMTP, or Resend when no SMTP variable is set).
+ */
+async function dispatchInviteEmail(input: {
+  env: Record<string, string | undefined>;
+  sendInvite: typeof sendGmailInvite;
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}): Promise<{ ok: true } | { ok: false; error: string; notConfigured: boolean }> {
+  const gmail = getGmailInviteConfig(input.env);
+  if (gmail.configured) {
+    const sent = await input.sendInvite({
+      to: input.to,
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+      config: gmail,
+    });
+    return sent.ok ? { ok: true } : { ok: false, error: sent.error, notConfigured: false };
+  }
+
+  const emailConfig = getEmailSenderConfig(input.env);
+  if (!emailConfig.configured) {
+    return { ok: false, error: gmail.reason, notConfigured: true };
+  }
+
+  const sent = await sendAccessEmail({
+    to: input.to,
+    content: { subject: input.subject, html: input.html, text: input.text },
+    config: emailConfig,
+  });
+  return sent.ok
+    ? { ok: true }
+    : { ok: false, error: sent.error, notConfigured: false };
+}
+
+/**
  * Sends (or re-sends) the activation e-mail for an already-provisioned account.
  * Shared by create and resend so both flows produce identical state transitions.
  */
@@ -335,23 +382,6 @@ async function deliverInvite(
     now: number;
   }
 ): Promise<ClientAccountActionResult> {
-  const config = getGmailInviteConfig(input.env);
-  if (!config.configured) {
-    await markInviteFailed(admin, {
-      clientAccountId: input.clientAccountId,
-      status: "invite_failed",
-      errorCode: config.reason,
-    });
-    await recordEvent(admin, {
-      clientAccountId: input.clientAccountId,
-      eventType: "invite_failed",
-      actorUserId: input.actorUserId,
-      errorCode: config.reason,
-    });
-    logger.warn("client_account_invite_not_configured", { reason: config.reason });
-    return { ok: false, error: "gmail_not_configured" };
-  }
-
   const redirectTo = `${appOrigin(input.env).replace(/\/+$/, "")}/ativar-conta`;
   const link = await generateInviteLink(admin, { email: input.email, redirectTo });
   if (!link.ok) {
@@ -390,12 +420,13 @@ async function deliverInvite(
     return { ok: false, error: "invite_send_failed" };
   }
 
-  const sent = await input.sendInvite({
+  const sent = await dispatchInviteEmail({
+    env: input.env,
+    sendInvite: input.sendInvite,
     to: input.email,
     subject: content.subject,
     html: content.html,
     text: content.text,
-    config,
   });
 
   if (!sent.ok) {
@@ -412,8 +443,11 @@ async function deliverInvite(
       actorUserId: input.actorUserId,
       errorCode: sent.error,
     });
-    logger.warn("client_account_invite_failed", { error_code: sent.error });
-    return { ok: false, error: "invite_send_failed" };
+    logger.warn(
+      sent.notConfigured ? "client_account_invite_not_configured" : "client_account_invite_failed",
+      { error_code: sent.error }
+    );
+    return { ok: false, error: sent.notConfigured ? "gmail_not_configured" : "invite_send_failed" };
   }
 
   await markInviteSent(admin, { clientAccountId: input.clientAccountId, now: input.now });
@@ -620,28 +654,13 @@ export async function createAdminClientAccountAction(
     expiresAt: new Date(now + CLIENT_ACCOUNT_INVITE_TTL_MS).toISOString(),
     supportEmail: supportEmail(env),
   });
-  const config = getGmailInviteConfig(env);
-  if (!config.configured) {
-    await markInviteFailed(admin, {
-      clientAccountId: created.id,
-      status: "invite_failed",
-      errorCode: config.reason,
-    });
-    await recordEvent(admin, {
-      clientAccountId: created.id,
-      eventType: "invite_failed",
-      actorUserId: auth.userId,
-      errorCode: config.reason,
-    });
-    return { ok: false, error: "gmail_not_configured" };
-  }
-
-  const sent = await sendInvite({
+  const sent = await dispatchInviteEmail({
+    env,
+    sendInvite,
     to: email,
     subject: content.subject,
     html: content.html,
     text: content.text,
-    config,
   });
   if (!sent.ok) {
     await markInviteFailed(admin, {
@@ -655,8 +674,11 @@ export async function createAdminClientAccountAction(
       actorUserId: auth.userId,
       errorCode: sent.error,
     });
-    logger.warn("client_account_invite_failed", { error_code: sent.error });
-    return { ok: false, error: "invite_send_failed" };
+    logger.warn(
+      sent.notConfigured ? "client_account_invite_not_configured" : "client_account_invite_failed",
+      { error_code: sent.error }
+    );
+    return { ok: false, error: sent.notConfigured ? "gmail_not_configured" : "invite_send_failed" };
   }
 
   await markInviteSent(admin, { clientAccountId: created.id, now });
@@ -822,6 +844,48 @@ export async function setAdminClientAccountSuspendedAction(
   return { ok: true, clientAccountId: account.id, status: nextStatus, inviteSent: false };
 }
 
+export type ClientActivationEligibility =
+  | { ok: true; status: ClientAccountStatus }
+  | {
+      ok: false;
+      error: "forbidden" | "account_not_found" | "service_role_unavailable" | "unavailable";
+    };
+
+/**
+ * Resolves whether the current browser session belongs to a client account.
+ *
+ * An administrator session has no `client_accounts` row and must fail closed
+ * here, so `/ativar-conta` never offers that session a password change.
+ */
+export async function getClientActivationEligibility(
+  deps: ClientAccountActionDeps = {}
+): Promise<ClientActivationEligibility> {
+  try {
+    const { createClient } = await import("@/lib/supabase/server");
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user?.id) return { ok: false, error: "forbidden" };
+
+    const admin = deps.admin ?? createAdminClient();
+    if (!admin) return { ok: false, error: "service_role_unavailable" };
+
+    const { data, error } = await admin
+      .from("client_accounts")
+      .select("status")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (error || !data) return { ok: false, error: "account_not_found" };
+    const status = (data as { status: unknown }).status;
+    if (!isClientAccountStatus(status)) return { ok: false, error: "unavailable" };
+    return { ok: true, status };
+  } catch {
+    return { ok: false, error: "unavailable" };
+  }
+}
+
 /**
  * Marks an account as activated once the client successfully sets their own
  * password through the Supabase recovery session.
@@ -870,5 +934,90 @@ export async function markClientAccountActivatedAction(
     return { ok: true, clientAccountId: account.id };
   } catch {
     return { ok: false, error: "unavailable" };
+  }
+}
+
+export type DefineActivationPasswordDeps = ClientAccountActionDeps & {
+  user?: { id: string; email?: string | null } | null;
+  freshAccessLink?: boolean;
+  updatePassword?: (userId: string, password: string) => Promise<{ errorMessage: string | null }>;
+};
+
+/**
+ * Sets the invited client's password with the service role.
+ * The browser client cannot see the HttpOnly recovery session, so
+ * `auth.updateUser` in the page fails with a missing session.
+ */
+export async function defineClientActivationPassword(
+  password: string,
+  deps: DefineActivationPasswordDeps = {}
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isPasswordAcceptable(password)) {
+    return { ok: false, error: "A senha não atende aos requisitos mínimos." };
+  }
+
+  try {
+    let user = deps.user;
+    if (user === undefined) {
+      const { createClient } = await import("@/lib/supabase/server");
+      const supabase = await createClient();
+      const {
+        data: { user: sessionUser },
+      } = await supabase.auth.getUser();
+      user = sessionUser;
+    }
+    if (!user?.id) {
+      return {
+        ok: false,
+        error: "Este link expirou ou já foi utilizado. Solicite um novo envio ao suporte ou use a recuperação de senha em /login.",
+      };
+    }
+
+    const admin = deps.admin ?? createAdminClient();
+    if (!admin) return { ok: false, error: "Não foi possível definir a senha. Tente novamente." };
+
+    const { data, error } = await admin
+      .from("client_accounts")
+      .select("id, status")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (error || !data) {
+      return {
+        ok: false,
+        error: "Este link expirou ou já foi utilizado. Solicite um novo envio ao suporte ou use a recuperação de senha em /login.",
+      };
+    }
+    const account = data as { id: string; status: string };
+    if (!isClientAccountStatus(account.status) || !canDefineActivationPassword(account.status, deps.freshAccessLink === true)) {
+      return {
+        ok: false,
+        error: "Este link expirou ou já foi utilizado. Solicite um novo envio ao suporte ou use a recuperação de senha em /login.",
+      };
+    }
+
+    const providerMessage = deps.updatePassword
+      ? (await deps.updatePassword(user.id, password)).errorMessage
+      : (await admin.auth.admin.updateUserById(user.id, { password, email_confirm: true })).error
+          ?.message ?? null;
+    if (providerMessage) {
+      return { ok: false, error: describeActivationPasswordError(providerMessage) };
+    }
+
+    const now = deps.now?.() ?? Date.now();
+    if (account.status !== "activated") {
+      await admin
+        .from("client_accounts")
+        .update({ status: "activated", activated_at: new Date(now).toISOString(), last_error: "" })
+        .eq("id", account.id);
+      await recordEvent(admin, {
+        clientAccountId: account.id,
+        eventType: "account_activated",
+        actorUserId: user.id,
+      });
+    }
+    logger.info("client_account_password_defined", { client_account_id: account.id });
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Não foi possível definir a senha. Tente novamente." };
   }
 }

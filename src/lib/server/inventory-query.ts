@@ -117,7 +117,7 @@ export async function loadInventory(params: {
         name: product.name,
         is_active: product.is_active,
         unit_price: parseUnitPrice(product.unit_price),
-        cost_price: role === "cashier" ? null : "0.00",
+        cost_price: role === "cashier" || role === "client" ? null : "0.00",
         quantity: toInventoryQuantity(stock[product.id] ?? 0),
       })),
       nextCursor: null,

@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { BrandMark } from "@/components/landing/components/BrandMark";
+import { isClientRole, type MemberRole } from "@/lib/domain/rbac";
 import { endClientSession } from "@/lib/offline/end-session";
 
 type NavItem = {
@@ -39,11 +40,20 @@ function storeHref(path: string, storeId: string | null): string {
 
 export function PdvSidebar({
   storeId,
+  role = null,
   onOpenSalesHistory,
 }: {
   storeId: string | null;
+  role?: MemberRole | null;
   onOpenSalesHistory?: () => void;
 }) {
+  const items = (isClientRole(role)
+    ? navItems.filter((item) => item.href !== "/dashboard")
+    : navItems
+  ).map((item) =>
+    isClientRole(role) && item.href === "/inventory" ? { ...item, label: "Produtos" } : item
+  );
+
   return (
     <aside className="hidden w-64 shrink-0 flex-col gap-8 border-r border-border bg-card/50 p-4 backdrop-blur-xl lg:flex">
       <Link href={storeHref("/pdv", storeId)} className="flex items-center gap-2.5 px-2">
@@ -57,7 +67,7 @@ export function PdvSidebar({
       </Link>
 
       <nav aria-label="Navegação principal" className="flex flex-1 flex-col gap-2">
-        {navItems.map(({ href, icon: Icon, label }) => (
+        {items.map(({ href, icon: Icon, label }) => (
           <Link
             key={href}
             href={storeHref(href, storeId)}
