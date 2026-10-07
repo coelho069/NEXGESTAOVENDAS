@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   createAdminClient: vi.fn(),
   findCheckoutByPaymentId: vi.fn(),
   hasOpenRequest: vi.fn(),
+  hasApprovedRequest: vi.fn(),
   createOwnedRefundRequest: vi.fn(),
 }));
 
@@ -25,6 +26,7 @@ vi.mock("@/lib/server/client-refund-requests", () => ({
   createClientRefundReader: () => ({
     findCheckoutByPaymentId: mocks.findCheckoutByPaymentId,
     hasOpenRequest: mocks.hasOpenRequest,
+    hasApprovedRequest: mocks.hasApprovedRequest,
   }),
   createOwnedRefundRequest: mocks.createOwnedRefundRequest,
   ownedRefundStore: () => ({}),
@@ -69,6 +71,7 @@ describe("POST /api/refund-requests", () => {
     mocks.createAdminClient.mockReturnValue({});
     mocks.findCheckoutByPaymentId.mockResolvedValue(null);
     mocks.hasOpenRequest.mockResolvedValue(false);
+    mocks.hasApprovedRequest.mockResolvedValue(false);
     mocks.createOwnedRefundRequest.mockResolvedValue({
       ok: false,
       error: "payment_not_owned",

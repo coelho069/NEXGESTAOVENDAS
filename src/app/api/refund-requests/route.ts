@@ -75,6 +75,7 @@ export async function POST(request: Request) {
     const reader = createClientRefundReader(admin);
     const checkout = await reader.findCheckoutByPaymentId(parsed.data.mp_payment_id);
     const hasOpenRequest = checkout ? await reader.hasOpenRequest(parsed.data.mp_payment_id) : false;
+    const hasApprovedRequest = checkout ? await reader.hasApprovedRequest(parsed.data.mp_payment_id) : false;
     const result = await createOwnedRefundRequest(ownedRefundStore(admin), {
       actor: {
         userId: user.id,
@@ -93,6 +94,7 @@ export async function POST(request: Request) {
           }
         : null,
       hasOpenRequest,
+      hasApprovedRequest,
       clientMutationId: parsed.data.client_mutation_id,
       mpPaymentId: parsed.data.mp_payment_id,
       reason: parsed.data.reason,

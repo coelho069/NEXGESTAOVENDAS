@@ -35,6 +35,7 @@ const ERROR_LABELS: Record<string, string> = {
   unknown_paid_on: "Não foi possível confirmar a data deste pagamento.",
   outside_window: "Este pagamento está fora do prazo de 7 dias.",
   open_refund_request_exists: "Já existe um pedido em aberto para este pagamento.",
+  refund_already_approved: "O reembolso deste pagamento já foi aprovado.",
   idempotency_payload_mismatch: "Recarregue a página e envie o pedido outra vez.",
   validation_failed: "Revise o motivo do pedido.",
   csrf_failed: "Não foi possível enviar o pedido a partir desta página.",

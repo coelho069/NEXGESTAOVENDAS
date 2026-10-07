@@ -38,6 +38,7 @@ export type OwnedRefundRequestInput = {
   actor: ClientRefundActor;
   checkout: ClientCheckoutPayment | null;
   hasOpenRequest: boolean;
+  hasApprovedRequest?: boolean;
   clientMutationId: string;
   mpPaymentId: string;
   reason: ClientRefundFormReason;
@@ -129,6 +130,15 @@ export function createClientRefundReader(admin: SupabaseClient<Database>) {
       if (error) throw new Error("client_refund_request_lookup_failed");
       return (data ?? []).length > 0;
     },
+    async hasApprovedRequest(mpPaymentId: string): Promise<boolean> {
+      const { data, error } = await refundRequestLookup(admin)
+        .select("status")
+        .eq("mp_payment_id", mpPaymentId)
+        .eq("status", "approved")
+        .limit(1);
+      if (error) throw new Error("client_refund_request_lookup_failed");
+      return (data ?? []).length > 0;
+    },
   };
 }
 
@@ -172,16 +182,24 @@ export async function createOwnedRefundRequest(
     payment: checkout,
     now,
     openRequest: input.hasOpenRequest,
+    refundApproved: input.hasApprovedRequest ?? false,
     intensiveUseDeclared: input.intensiveUseDeclared,
   });
   if (!eligibility.eligible) {
-    const status = eligibility.reason === "not_owner" ? 403 : eligibility.reason === "open_request" ? 409 : 400;
+    const status =
+      eligibility.reason === "not_owner"
+        ? 403
+        : eligibility.reason === "open_request" || eligibility.reason === "already_refunded"
+          ? 409
+          : 400;
     const error =
       eligibility.reason === "not_owner"
         ? "payment_not_owned"
         : eligibility.reason === "open_request"
           ? "open_refund_request_exists"
-          : eligibility.reason;
+          : eligibility.reason === "already_refunded"
+            ? "refund_already_approved"
+            : eligibility.reason;
     return { ok: false, error, status };
   }
 

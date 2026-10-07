@@ -16,6 +16,8 @@ export const CLIENT_REFUND_PAID_STATUSES = ["approved", "accredited", "paid"] as
 const PAID_STATUSES = new Set<string>(CLIENT_REFUND_PAID_STATUSES);
 const PAYMENT_ID = /^\d{6,20}$/;
 const OPEN_REQUEST_STATUSES = new Set<RefundRequestStatus>(["submitted", "in_review"]);
+/** A payment whose refund was already approved can never receive another request. */
+const APPROVED_REQUEST_STATUSES = new Set<RefundRequestStatus>(["approved"]);
 
 export type ClientRefundActor = {
   userId: string;
@@ -40,6 +42,7 @@ export type ClientRefundBlockReason =
   | "unknown_paid_on"
   | "outside_window"
   | "open_request"
+  | "already_refunded"
   | "intensive_use";
 
 export type ClientRefundPaymentView = {
@@ -62,6 +65,10 @@ export { saoPauloDateFromInstant };
 
 export function refundRequestIsOpen(status: RefundRequestStatus): boolean {
   return OPEN_REQUEST_STATUSES.has(status);
+}
+
+export function refundRequestIsApproved(status: RefundRequestStatus): boolean {
+  return APPROVED_REQUEST_STATUSES.has(status);
 }
 
 /**
@@ -94,6 +101,7 @@ export function assessClientRefundEligibility(input: {
   payment: ClientCheckoutPayment;
   now: Date;
   openRequest: boolean;
+  refundApproved?: boolean;
   intensiveUseDeclared?: boolean;
 }):
   | { eligible: true; mpPaymentId: string; paidOn: string }
@@ -121,6 +129,7 @@ export function assessClientRefundEligibility(input: {
   if (!refundWindowContainsInstant(paidAt, input.now)) {
     return { eligible: false, reason: "outside_window" };
   }
+  if (input.refundApproved) return { eligible: false, reason: "already_refunded" };
   if (input.openRequest) return { eligible: false, reason: "open_request" };
   if (input.intensiveUseDeclared) return { eligible: false, reason: "intensive_use" };
   return { eligible: true, mpPaymentId, paidOn };
@@ -149,6 +158,11 @@ export function presentClientRefundPayments(input: {
     }
   }
 
+  const approvedPayments = new Set<string>();
+  for (const request of input.requests) {
+    if (refundRequestIsApproved(request.status)) approvedPayments.add(request.mpPaymentId);
+  }
+
   const seen = new Set<string>();
   const views: ClientRefundPaymentView[] = [];
   for (const checkout of input.checkouts) {
@@ -164,6 +178,7 @@ export function presentClientRefundPayments(input: {
       payment: checkout,
       now: input.now,
       openRequest: latest ? refundRequestIsOpen(latest.status) : false,
+      refundApproved: approvedPayments.has(paymentId),
     });
     views.push({
       mpPaymentId: paymentId,
