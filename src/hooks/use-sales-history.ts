@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import {
   buildLocalSaleHistoryDetail,
@@ -20,6 +20,17 @@ import { pdvFixturesEnabled } from "@/lib/pdv/fixtures";
 import { SALES_HISTORY_SYNC_EVENT, notifySalesHistorySync } from "@/lib/pdv/sales-history-sync";
 import { useSessionStore } from "@/stores/session-store";
 
+function uniqueSaleRows(rows: SaleHistoryListItem[]): SaleHistoryListItem[] {
+  const seen = new Set<string>();
+  const unique: SaleHistoryListItem[] = [];
+  for (const row of rows) {
+    if (seen.has(row.sale_id)) continue;
+    seen.add(row.sale_id);
+    unique.push(row);
+  }
+  return unique;
+}
+
 function readError(body: unknown, fallback: string): string {
   if (body && typeof body === "object" && "error" in body && typeof body.error === "string") {
     return body.error;
@@ -37,6 +48,9 @@ export function useSalesHistory(storeId: string | null) {
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<SaleHistoryListResponse["next_cursor"]>(null);
   const [mutating, setMutating] = useState(false);
+  const listEpoch = useRef(0);
+  const refreshSerial = useRef(0);
+  const loadMoreLock = useRef(false);
 
   const loadLocal = useCallback(
     async (search: string): Promise<SaleHistoryListResponse> => {
@@ -55,20 +69,28 @@ export function useSalesHistory(storeId: string | null) {
 
   const refresh = useCallback(async () => {
     if (!storeId) {
+      listEpoch.current += 1;
+      refreshSerial.current += 1;
       setRows([]);
       setHasMore(false);
       setNextCursor(null);
       return;
     }
 
+    const serial = ++refreshSerial.current;
+    listEpoch.current += 1;
     setLoading(true);
     setError(null);
+    const publish = (payload: SaleHistoryListResponse) => {
+      if (serial !== refreshSerial.current) return;
+      listEpoch.current += 1;
+      setRows(uniqueSaleRows(Array.isArray(payload.rows) ? payload.rows : []));
+      setHasMore(Boolean(payload.has_more));
+      setNextCursor(payload.next_cursor ?? null);
+    };
     try {
       if (pdvFixturesEnabled() || (typeof navigator !== "undefined" && !navigator.onLine)) {
-        const local = await loadLocal(query);
-        setRows(local.rows);
-        setHasMore(local.has_more);
-        setNextCursor(local.next_cursor);
+        publish(await loadLocal(query));
         return;
       }
 
@@ -86,35 +108,36 @@ export function useSalesHistory(storeId: string | null) {
       if (!response.ok) {
         throw new Error(readError(body, "Não foi possível consultar vendas"));
       }
-      const payload = body as SaleHistoryListResponse;
-      setRows(Array.isArray(payload.rows) ? payload.rows : []);
-      setHasMore(Boolean(payload.has_more));
-      setNextCursor(payload.next_cursor ?? null);
+      publish(body as SaleHistoryListResponse);
     } catch (cause) {
       try {
         const local = await loadLocal(query);
-        setRows(local.rows);
-        setHasMore(local.has_more);
-        setNextCursor(local.next_cursor);
+        publish(local);
+        if (serial !== refreshSerial.current) return;
         setError(
           cause instanceof Error
             ? `${cause.message}. Exibindo histórico local.`
             : "Exibindo histórico local."
         );
       } catch {
+        if (serial !== refreshSerial.current) return;
         setError(cause instanceof Error ? cause.message : "Não foi possível consultar vendas");
       }
     } finally {
-      setLoading(false);
+      if (serial === refreshSerial.current) setLoading(false);
     }
   }, [loadLocal, query, storeId]);
 
   const loadMore = useCallback(async () => {
-    if (!storeId || !nextCursor || loading) return;
+    if (!storeId || !nextCursor || loadMoreLock.current) return;
+    const cursor = nextCursor;
+    const epoch = listEpoch.current;
+    loadMoreLock.current = true;
     setLoading(true);
     setError(null);
     try {
       if (pdvFixturesEnabled() || (typeof navigator !== "undefined" && !navigator.onLine)) {
+        if (epoch !== listEpoch.current) return;
         setHasMore(false);
         setNextCursor(null);
         return;
@@ -123,8 +146,8 @@ export function useSalesHistory(storeId: string | null) {
       const params = new URLSearchParams({
         store_id: storeId,
         limit: "20",
-        after_created_at: nextCursor.after_created_at,
-        after_id: nextCursor.after_id,
+        after_created_at: cursor.after_created_at,
+        after_id: cursor.after_id,
       });
       if (query.trim()) params.set("query", query.trim());
 
@@ -136,16 +159,24 @@ export function useSalesHistory(storeId: string | null) {
       if (!response.ok) {
         throw new Error(readError(body, "Não foi possível carregar mais vendas"));
       }
+      if (epoch !== listEpoch.current) return;
       const payload = body as SaleHistoryListResponse;
-      setRows((current) => [...current, ...(Array.isArray(payload.rows) ? payload.rows : [])]);
+      const incoming = uniqueSaleRows(Array.isArray(payload.rows) ? payload.rows : []);
+      setRows((current) => {
+        const seen = new Set(current.map((item) => item.sale_id));
+        const extra = incoming.filter((item) => !seen.has(item.sale_id));
+        return extra.length === 0 ? current : [...current, ...extra];
+      });
       setHasMore(Boolean(payload.has_more));
       setNextCursor(payload.next_cursor ?? null);
     } catch (cause) {
+      if (epoch !== listEpoch.current) return;
       setError(cause instanceof Error ? cause.message : "Não foi possível carregar mais vendas");
     } finally {
-      setLoading(false);
+      loadMoreLock.current = false;
+      if (epoch === listEpoch.current) setLoading(false);
     }
-  }, [loading, nextCursor, query, storeId]);
+  }, [nextCursor, query, storeId]);
 
   const openDetail = useCallback(
     async (saleId: string) => {

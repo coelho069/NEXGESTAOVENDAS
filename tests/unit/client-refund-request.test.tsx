@@ -165,6 +165,30 @@ describe("client refund ownership", () => {
     expect(views[0]?.eligible).toBe(true);
   });
 
+  it("collapses two checkout rows that share payment 181533292037", () => {
+    const views = presentClientRefundPayments({
+      actor,
+      now: new Date("2026-10-08T15:00:00.000Z"),
+      checkouts: [
+        payment({
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          mpPaymentId: "181533292037",
+        }),
+        payment({
+          id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          mpPaymentId: "181533292037",
+          mpPaymentPaidAt: "2026-10-05T15:00:00.000Z",
+        }),
+        payment({
+          id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          mpPaymentId: "181540452257",
+        }),
+      ],
+      requests: [],
+    });
+    expect(views.map((item) => item.mpPaymentId)).toEqual(["181533292037", "181540452257"]);
+  });
+
   it("inserts an analysis request and does not record a sent refund", async () => {
     const insert = vi.fn(async () => ({ error: null }));
     const memory = store(insert);
@@ -289,6 +313,28 @@ describe("client refund button on the PDV shell", () => {
     vi.unstubAllGlobals();
   });
 
+  it("keeps the refund panel mounted on the PDV when a later list update is empty", () => {
+    const payments = [view("181540452257", true)];
+    const screenTree = (
+      next: Parameters<typeof SubscriptionAccessView>[0]["refundPayments"]
+    ) => (
+      <SubscriptionAccessView decision={allowedDecision} role="client" refundPayments={next}>
+        <div data-testid="pdv-shell">PDV</div>
+      </SubscriptionAccessView>
+    );
+    const { rerender } = render(screenTree(payments));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "não sumir" } });
+    expect(screen.getAllByTestId("client-refund-form")).toHaveLength(1);
+
+    rerender(screenTree([]));
+    expect(screen.getByTestId("client-refund-slot")).toBeTruthy();
+    expect(screen.getByTestId("pdv-shell")).toBeTruthy();
+    expect(screen.getAllByTestId("client-refund-form")).toHaveLength(1);
+    expect(screen.getByTestId("client-refund-form").getAttribute("data-payment-id")).toBe("181540452257");
+    expect(screen.getByRole("textbox")).toHaveValue("não sumir");
+    expect(screen.getAllByRole("button", { name: CLIENT_REFUND_BUTTON_LABEL })).toHaveLength(1);
+  });
+
   it("shows no button when the client has no eligible payment", () => {
     renderClientScreen([]);
     expect(screen.queryByRole("button", { name: CLIENT_REFUND_BUTTON_LABEL })).toBeNull();
@@ -386,6 +432,168 @@ function view(
 }
 
 describe("ClientRefundRequestPanel", () => {
+  it("shows payment 181540452257 once and a single request form", () => {
+    render(
+      <ClientRefundRequestPanel
+        payments={[
+          view("181540452200", true),
+          view("181540452257", true),
+          view("181540452257", true),
+          view("181540452300", true),
+        ]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /181540452257/ }));
+
+    expect(screen.getAllByText(/181540452257/)).toHaveLength(1);
+    expect(screen.getAllByText("Pago em 2026-10-06")).toHaveLength(3);
+    expect(screen.getAllByTestId("client-refund-payment-option")).toHaveLength(3);
+    expect(screen.getAllByTestId("client-refund-form")).toHaveLength(1);
+    expect(screen.getAllByRole("combobox")).toHaveLength(1);
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    expect(screen.getAllByRole("checkbox", { name: CLIENT_REFUND_CONFIRMATION })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: CLIENT_REFUND_BUTTON_LABEL })).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /181540452300/ }));
+
+    expect(screen.getAllByText(/181540452257/)).toHaveLength(1);
+    expect(screen.getAllByText(/181540452300/)).toHaveLength(1);
+    expect(screen.getAllByTestId("client-refund-form")).toHaveLength(1);
+    expect(screen.getByTestId("client-refund-form").getAttribute("data-payment-id")).toBe("181540452300");
+    expect(screen.queryByText(/Solicitação para o pagamento/)).toBeNull();
+  });
+
+  it("renders payment 181533292037 once when the list contains that payment twice", () => {
+    const duplicated = "181533292037";
+    const other = "181540452257";
+
+    function options() {
+      return screen.queryAllByTestId("client-refund-payment-option");
+    }
+    function optionPaymentIds() {
+      return options().map((option) => option.getAttribute("data-payment-id"));
+    }
+    function pressedIds() {
+      return options()
+        .filter((option) => option.getAttribute("aria-pressed") === "true")
+        .map((option) => option.getAttribute("data-payment-id"));
+    }
+    function domIdCount(paymentId: string) {
+      return document.querySelectorAll(`#client-refund-option-${paymentId}`).length;
+    }
+
+    const { rerender } = render(
+      <ClientRefundRequestPanel
+        payments={[view(duplicated, true), view(duplicated, true), view(other, true)]}
+      />
+    );
+
+    expect(options()).toHaveLength(2);
+    expect(optionPaymentIds()).toEqual([duplicated, other]);
+    expect(new Set(optionPaymentIds()).size).toBe(options().length);
+    expect(domIdCount(duplicated)).toBe(1);
+    expect(domIdCount(other)).toBe(1);
+    expect(pressedIds()).toEqual([duplicated]);
+    expect(screen.getAllByText(`Pagamento ${duplicated}`)).toHaveLength(1);
+    expect(document.querySelectorAll("[data-testid='client-refund-panel']")).toHaveLength(1);
+    expect(screen.getAllByTestId("client-refund-form")).toHaveLength(1);
+    expect(screen.getByTestId("client-refund-form").getAttribute("data-payment-id")).toBe(duplicated);
+
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "nota do pagamento duplicado" } });
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(other) }));
+    expect(options()).toHaveLength(2);
+    expect(domIdCount(duplicated)).toBe(1);
+    expect(domIdCount(other)).toBe(1);
+    expect(pressedIds()).toEqual([other]);
+    expect(screen.getByTestId("client-refund-form").getAttribute("data-payment-id")).toBe(other);
+    expect(screen.queryByDisplayValue("nota do pagamento duplicado")).toBeNull();
+
+    rerender(
+      <ClientRefundRequestPanel
+        payments={[view(duplicated, true), view(other, true), view(duplicated, true), view(other, true)]}
+      />
+    );
+    expect(optionPaymentIds()).toEqual([duplicated, other]);
+    expect(domIdCount(duplicated)).toBe(1);
+    expect(pressedIds()).toEqual([other]);
+    expect(screen.getByTestId("client-refund-form").getAttribute("data-payment-id")).toBe(other);
+
+    rerender(<ClientRefundRequestPanel payments={[]} />);
+    expect(options()).toHaveLength(0);
+    expect(domIdCount(duplicated)).toBe(0);
+    expect(screen.getAllByTestId("client-refund-form")).toHaveLength(1);
+    expect(screen.getByTestId("client-refund-form").getAttribute("data-payment-id")).toBe(other);
+
+    rerender(<ClientRefundRequestPanel payments={[view(duplicated, true), view(duplicated, true)]} />);
+    expect(optionPaymentIds()).toEqual([duplicated]);
+    expect(domIdCount(duplicated)).toBe(1);
+    expect(pressedIds()).toEqual([]);
+    expect(screen.getByTestId("client-refund-form").getAttribute("data-payment-id")).toBe(other);
+
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(duplicated) }));
+    expect(pressedIds()).toEqual([duplicated]);
+    expect(screen.getByTestId("client-refund-form").getAttribute("data-payment-id")).toBe(duplicated);
+    expect(screen.getByRole("textbox")).toHaveValue("nota do pagamento duplicado");
+    expect(screen.getAllByRole("button", { name: CLIENT_REFUND_BUTTON_LABEL })).toHaveLength(1);
+  });
+
+  it("keeps the selected request form mounted through edits, errors and a list refresh", async () => {
+    const payments = [view("181540452200", true), view("181540452257", true)];
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: false, error: "validation_failed" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+      .mockRejectedValueOnce(new Error("offline"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { rerender } = render(<ClientRefundRequestPanel payments={payments} />);
+    fireEvent.click(screen.getByRole("button", { name: /181540452257/ }));
+    expect(screen.getAllByTestId("client-refund-form")).toHaveLength(1);
+    expect(screen.getByTestId("client-refund-form").getAttribute("data-payment-id")).toBe("181540452257");
+
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "cobranca_duplicada" } });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "observação estável" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: CLIENT_REFUND_CONFIRMATION }));
+    expect(screen.getAllByTestId("client-refund-form")).toHaveLength(1);
+    expect(screen.getByRole("combobox")).toHaveValue("cobranca_duplicada");
+    expect(screen.getByRole("textbox")).toHaveValue("observação estável");
+    expect(screen.getByRole("checkbox", { name: CLIENT_REFUND_CONFIRMATION })).toBeChecked();
+
+    fireEvent.click(screen.getByRole("button", { name: CLIENT_REFUND_BUTTON_LABEL }));
+    expect(await screen.findByText("Revise o motivo do pedido.")).toBeTruthy();
+    expect(screen.getAllByTestId("client-refund-form")).toHaveLength(1);
+    expect(screen.getByRole("textbox")).toHaveValue("observação estável");
+
+    fireEvent.click(screen.getByRole("button", { name: CLIENT_REFUND_BUTTON_LABEL }));
+    expect(await screen.findByText("Não foi possível registrar o pedido agora.")).toBeTruthy();
+    expect(screen.getAllByTestId("client-refund-form")).toHaveLength(1);
+    expect(screen.getByTestId("client-refund-detail").getAttribute("data-payment-id")).toBe("181540452257");
+
+    rerender(<ClientRefundRequestPanel payments={[]} />);
+    expect(screen.getAllByTestId("client-refund-form")).toHaveLength(1);
+    expect(screen.getByTestId("client-refund-form").getAttribute("data-payment-id")).toBe("181540452257");
+    expect(screen.getByRole("textbox")).toHaveValue("observação estável");
+    expect(screen.getAllByRole("button", { name: CLIENT_REFUND_BUTTON_LABEL })).toHaveLength(1);
+
+    rerender(<ClientRefundRequestPanel payments={[view("181540452200", true)]} />);
+    fireEvent.click(screen.getByRole("button", { name: /181540452200/ }));
+    expect(screen.getAllByTestId("client-refund-form")).toHaveLength(1);
+    expect(screen.getByTestId("client-refund-form").getAttribute("data-payment-id")).toBe("181540452200");
+    expect(screen.queryByDisplayValue("observação estável")).toBeNull();
+
+    rerender(<ClientRefundRequestPanel payments={payments} />);
+    fireEvent.click(screen.getByRole("button", { name: /181540452257/ }));
+    expect(screen.getAllByTestId("client-refund-form")).toHaveLength(1);
+    expect(screen.getByRole("textbox")).toHaveValue("observação estável");
+    expect(screen.getAllByTestId("client-refund-payment-option")).toHaveLength(2);
+    vi.unstubAllGlobals();
+  });
+
   it("does not render an orphan button by itself", () => {
     const { container } = render(<ClientRefundRequestPanel payments={[]} />);
     expect(container).toBeEmptyDOMElement();
@@ -507,6 +715,112 @@ describe("ClientRefundRequestPanel", () => {
       expect(screen.queryByRole("button", { name: CLIENT_REFUND_BUTTON_LABEL })).toBeNull();
       expect(document.querySelectorAll("[data-testid='client-refund-form']")).toHaveLength(0);
     }
+  });
+
+  it("replaces the selected form and does not resurrect it from a stale snapshot", async () => {
+    const paymentA = "181540452200";
+    const paymentB = "181540452257";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: false, error: "validation_failed" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true, id: "88888888-8888-4888-8888-888888888888", status: "submitted" }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    function forms() {
+      return screen.queryAllByTestId("client-refund-form");
+    }
+    function formIds() {
+      return forms().map((form) => form.getAttribute("data-payment-id"));
+    }
+
+    const { rerender } = render(
+      <ClientRefundRequestPanel payments={[view(paymentA, true), view(paymentB, true)]} />
+    );
+    expect(document.querySelectorAll("[data-testid='client-refund-panel']")).toHaveLength(1);
+    expect(formIds()).toEqual([paymentA]);
+
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "nota A" } });
+    expect(formIds()).toEqual([paymentA]);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: CLIENT_REFUND_CONFIRMATION }));
+    fireEvent.click(screen.getByRole("button", { name: CLIENT_REFUND_BUTTON_LABEL }));
+    expect(await screen.findByText("Revise o motivo do pedido.")).toBeTruthy();
+    expect(formIds()).toEqual([paymentA]);
+
+    fireEvent.click(screen.getByRole("button", { name: CLIENT_REFUND_BUTTON_LABEL }));
+    expect(await screen.findByText("Não foi possível registrar o pedido agora.")).toBeTruthy();
+    expect(formIds()).toEqual([paymentA]);
+
+    rerender(<ClientRefundRequestPanel payments={[view(paymentA, true), view(paymentB, true)]} />);
+    expect(formIds()).toEqual([paymentA]);
+    expect(document.querySelectorAll("form")).toHaveLength(1);
+
+    rerender(<ClientRefundRequestPanel payments={[]} />);
+    expect(formIds()).toEqual([paymentA]);
+    expect(screen.getByRole("textbox")).toHaveValue("nota A");
+
+    rerender(<ClientRefundRequestPanel payments={[view(paymentB, true)]} />);
+    expect(formIds()).toEqual([paymentA]);
+    expect(screen.queryByRole("button", { name: new RegExp(paymentA) })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(paymentB) }));
+    expect(formIds()).toEqual([paymentB]);
+    expect(screen.queryByDisplayValue("nota A")).toBeNull();
+    expect(screen.queryByText("Não foi possível registrar o pedido agora.")).toBeNull();
+    expect(screen.queryByText("Revise o motivo do pedido.")).toBeNull();
+    expect(document.querySelectorAll("[data-testid='client-refund-panel']")).toHaveLength(1);
+    expect(document.querySelectorAll("[data-testid='client-refund-detail']")).toHaveLength(1);
+
+    rerender(<ClientRefundRequestPanel payments={[view(paymentA, true), view(paymentB, true)]} />);
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(paymentA) }));
+    expect(formIds()).toEqual([paymentA]);
+    expect(screen.getByRole("textbox")).toHaveValue("nota A");
+    expect(screen.getByRole("checkbox", { name: CLIENT_REFUND_CONFIRMATION })).toBeChecked();
+
+    fireEvent.click(screen.getByRole("button", { name: CLIENT_REFUND_BUTTON_LABEL }));
+    expect(await screen.findByText(CLIENT_REFUND_SUCCESS)).toBeTruthy();
+    expect(forms()).toHaveLength(0);
+    expect(screen.getByText(CLIENT_REFUND_OPEN_STATUS)).toBeTruthy();
+    expect(document.querySelectorAll("form")).toHaveLength(0);
+
+    rerender(<ClientRefundRequestPanel payments={[view(paymentA, true), view(paymentB, true)]} />);
+    expect(forms()).toHaveLength(0);
+    expect(screen.getByText(CLIENT_REFUND_SUCCESS)).toBeTruthy();
+
+    rerender(<ClientRefundRequestPanel payments={[]} />);
+    expect(forms()).toHaveLength(0);
+    expect(screen.queryByText(CLIENT_REFUND_SUCCESS)).toBeTruthy();
+
+    rerender(<ClientRefundRequestPanel payments={[view(paymentA, true)]} />);
+    expect(forms()).toHaveLength(0);
+    expect(screen.getAllByText(CLIENT_REFUND_SUCCESS)).toHaveLength(1);
+
+    rerender(<ClientRefundRequestPanel payments={[view(paymentA, false), view(paymentB, true)]} />);
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(paymentB) }));
+    expect(formIds()).toEqual([paymentB]);
+    expect(screen.queryByText(CLIENT_REFUND_SUCCESS)).toBeNull();
+
+    rerender(<ClientRefundRequestPanel payments={[view(paymentB, false)]} />);
+    expect(forms()).toHaveLength(0);
+    expect(screen.getByText(CLIENT_REFUND_OPEN_STATUS)).toBeTruthy();
+
+    rerender(<ClientRefundRequestPanel payments={[]} />);
+    expect(forms()).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: CLIENT_REFUND_BUTTON_LABEL })).toBeNull();
+    expect(document.querySelectorAll("form")).toHaveLength(0);
+
+    vi.unstubAllGlobals();
   });
 
   it("points an unauthenticated visitor to login without a request form", () => {

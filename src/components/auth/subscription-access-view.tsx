@@ -1,4 +1,4 @@
-import { ClientRefundRequestPanel } from "@/components/account/client-refund-request-panel";
+import { ClientRefundSlot } from "@/components/account/client-refund-request-panel";
 import type { ClientRefundPaymentView } from "@/lib/domain/client-refund-eligibility";
 import type { RefundGmailAccess } from "@/lib/domain/refund-gmail-access";
 import type { MemberRole } from "@/lib/domain/rbac";
@@ -15,21 +15,6 @@ type SubscriptionAccessViewProps = {
   refundAccess?: RefundGmailAccess;
   children: React.ReactNode;
 };
-
-function ClientRefundSlot({
-  payments,
-  access,
-}: {
-  payments: ClientRefundPaymentView[];
-  access: RefundGmailAccess;
-}) {
-  if (access === "allowed" && payments.length === 0) return null;
-  return (
-    <div data-testid="client-refund-slot" className="w-full px-4 py-4 sm:px-6">
-      <ClientRefundRequestPanel payments={payments} access={access} />
-    </div>
-  );
-}
 
 export function SubscriptionAccessView({
   decision,

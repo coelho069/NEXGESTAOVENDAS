@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   CLIENT_REFUND_FORM_REASONS,
   type ClientRefundFormReason,
@@ -63,6 +63,32 @@ const EMPTY_DRAFT: RefundDraft = {
   confirmed: false,
 };
 
+function uniquePayments(payments: ClientRefundPaymentView[]): ClientRefundPaymentView[] {
+  const seen = new Set<string>();
+  const unique: ClientRefundPaymentView[] = [];
+  for (const payment of payments) {
+    if (seen.has(payment.mpPaymentId)) continue;
+    seen.add(payment.mpPaymentId);
+    unique.push(payment);
+  }
+  return unique;
+}
+
+type SelectedRefundPayment = {
+  paymentId: string;
+  snapshot: ClientRefundPaymentView;
+};
+
+function samePaymentView(left: ClientRefundPaymentView, right: ClientRefundPaymentView): boolean {
+  return (
+    left.mpPaymentId === right.mpPaymentId &&
+    left.paidOn === right.paidOn &&
+    left.eligible === right.eligible &&
+    left.blockReason === right.blockReason &&
+    left.latestStatus === right.latestStatus
+  );
+}
+
 function PaymentRequestForm({
   payment,
   draft,
@@ -112,7 +138,8 @@ function PaymentRequestForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="mt-3 grid w-full gap-3"
+      className="grid w-full gap-3"
+      aria-labelledby={`client-refund-option-${payment.mpPaymentId}`}
       data-testid="client-refund-form"
       data-payment-id={payment.mpPaymentId}
     >
@@ -162,6 +189,23 @@ function PaymentRequestForm({
   );
 }
 
+export function ClientRefundSlot({
+  payments,
+  access,
+}: {
+  payments: ClientRefundPaymentView[];
+  access: RefundGmailAccess;
+}) {
+  const seenPayments = useRef(payments.length > 0);
+  if (payments.length > 0) seenPayments.current = true;
+  if (access === "allowed" && payments.length === 0 && !seenPayments.current) return null;
+  return (
+    <div data-testid="client-refund-slot" className="w-full px-4 py-4 sm:px-6">
+      <ClientRefundRequestPanel payments={payments} access={access} />
+    </div>
+  );
+}
+
 export function ClientRefundRequestPanel({
   payments,
   access = "allowed",
@@ -169,8 +213,11 @@ export function ClientRefundRequestPanel({
   payments: ClientRefundPaymentView[];
   access?: RefundGmailAccess;
 }) {
-  const initialId = payments.find((payment) => payment.eligible)?.mpPaymentId ?? payments[0]?.mpPaymentId ?? null;
-  const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(initialId);
+  const listed = uniquePayments(payments);
+  const initialPayment = listed.find((payment) => payment.eligible) ?? listed[0] ?? null;
+  const [selection, setSelection] = useState<SelectedRefundPayment | null>(() =>
+    initialPayment ? { paymentId: initialPayment.mpPaymentId, snapshot: initialPayment } : null
+  );
   const [drafts, setDrafts] = useState<Record<string, RefundDraft>>({});
   const [submittedIds, setSubmittedIds] = useState<ReadonlySet<string>>(() => new Set());
 
@@ -191,16 +238,28 @@ export function ClientRefundRequestPanel({
     );
   }
 
-  if (payments.length === 0) return null;
+  const selectedPaymentId = selection?.paymentId ?? null;
+  const listedMatch =
+    selectedPaymentId === null
+      ? null
+      : (listed.find((payment) => payment.mpPaymentId === selectedPaymentId) ?? null);
+  if (selection && listedMatch && !samePaymentView(listedMatch, selection.snapshot)) {
+    setSelection({ paymentId: selection.paymentId, snapshot: listedMatch });
+  }
+  const resolved = listedMatch ?? selection?.snapshot ?? null;
+  if (!resolved) return null;
+  const active = resolved;
 
-  const selected = payments.find((payment) => payment.mpPaymentId === selectedPaymentId) ?? payments[0];
-  const submitted = submittedIds.has(selected.mpPaymentId);
-  const open = selected.blockReason === "open_request" || submitted;
-  const showForm = selected.eligible && !submitted;
-  const draft = drafts[selected.mpPaymentId] ?? EMPTY_DRAFT;
+  function choose(payment: ClientRefundPaymentView) {
+    setSelection({ paymentId: payment.mpPaymentId, snapshot: payment });
+  }
+  const submitted = submittedIds.has(active.mpPaymentId);
+  const open = active.blockReason === "open_request" || submitted;
+  const showForm = active.eligible && !submitted;
+  const draft = drafts[active.mpPaymentId] ?? EMPTY_DRAFT;
 
   function updateDraft(patch: Partial<RefundDraft>) {
-    const id = selected.mpPaymentId;
+    const id = active.mpPaymentId;
     setDrafts((current) => {
       const previous = current[id] ?? EMPTY_DRAFT;
       return { ...current, [id]: { ...previous, ...patch } };
@@ -210,18 +269,19 @@ export function ClientRefundRequestPanel({
   return (
     <section className="grid w-full gap-3" data-testid="client-refund-panel">
       <ul className="grid w-full gap-2" aria-label="Pagamentos elegíveis">
-        {payments.map((payment) => {
-          const active = payment.mpPaymentId === selected.mpPaymentId;
+        {listed.map((payment) => {
+          const pressed = payment.mpPaymentId === active.mpPaymentId;
           return (
             <li key={payment.mpPaymentId}>
               <button
                 type="button"
-                aria-pressed={active}
+                id={`client-refund-option-${payment.mpPaymentId}`}
+                aria-pressed={pressed}
                 data-testid="client-refund-payment-option"
                 data-payment-id={payment.mpPaymentId}
-                onClick={() => setSelectedPaymentId(payment.mpPaymentId)}
+                onClick={() => choose(payment)}
                 className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
-                  active ? "border-slate-900 bg-slate-50" : "border-slate-200 bg-white"
+                  pressed ? "border-slate-900 bg-slate-50" : "border-slate-200 bg-white"
                 }`}
               >
                 <span className="font-medium text-slate-900">Pagamento {payment.mpPaymentId}</span>
@@ -234,22 +294,19 @@ export function ClientRefundRequestPanel({
         })}
       </ul>
       <div
+        key={active.mpPaymentId}
         className="rounded-xl border border-slate-200 bg-white p-4"
         data-testid="client-refund-detail"
-        data-payment-id={selected.mpPaymentId}
+        data-payment-id={active.mpPaymentId}
       >
-        <p className="text-sm font-medium text-slate-900">Solicitação para o pagamento {selected.mpPaymentId}</p>
-        <p className="text-sm text-slate-600">
-          {selected.paidOn ? `Pago em ${selected.paidOn}` : "Data de pagamento indisponível"}
-        </p>
         {showForm ? (
           <PaymentRequestForm
-            key={selected.mpPaymentId}
-            payment={selected}
+            key={active.mpPaymentId}
+            payment={active}
             draft={draft}
             onDraft={updateDraft}
             onSubmitted={() => {
-              const id = selected.mpPaymentId;
+              const id = active.mpPaymentId;
               setSubmittedIds((current) => new Set(current).add(id));
             }}
           />

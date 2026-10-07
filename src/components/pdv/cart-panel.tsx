@@ -2,12 +2,10 @@ import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { formatBRL } from "@/lib/money";
 import type { CartLine } from "@/lib/domain/sale";
 import { lineTotal } from "@/lib/domain/sale";
-import { StockLabel } from "@/components/pdv/stock-label";
 
 type CartPanelProps = {
   lines: CartLine[];
   selectedProductId: string | null;
-  stock: Record<string, number>;
   onSelect: (productId: string) => void;
   onIncrement: (productId: string) => void;
   onDecrement: (productId: string) => void;
@@ -18,7 +16,6 @@ type CartPanelProps = {
 export function CartPanel({
   lines,
   selectedProductId,
-  stock,
   onSelect,
   onIncrement,
   onDecrement,
@@ -106,12 +103,6 @@ export function CartPanel({
                   <div className="min-w-0">
                     <div className="truncate font-medium text-foreground">{line.name}</div>
                     <div className="truncate text-xs text-muted-foreground">{line.sku}</div>
-                    <StockLabel
-                      productId={line.productId}
-                      sku={line.sku}
-                      stockQty={stock[line.productId]}
-                      cartQty={line.quantity}
-                    />
                   </div>
                   <div className="self-center text-right text-sm text-muted-foreground tabular-nums">
                     {formatBRL(line.unitPrice)}

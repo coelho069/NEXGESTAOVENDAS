@@ -449,7 +449,6 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
               <CartPanel
                 lines={sale.lines}
                 selectedProductId={sale.selectedProductId}
-                stock={balances}
                 onSelect={sale.setSelectedProductId}
                 onIncrement={(productId) => {
                   const line = sale.lines.find((item) => item.productId === productId);
@@ -575,7 +574,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             onClose={() => setShowSuspendedSales(false)}
           />
           <SalesHistoryPanel
-            open={showSalesHistory}
+            open={showSalesHistory && !showSaleReturn}
             rows={salesHistory.rows}
             detail={salesHistory.detail}
             loading={salesHistory.loading}
