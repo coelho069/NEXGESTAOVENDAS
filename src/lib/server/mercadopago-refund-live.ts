@@ -10,7 +10,11 @@ export type LiveMercadoPagoRefundResult =
   | { ok: true; refundId: string; status: string; alreadyRefunded: boolean }
   | {
       ok: false;
-      error: "mp_not_configured" | "mp_payment_not_refundable" | "mp_refund_failed" | "mp_refund_timeout";
+      error:         | "mp_not_configured"
+        | "mp_payment_not_refundable"
+        | "mp_refund_failed"
+        | "mp_refund_timeout"
+        | "mp_invalid_response";
       message?: string;
     };
 
@@ -85,15 +89,29 @@ function providerMessage(body: unknown, secret: string, fallback: string): strin
   return cleaned || fallback;
 }
 
+const UNPARSED = Symbol("mp_unparsed_body");
+const BODY_LIMIT = 1_000_000;
+
+type UnparsedBody = { [UNPARSED]: true; message: string };
+
+function isUnparsed(body: unknown): body is UnparsedBody {
+  return Boolean(body && typeof body === "object" && UNPARSED in body);
+}
+
+/** Parses the whole body. Only the text shown in the panel is shortened. */
 async function readBody(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text.trim()) return null;
-  const slice = text.length > 4000 ? text.slice(0, 4000) : text;
+  if (text.length > BODY_LIMIT) return { [UNPARSED]: true, message: "" } satisfies UnparsedBody;
   try {
-    return JSON.parse(slice) as unknown;
+    return JSON.parse(text) as unknown;
   } catch {
-    return { message: slice.slice(0, MESSAGE_LIMIT) };
+    return { [UNPARSED]: true, message: text.slice(0, MESSAGE_LIMIT) } satisfies UnparsedBody;
   }
+}
+
+function invalidResponse(): LiveMercadoPagoRefundResult {
+  return { ok: false, error: "mp_invalid_response" };
 }
 
 async function fetchWithTimeout(
@@ -157,8 +175,9 @@ export async function executeLiveMercadoPagoRefund(input: {
       return failed(env.accessToken, paymentBody, "Não foi possível consultar o pagamento no Mercado Pago.");
     }
 
+    if (isUnparsed(paymentBody)) return invalidResponse();
     const paymentStatus = readStatus(paymentBody);
-    if (!paymentStatus) return { ok: false, error: "mp_payment_not_refundable" };
+    if (!paymentStatus) return invalidResponse();
 
     const refundsResponse = await fetchWithTimeout(
       fetchImpl,
@@ -170,6 +189,7 @@ export async function executeLiveMercadoPagoRefund(input: {
     if (!refundsResponse.ok) {
       return failed(env.accessToken, refundsBody, "Não foi possível consultar estornos deste pagamento.");
     }
+    if (isUnparsed(refundsBody)) return invalidResponse();
     if (!Array.isArray(refundsBody)) {
       return { ok: false, error: "mp_refund_failed", message: "Resposta de estornos inválida." };
     }
@@ -213,6 +233,7 @@ export async function executeLiveMercadoPagoRefund(input: {
       env.timeoutMs
     );
     const refundBody = await readBody(refundResponse);
+    if (refundResponse.ok && isUnparsed(refundBody)) return invalidResponse();
     const refundStatus = readStatus(refundBody);
     const refundId = refundBody && typeof refundBody === "object" ? numericId((refundBody as { id?: unknown }).id) : null;
     if (refundResponse.ok && refundStatus === "approved" && refundId) {

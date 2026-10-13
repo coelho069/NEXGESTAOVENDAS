@@ -1,6 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/db/types";
 import { refundIdempotencyKey } from "@/lib/domain/mercadopago-refund";
+import { rootLogger } from "@/lib/observability/logger";
+
+const refundLog = rootLogger.child({ component: "refund-review" });
 import { REFUND_WINDOW_DAYS } from "@/lib/domain/refund-policy";
 import {
   assessRefundWindow,
@@ -365,9 +368,12 @@ async function settleApprovedRefund(
   try {
     live = await executor({ mpPaymentId: current.mp_payment_id, idempotencyKey });
   } catch {
+    refundLog.warn("mp_refund_not_completed", { error: "mp_refund_threw", refundRequestId: current.id });
     return { ok: false, error: "mp_refund_failed", message: "Falha ao falar com o Mercado Pago." };
   }
   if (!live.ok) {
+    // Só o código do erro e o id do pedido: nada de e-mail, token ou corpo do MP.
+    refundLog.warn("mp_refund_not_completed", { error: live.error, refundRequestId: current.id });
     return live.message ? { ok: false, error: live.error, message: live.message } : { ok: false, error: live.error };
   }
   const refundId = String(live.refundId);
@@ -395,6 +401,10 @@ async function settleApprovedRefund(
     reviewed_by: input.reviewerId,
     reviewed_at: finishedAt,
   });
-  if (!updated) return { ok: false, error: "refund_request_conflict" };
+  if (!updated) {
+    refundLog.warn("mp_refund_record_conflict", { refundRequestId: current.id });
+    return { ok: false, error: "refund_request_conflict" };
+  }
+  refundLog.info("mp_refund_completed", { refundRequestId: current.id, alreadyRefunded: live.alreadyRefunded });
   return { ok: true, id: updated.id, status: updated.status };
 }
