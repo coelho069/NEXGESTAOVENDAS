@@ -8,7 +8,7 @@ import { createRefundRequestStore, reviewRefundRequest } from "@/lib/server/refu
 
 export type RefundReviewActionResult =
   | { ok: true; id: string; status: string }
-  | { ok: false; error: string };
+  | { ok: false; error: string; message?: string };
 
 export async function reviewRefundRequestAction(raw: unknown): Promise<RefundReviewActionResult> {
   const access = await getPlatformAdminAccess();

@@ -1,11 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/db/types";
+import { refundIdempotencyKey } from "@/lib/domain/mercadopago-refund";
 import { REFUND_WINDOW_DAYS } from "@/lib/domain/refund-policy";
 import {
   assessRefundWindow,
   assessRefundWindowFromInstant,
   decideRefundReview,
-  planMercadoPagoRefund,
   refundRequestFingerprint,
   saoPauloDateFromInstant,
   saoPauloDateIso,
@@ -14,6 +14,15 @@ import {
   type RefundReviewAction,
   type RefundWindowAssessment,
 } from "@/lib/domain/refund-request";
+import {
+  executeLiveMercadoPagoRefund,
+  type LiveMercadoPagoRefundResult,
+} from "@/lib/server/mercadopago-refund-live";
+
+export type StoredRefundRequestStatus = RefundRequestStatus | "processing" | "refunded";
+export type RefundProviderStatus = "not_sent" | "processing" | "completed" | "failed";
+export type RefundProcessingState = "processing" | "simulated" | "failed" | "unknown" | "completed";
+export type RefundProcessingErrorClass = "temporary" | "permanent" | "timeout";
 
 export type RefundRequestRow = {
   id: string;
@@ -25,7 +34,7 @@ export type RefundRequestRow = {
   intensive_use_declared: boolean;
   paid_on: string | null;
   window_assessment: RefundWindowAssessment;
-  status: RefundRequestStatus;
+  status: StoredRefundRequestStatus;
   request_fingerprint: string;
   resolution_note: string | null;
   reviewed_by: string | null;
@@ -34,7 +43,16 @@ export type RefundRequestRow = {
   requester_user_id?: string | null;
   payer_email_matches_checkout: boolean | null;
   provider: "mercadopago";
-  provider_refund_status: "not_sent";
+  provider_refund_status: RefundProviderStatus;
+  provider_refund_id?: string | null;
+  processing_state?: RefundProcessingState | null;
+  idempotency_key?: string | null;
+  processing_started_at?: string | null;
+  processing_finished_at?: string | null;
+  processing_attempts?: number | null;
+  last_processing_error?: string | null;
+  processing_error_class?: RefundProcessingErrorClass | null;
+  financial_effect?: boolean | null;
   created_at: string;
   updated_at: string;
 };
@@ -85,12 +103,17 @@ export type CreateRefundRequestInput = {
 };
 
 export type CreateRefundRequestResult =
-  | { ok: true; id: string; status: RefundRequestStatus; replayed: boolean }
+  | { ok: true; id: string; status: StoredRefundRequestStatus; replayed: boolean }
   | { ok: false; error: string; status: number };
 
 export type ReviewRefundRequestResult =
-  | { ok: true; id: string; status: RefundRequestStatus }
-  | { ok: false; error: string };
+  | { ok: true; id: string; status: StoredRefundRequestStatus }
+  | { ok: false; error: string; message?: string };
+
+export type RefundExecutor = (input: {
+  mpPaymentId: string;
+  idempotencyKey: string;
+}) => Promise<LiveMercadoPagoRefundResult>;
 
 type CheckoutMatch = {
   id: string;
@@ -105,7 +128,7 @@ export type RefundRequestStore = {
   findCheckout(mpPaymentId: string): Promise<CheckoutMatch | null>;
   updateIfStatus(
     id: string,
-    expectedStatus: RefundRequestStatus,
+    expectedStatus: StoredRefundRequestStatus,
     patch: Partial<RefundRequestRow>
   ): Promise<RefundRequestRow | null>;
   listRecent(limit: number): Promise<RefundRequestRow[]>;
@@ -277,12 +300,17 @@ export async function reviewRefundRequest(
     acknowledgeOutsideWindow: boolean;
     reviewerId: string;
     now?: Date;
+    refundExecutor?: RefundExecutor;
   }
 ): Promise<ReviewRefundRequestResult> {
   const current = await store.findById(input.id);
   if (!current) return { ok: false, error: "refund_request_not_found" };
   if (current.provider_refund_status !== "not_sent") {
     return { ok: false, error: "provider_refund_already_recorded" };
+  }
+
+  if (current.status === "processing" || current.status === "refunded") {
+    return { ok: false, error: "refund_request_terminal" };
   }
 
   const now = input.now ?? new Date();
@@ -303,10 +331,7 @@ export async function reviewRefundRequest(
   if (!decision.ok) return decision;
 
   if (decision.nextStatus === "approved") {
-    const intent = planMercadoPagoRefund(current.mp_payment_id);
-    if (intent.dispatch !== "not_sent" || intent.provider !== "mercadopago") {
-      return { ok: false, error: "provider_refund_not_enabled" };
-    }
+    return settleApprovedRefund(store, current, input, now);
   }
 
   const updated = await store.updateIfStatus(current.id, current.status, {
@@ -315,6 +340,60 @@ export async function reviewRefundRequest(
     reviewed_by: input.reviewerId,
     reviewed_at: (input.now ?? new Date()).toISOString(),
     provider_refund_status: "not_sent",
+  });
+  if (!updated) return { ok: false, error: "refund_request_conflict" };
+  return { ok: true, id: updated.id, status: updated.status };
+}
+
+const LIVE_REFUND_ID = /^\d{1,20}$/;
+
+async function settleApprovedRefund(
+  store: RefundRequestStore,
+  current: RefundRequestRow,
+  input: {
+    resolutionNote: string;
+    reviewerId: string;
+    now?: Date;
+    refundExecutor?: RefundExecutor;
+  },
+  now: Date
+): Promise<ReviewRefundRequestResult> {
+  const idempotencyKey = refundIdempotencyKey(current.id);
+  const startedAt = now.toISOString();
+  const executor = input.refundExecutor ?? executeLiveMercadoPagoRefund;
+  let live: LiveMercadoPagoRefundResult;
+  try {
+    live = await executor({ mpPaymentId: current.mp_payment_id, idempotencyKey });
+  } catch {
+    return { ok: false, error: "mp_refund_failed", message: "Falha ao falar com o Mercado Pago." };
+  }
+  if (!live.ok) {
+    return live.message ? { ok: false, error: live.error, message: live.message } : { ok: false, error: live.error };
+  }
+  const refundId = String(live.refundId);
+  if (!LIVE_REFUND_ID.test(refundId)) {
+    return {
+      ok: false,
+      error: "mp_refund_failed",
+      message: "O Mercado Pago não devolveu um identificador de estorno válido.",
+    };
+  }
+  const finishedAt = (input.now ?? new Date()).toISOString();
+  const updated = await store.updateIfStatus(current.id, current.status, {
+    status: "refunded",
+    provider_refund_status: "completed",
+    provider_refund_id: refundId,
+    processing_state: "completed",
+    idempotency_key: idempotencyKey,
+    processing_started_at: startedAt,
+    processing_finished_at: finishedAt,
+    processing_attempts: 1,
+    last_processing_error: null,
+    processing_error_class: null,
+    financial_effect: true,
+    resolution_note: input.resolutionNote.trim() || null,
+    reviewed_by: input.reviewerId,
+    reviewed_at: finishedAt,
   });
   if (!updated) return { ok: false, error: "refund_request_conflict" };
   return { ok: true, id: updated.id, status: updated.status };

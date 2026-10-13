@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
   applyApprovedRefundBlock,
+  refundBlocksSubscription,
   payerEmailFromSubscriptionLookup,
   gateTenantSubscriptionAccess,
   outcomeFromSubscriptionLookup,
@@ -16,6 +17,7 @@ const log = rootLogger.child({ component: "subscription-access" });
 
 type LooseFilterBuilder = {
   eq: (column: string, value: string) => LooseQueryBuilder;
+  in: (column: string, values: readonly string[]) => LooseQueryBuilder;
   ilike: (column: string, pattern: string) => LooseQueryBuilder;
   limit: (count: number) => LooseQueryBuilder;
   order: (column: string, options?: { ascending?: boolean }) => LooseQueryBuilder;
@@ -37,23 +39,44 @@ type LooseFromClient = {
  */
 async function queryTenantSubscription(
   orgId: string
-): Promise<{ outcome: SubscriptionQueryOutcome; payerEmail: string | null }> {
+): Promise<{
+  outcome: SubscriptionQueryOutcome;
+  payerEmail: string | null;
+  subscriptionCreatedAt: string | null;
+}> {
   try {
     const supabase = (await createClient()) as unknown as LooseFromClient;
     const result = await supabase
       .from("subscriptions")
-      .select("status, mp_payer_email")
+      .select("status, mp_payer_email, created_at")
       .eq("org_id", orgId)
       .order("created_at", { ascending: false })
       .limit(1);
     return {
       outcome: outcomeFromSubscriptionLookup(result),
       payerEmail: payerEmailFromSubscriptionLookup(result),
+      subscriptionCreatedAt: subscriptionCreatedAtFromLookup(result),
     };
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : "subscription_query_threw";
-    return { outcome: { kind: "unavailable", detail }, payerEmail: null };
+    return { outcome: { kind: "unavailable", detail }, payerEmail: null, subscriptionCreatedAt: null };
   }
+}
+
+function subscriptionCreatedAtFromLookup(result: {
+  data: SubscriptionLookupRow[] | null;
+  error: unknown;
+}): string | null {
+  if (result.error) return null;
+  const value = (result.data?.[0] as { created_at?: unknown } | undefined)?.created_at;
+  return typeof value === "string" ? value : null;
+}
+
+function latestRefundInstant(row: { reviewed_at?: unknown; created_at?: unknown }): string | null {
+  const raw = typeof row.reviewed_at === "string" ? row.reviewed_at : row.created_at;
+  if (typeof raw !== "string") return null;
+  const ms = Date.parse(raw);
+  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
 }
 
 function escapeLikePattern(value: string): string {
@@ -75,23 +98,23 @@ function refundLookupDetail(cause: unknown): string {
 /**
  * refund_requests is admin-only under RLS, so this read uses the service
  * client. A failed lookup does not block (fail-open). A confirmed approved
- * row for the payer e-mail or the requester still blocks.
+ * or refunded row for the payer e-mail or the requester still blocks.
  */
 async function hasApprovedRefund(input: {
   payerEmail: string | null;
   userId?: string | null;
-}): Promise<boolean> {
-  if (!input.payerEmail && !input.userId) return false;
+}): Promise<string | null> {
+  if (!input.payerEmail && !input.userId) return null;
   try {
     const admin = createAdminClient() as unknown as LooseFromClient | null;
-    if (!admin) return false;
+    if (!admin) return null;
     const checks: Array<PromiseLike<RefundLookupResult>> = [];
     if (input.payerEmail) {
       checks.push(
         admin
           .from("refund_requests")
-          .select("id")
-          .eq("status", "approved")
+          .select("id, reviewed_at, created_at")
+          .in("status", ["approved", "refunded"])
           .ilike("payer_email", escapeLikePattern(input.payerEmail))
           .limit(1)
       );
@@ -100,14 +123,14 @@ async function hasApprovedRefund(input: {
       checks.push(
         admin
           .from("refund_requests")
-          .select("id")
-          .eq("status", "approved")
+          .select("id, reviewed_at, created_at")
+          .in("status", ["approved", "refunded"])
           .eq("requester_user_id", input.userId)
           .limit(1)
       );
     }
     const settled = await Promise.allSettled(checks.map((check) => Promise.resolve(check)));
-    let matched = false;
+    let latest: string | null = null;
     for (const item of settled) {
       if (item.status === "rejected") {
         log.warn("refund_block_lookup_failed", { detail: refundLookupDetail(item.reason) });
@@ -117,12 +140,16 @@ async function hasApprovedRefund(input: {
         log.warn("refund_block_lookup_failed", { detail: refundLookupDetail(item.value.error) });
         continue;
       }
-      if (Array.isArray(item.value.data) && item.value.data.length > 0) matched = true;
+      if (!Array.isArray(item.value.data)) continue;
+      for (const row of item.value.data as Array<{ reviewed_at?: unknown; created_at?: unknown }>) {
+        const at = latestRefundInstant(row);
+        if (at && (!latest || at > latest)) latest = at;
+      }
     }
-    return matched;
+    return latest;
   } catch (cause) {
     log.warn("refund_block_lookup_failed", { detail: refundLookupDetail(cause) });
-    return false;
+    return null;
   }
 }
 
@@ -156,10 +183,13 @@ export async function resolveTenantSubscriptionGate(input: {
   }
 
   const userId = input.userId !== undefined ? input.userId : await sessionUserId();
-  const { outcome, payerEmail } = input.orgId
+  const { outcome, payerEmail, subscriptionCreatedAt } = input.orgId
     ? await queryTenantSubscription(input.orgId)
-    : { outcome: { kind: "unavailable" as const, detail: "missing_org" }, payerEmail: null };
-  const refunded = await hasApprovedRefund({ payerEmail, userId });
+    : { outcome: { kind: "unavailable" as const, detail: "missing_org" }, payerEmail: null, subscriptionCreatedAt: null };
+  const refundedAt = await hasApprovedRefund({ payerEmail, userId });
+  // Bloqueia só a assinatura reembolsada: uma assinatura criada depois do
+  // reembolso (o cliente assinou de novo) volta a dar acesso normal.
+  const refunded = refundBlocksSubscription(refundedAt, subscriptionCreatedAt);
   const check = applyApprovedRefundBlock(resolveSubscriptionCheck(outcome), refunded);
   const decision = gateTenantSubscriptionAccess(check);
 

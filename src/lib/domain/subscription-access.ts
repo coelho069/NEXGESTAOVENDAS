@@ -284,3 +284,20 @@ export function applyApprovedRefundBlock(
     reason: "refunded",
   };
 }
+
+/**
+ * Um reembolso aprovado só bloqueia a assinatura que já existia quando ele foi
+ * aprovado. Se a assinatura mais recente foi criada depois do reembolso, o
+ * cliente assinou de novo e o acesso volta a depender só do status dela.
+ */
+export function refundBlocksSubscription(
+  refundedAt: string | null,
+  subscriptionCreatedAt: string | null
+): boolean {
+  if (!refundedAt) return false;
+  if (!subscriptionCreatedAt) return true;
+  const refundMs = Date.parse(refundedAt);
+  const subscriptionMs = Date.parse(subscriptionCreatedAt);
+  if (Number.isNaN(refundMs) || Number.isNaN(subscriptionMs)) return true;
+  return subscriptionMs <= refundMs;
+}

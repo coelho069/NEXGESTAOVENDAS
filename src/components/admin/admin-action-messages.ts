@@ -36,6 +36,16 @@ export function adminActionErrorMessage(error: string | null | undefined): strin
       return "O pedido mudou enquanto você analisava. Atualize a página.";
     case "provider_refund_not_enabled":
       return "O estorno no Mercado Pago não está habilitado nesta versão.";
+    case "mp_not_configured":
+      return "O Mercado Pago não está configurado para enviar o estorno.";
+    case "mp_payment_not_refundable":
+      return "Este pagamento não está aprovado no Mercado Pago e não pode ser estornado.";
+    case "mp_refund_failed":
+      return "O Mercado Pago não confirmou o estorno. O pedido continua pendente.";
+    case "mp_refund_timeout":
+      return "O Mercado Pago não respondeu a tempo. O pedido continua pendente e pode ser tentado de novo.";
+    case "provider_refund_already_recorded":
+      return "Este pedido já tem um estorno registrado no provedor.";
     case "service_role_unavailable":
       return "O servidor não conseguiu gravar o pedido. Tente novamente.";
     case "sandbox_disabled":

@@ -78,25 +78,36 @@ export function AdminRefundRequestsScreen({
   const [note, setNote] = useState("");
   const [acknowledge, setAcknowledge] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [liveConfirmed, setLiveConfirmed] = useState<Record<string, true>>({});
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [local, setLocal] = useState<Record<string, LocalSettlement>>({});
   const [pending, startTransition] = useTransition();
   const busyRef = useRef(false);
 
   function run(action: RefundReviewAction, id: string) {
+    if (reviewingId || busyRef.current) return;
+    setReviewingId(id);
     setActionError(null);
     startTransition(async () => {
-      const result = await reviewRefundRequestAction({
-        id,
-        action,
-        resolution_note: note,
-        acknowledge_outside_window: acknowledge,
-      });
-      if (!result.ok) {
-        setActionError(adminActionErrorMessage(result.error));
-        return;
+      try {
+        const result = await reviewRefundRequestAction({
+          id,
+          action,
+          resolution_note: note,
+          acknowledge_outside_window: acknowledge,
+        });
+        if (!result.ok) {
+          setActionError(result.message?.trim() || adminActionErrorMessage(result.error));
+          return;
+        }
+        if (action === "approve") {
+          setLiveConfirmed((current) => ({ ...current, [id]: true }));
+        }
+        setNote("");
+        setAcknowledge(false);
+      } finally {
+        setReviewingId(null);
       }
-      setNote("");
-      setAcknowledge(false);
     });
   }
 
@@ -175,7 +186,7 @@ export function AdminRefundRequestsScreen({
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
           {sandboxEnabled
             ? "Ambiente local: o processamento usa somente o sandbox em memória. Nenhum estorno é enviado ao Mercado Pago ou ao Stripe."
-            : "Fila de análise da assinatura paga no Mercado Pago. Aprovar ou recusar encerra o pedido. Esta tela não envia estorno ao Mercado Pago."}
+            : "Fila de análise da assinatura paga no Mercado Pago. Aprovar envia o estorno integral ao Mercado Pago e só encerra o pedido depois da confirmação. Recusar não estorna."}
         </p>
       </header>
       {balanceNotice ? (
@@ -206,9 +217,14 @@ export function AdminRefundRequestsScreen({
             {(data ?? []).map((row) => {
               const view = sandbox?.[row.id];
               const settlement = local[row.id];
-              const status = settlement?.status ?? row.status;
               const providerStatus = settlement?.providerRefundStatus ?? view?.provider_refund_status ?? row.provider_refund_status;
-              const showRefunded = status === "refunded" && providerStatus === "completed";
+              const showLiveSuccess =
+                liveConfirmed[row.id] === true ||
+                (row.status === "refunded" &&
+                  row.financial_effect === true &&
+                  (providerStatus === "completed" || row.provider_refund_status === "completed"));
+              const status = showLiveSuccess ? "refunded" : (settlement?.status ?? row.status);
+              const showRefunded = status === "refunded" && providerStatus === "completed" && !showLiveSuccess;
               const retryable = settlement ? settlement.retryable : (view?.retryable ?? false);
               const reviewClosed =
                 status === "rejected" ||
@@ -246,6 +262,11 @@ export function AdminRefundRequestsScreen({
                         Reembolso sandbox confirmado. Nenhum valor real foi movimentado.
                       </p>
                     ) : null}
+                    {showLiveSuccess ? (
+                      <p data-testid={`refund-live-result-${row.id}`}>
+                        Estorno enviado e confirmado pelo Mercado Pago.
+                      </p>
+                    ) : null}
                     {settlement?.phase === "settled" && !showRefunded && settlement.error ? (
                       <p role="alert" data-testid={`refund-error-${row.id}`}>
                         {adminActionErrorMessage(settlement.error)}
@@ -270,15 +291,20 @@ export function AdminRefundRequestsScreen({
                         Tentar novamente
                       </button>
                     ) : null}
-                    {reviewClosed && !showRefunded && settlement?.phase !== "processing" ? (
+                    {!showLiveSuccess && reviewClosed && !showRefunded && settlement?.phase !== "processing" ? (
                       <span className="text-muted-foreground">{CLOSED_LABELS[row.status] ?? CLOSED_LABELS[status]}</span>
-                    ) : !sandboxEnabled || (status !== "approved" && status !== "processing" && status !== "refunded") ? (
+                    ) : !showLiveSuccess && (!sandboxEnabled || (status !== "approved" && status !== "processing" && status !== "refunded")) ? (
                       <div className="flex flex-col gap-2">
                         <button type="button" className="text-left underline" onClick={() => setSelectedId(row.id)}>
                           Analisar
                         </button>
                         {selectedId === row.id ? (
                           <div className="flex max-w-xs flex-col gap-2">
+                            {actionError ? (
+                              <p role="alert" data-testid={`refund-review-error-${row.id}`}>
+                                {actionError}
+                              </p>
+                            ) : null}
                             <textarea
                               aria-label="Nota da análise"
                               value={note}
@@ -298,16 +324,28 @@ export function AdminRefundRequestsScreen({
                             ) : null}
                             <div className="flex flex-wrap gap-2">
                               {row.status === "submitted" ? (
-                                <button type="button" disabled={pending} onClick={() => run("start_review", row.id)}>
+                                <button
+                                  type="button"
+                                  disabled={pending || reviewingId !== null}
+                                  onClick={() => run("start_review", row.id)}
+                                >
                                   Iniciar análise
                                 </button>
                               ) : null}
                               {row.status === "in_review" ? (
-                                <button type="button" disabled={pending} onClick={() => run("approve", row.id)}>
+                                <button
+                                  type="button"
+                                  disabled={pending || reviewingId !== null}
+                                  onClick={() => run("approve", row.id)}
+                                >
                                   Aprovar
                                 </button>
                               ) : null}
-                              <button type="button" disabled={pending} onClick={() => run("reject", row.id)}>
+                              <button
+                                type="button"
+                                disabled={pending || reviewingId !== null}
+                                onClick={() => run("reject", row.id)}
+                              >
                                 Recusar
                               </button>
                             </div>

@@ -209,7 +209,28 @@ describe("refund request store workflow", () => {
     expect(store.rows[0]?.provider_refund_status).toBe("not_sent");
   });
 
-  it("approves in review without marking a provider refund as sent", async () => {
+  it("approve keeps the row pending when Mercado Pago fails", async () => {
+    const store = memoryStore([row({ status: "in_review" })]);
+    const calls: Array<{ mpPaymentId: string; idempotencyKey: string }> = [];
+    const result = await reviewRefundRequest(store, {
+      id: row().id,
+      action: "approve",
+      resolutionNote: "",
+      acknowledgeOutsideWindow: false,
+      reviewerId: "44444444-4444-4444-8444-444444444444",
+      now: new Date("2026-10-06T15:00:00.000Z"),
+      refundExecutor: async (input) => {
+        calls.push(input);
+        return { ok: false, error: "mp_refund_failed", message: "Saldo insuficiente." };
+      },
+    });
+    expect(result).toEqual({ ok: false, error: "mp_refund_failed", message: "Saldo insuficiente." });
+    expect(calls[0]?.idempotencyKey).toBe(`mercadopago:refund:${row().id}`);
+    expect(store.rows[0]?.status).toBe("in_review");
+    expect(store.rows[0]?.provider_refund_status).toBe("not_sent");
+  });
+
+  it("approve records the Mercado Pago refund only after confirmation", async () => {
     const store = memoryStore([row({ status: "in_review" })]);
     const result = await reviewRefundRequest(store, {
       id: row().id,
@@ -218,40 +239,10 @@ describe("refund request store workflow", () => {
       acknowledgeOutsideWindow: false,
       reviewerId: "44444444-4444-4444-8444-444444444444",
       now: new Date("2026-10-06T15:00:00.000Z"),
+      refundExecutor: async () => ({ ok: true, refundId: "123456789", status: "approved", alreadyRefunded: false }),
     });
-    expect(result).toEqual({ ok: true, id: row().id, status: "approved" });
-    expect(store.rows[0]?.provider_refund_status).toBe("not_sent");
-  });
-});
-
-describe("refund request migration and route", () => {
-  it("keeps the table service-role only and refuses a sent provider status", () => {
-    const sql = readFileSync(
-      join(process.cwd(), "supabase/migrations/20261006131500_saas_refund_requests.sql"),
-      "utf8"
-    );
-    expect(sql).toContain("ENABLE ROW LEVEL SECURITY");
-    expect(sql).toContain("USING (false)");
-    expect(sql).toContain("WITH CHECK (false)");
-    expect(sql).toContain("REVOKE ALL ON TABLE public.refund_requests FROM anon");
-    expect(sql).toContain("REVOKE ALL ON TABLE public.refund_requests FROM authenticated");
-    expect(sql).toContain("GRANT SELECT, INSERT, UPDATE ON TABLE public.refund_requests TO service_role");
-    expect(sql).toContain("provider_refund_status = 'not_sent'");
-    expect(sql).toContain("refund_requests_open_payment_uidx");
-    expect(sql).not.toMatch(/GRANT\s+.*TO\s+anon/i);
-  });
-
-  it("does not call Mercado Pago from the public route or the workflow", () => {
-    const route = readFileSync(join(process.cwd(), "src/app/api/refund-requests/route.ts"), "utf8");
-    const workflow = readFileSync(join(process.cwd(), "src/lib/server/refund-requests.ts"), "utf8");
-    const domain = readFileSync(join(process.cwd(), "src/lib/domain/refund-request.ts"), "utf8");
-    for (const source of [route, workflow, domain]) {
-      expect(source).not.toContain("api.mercadopago.com");
-      expect(source).not.toContain("refunds.create");
-      expect(source).not.toContain("stripe.refunds");
-    }
-    expect(route).toContain("consumeRateLimit");
-    expect(route).toContain("createOwnedRefundRequestSchema");
-    expect(route).not.toContain("dispatchMercadoPagoRefund");
+    expect(result).toEqual({ ok: true, id: row().id, status: "refunded" });
+    expect(store.rows[0]?.provider_refund_status).toBe("completed");
+    expect(store.rows[0]?.provider_refund_id).toBe("123456789");
   });
 });

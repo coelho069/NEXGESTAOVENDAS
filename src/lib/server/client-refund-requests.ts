@@ -15,6 +15,7 @@ import {
   type ClientRefundPaymentView,
 } from "@/lib/domain/client-refund-eligibility";
 import { refundRequestFingerprint, type RefundRequestStatus } from "@/lib/domain/refund-request";
+import type { StoredRefundRequestStatus } from "@/lib/server/refund-requests";
 import {
   createRefundRequestStore,
   type CreateRefundRequestResult,
@@ -49,7 +50,7 @@ export type OwnedRefundRequestInput = {
 
 type RefundRequestLookup = {
   mp_payment_id: string;
-  status: RefundRequestStatus;
+  status: StoredRefundRequestStatus;
   created_at: string;
 };
 
@@ -134,7 +135,7 @@ export function createClientRefundReader(admin: SupabaseClient<Database>) {
       const { data, error } = await refundRequestLookup(admin)
         .select("status")
         .eq("mp_payment_id", mpPaymentId)
-        .eq("status", "approved")
+        .in("status", ["approved", "refunded"])
         .limit(1);
       if (error) throw new Error("client_refund_request_lookup_failed");
       return (data ?? []).length > 0;

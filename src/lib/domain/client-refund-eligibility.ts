@@ -15,9 +15,9 @@ export const CLIENT_REFUND_PAID_STATUSES = ["approved", "accredited", "paid"] as
 
 const PAID_STATUSES = new Set<string>(CLIENT_REFUND_PAID_STATUSES);
 const PAYMENT_ID = /^\d{6,20}$/;
-const OPEN_REQUEST_STATUSES = new Set<RefundRequestStatus>(["submitted", "in_review"]);
-/** A payment whose refund was already approved can never receive another request. */
-const APPROVED_REQUEST_STATUSES = new Set<RefundRequestStatus>(["approved"]);
+const OPEN_REQUEST_STATUSES = new Set<string>(["submitted", "in_review"]);
+/** A payment already approved or refunded can never receive another request. */
+const APPROVED_REQUEST_STATUSES = new Set<string>(["approved", "refunded"]);
 
 export type ClientRefundActor = {
   userId: string;
@@ -50,7 +50,7 @@ export type ClientRefundPaymentView = {
   paidOn: string | null;
   eligible: boolean;
   blockReason: "unknown_paid_on" | "outside_window" | "open_request" | null;
-  latestStatus: RefundRequestStatus | null;
+  latestStatus: RefundRequestStatus | "processing" | "refunded" | null;
 };
 
 export const CLIENT_REFUND_FORM_REASONS = REFUND_REQUEST_REASONS;
@@ -63,11 +63,11 @@ export function normalizeRefundActorEmail(email: string): string {
 
 export { saoPauloDateFromInstant };
 
-export function refundRequestIsOpen(status: RefundRequestStatus): boolean {
+export function refundRequestIsOpen(status: string): boolean {
   return OPEN_REQUEST_STATUSES.has(status);
 }
 
-export function refundRequestIsApproved(status: RefundRequestStatus): boolean {
+export function refundRequestIsApproved(status: string): boolean {
   return APPROVED_REQUEST_STATUSES.has(status);
 }
 
@@ -144,10 +144,10 @@ export function visibleClientRefundPayments(
 export function presentClientRefundPayments(input: {
   actor: ClientRefundActor;
   checkouts: ClientCheckoutPayment[];
-  requests: Array<{ mpPaymentId: string; status: RefundRequestStatus; createdAt: string }>;
+  requests: Array<{ mpPaymentId: string; status: RefundRequestStatus | "processing" | "refunded"; createdAt: string }>;
   now: Date;
 }): ClientRefundPaymentView[] {
-  const latestByPayment = new Map<string, { status: RefundRequestStatus; createdAt: string }>();
+  const latestByPayment = new Map<string, { status: RefundRequestStatus | "processing" | "refunded"; createdAt: string }>();
   for (const request of input.requests) {
     const current = latestByPayment.get(request.mpPaymentId);
     if (!current || request.createdAt > current.createdAt) {
