@@ -14,7 +14,7 @@ type SubscriptionAccessViewProps = {
   role: MemberRole | null;
   refundPayments?: ClientRefundPaymentView[];
   refundAccess?: RefundGmailAccess;
-  refundPlacement?: "top" | "bottom";
+  refundPlacement?: "top" | "bottom" | "blocked-only";
   children: React.ReactNode;
 };
 
@@ -56,7 +56,7 @@ export function SubscriptionAccessView({
 
   return (
     <div data-testid="subscription-access-allowed" data-effective-state={decision.effectiveState}>
-      {refundPlacement === "bottom" ? null : refundSlot}
+      {refundPlacement === "top" ? refundSlot : null}
       {showAdminAlert ? (
         <div
           role="status"

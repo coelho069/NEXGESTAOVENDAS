@@ -153,6 +153,26 @@ describe("SubscriptionAccessView", () => {
     expect(screen.queryByTestId("subscription-blocked")).not.toBeInTheDocument();
   });
 
+  it("blocked-only placement keeps the refund panel out of the active PDV", () => {
+    const decision = gateTenantSubscriptionAccess(
+      resolveSubscriptionCheck({ kind: "success", recordedStatus: "active" })
+    );
+    render(
+      <SubscriptionAccessView
+        decision={decision}
+        role="client"
+        refundPlacement="blocked-only"
+        refundPayments={[
+          { mpPaymentId: "100000000001", paidOn: "2026-10-06", eligible: true, blockReason: null, latestStatus: null },
+        ]}
+      >
+        <div data-testid="pdv-shell">PDV</div>
+      </SubscriptionAccessView>
+    );
+    expect(screen.getByTestId("pdv-shell")).toBeInTheDocument();
+    expect(screen.queryByTestId("client-refund-slot")).not.toBeInTheDocument();
+  });
+
   it("renders one refund slot after children when refundPlacement is bottom", () => {
     const decision = gateTenantSubscriptionAccess(
       resolveSubscriptionCheck({ kind: "success", recordedStatus: "active" })

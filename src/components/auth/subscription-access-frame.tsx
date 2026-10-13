@@ -11,7 +11,7 @@ type SubscriptionAccessFrameProps = {
   skip?: boolean;
   refundPayments?: ClientRefundPaymentView[];
   refundAccess?: RefundGmailAccess;
-  refundPlacement?: "top" | "bottom";
+  refundPlacement?: "top" | "bottom" | "blocked-only";
   children: React.ReactNode;
 };
 

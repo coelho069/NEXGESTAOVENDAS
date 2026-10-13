@@ -34,6 +34,12 @@ export function AppNav({
       >
         Clientes
       </Link>
+      <Link
+        href={storeHref("/configuracoes", storeId)}
+        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-medium"
+      >
+        Configurações
+      </Link>
       {canViewReports(role) ? (
         <Link
           href={storeHref("/dashboard", storeId)}

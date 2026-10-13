@@ -92,15 +92,14 @@ export function PdvSidebar({
       </nav>
 
       <div className="flex flex-col gap-2 border-t border-border pt-4">
-        <button
-          type="button"
-          disabled
-          className="flex w-full cursor-not-allowed items-center gap-3 rounded-lg px-4 py-3 text-left text-muted-foreground/60"
-          title="Configurações ainda não disponíveis"
+        <Link
+          href={storeHref("/configuracoes", storeId)}
+          data-testid="sidebar-settings"
+          className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-all ${navItemClass(false)}`}
         >
           <Settings size={20} aria-hidden="true" />
           <span className="font-medium">Configurações</span>
-        </button>
+        </Link>
         <button
           type="button"
           onClick={() => void endClientSession()}
