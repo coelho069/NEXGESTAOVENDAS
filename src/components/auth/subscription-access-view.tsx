@@ -1,3 +1,4 @@
+import { SubscriptionBlockedActions } from "@/components/auth/subscription-blocked-actions";
 import { ClientRefundSlot } from "@/components/account/client-refund-request-panel";
 import type { ClientRefundPaymentView } from "@/lib/domain/client-refund-eligibility";
 import type { RefundGmailAccess } from "@/lib/domain/refund-gmail-access";
@@ -13,6 +14,7 @@ type SubscriptionAccessViewProps = {
   role: MemberRole | null;
   refundPayments?: ClientRefundPaymentView[];
   refundAccess?: RefundGmailAccess;
+  refundPlacement?: "top" | "bottom";
   children: React.ReactNode;
 };
 
@@ -21,6 +23,7 @@ export function SubscriptionAccessView({
   role,
   refundPayments = [],
   refundAccess = "allowed",
+  refundPlacement = "top",
   children,
 }: SubscriptionAccessViewProps) {
   if (!decision.allowed) {
@@ -41,6 +44,7 @@ export function SubscriptionAccessView({
           <p className="mt-3 text-xs text-rose-700">
             estado: {decision.effectiveState} · motivo: {decision.reason}
           </p>
+          <SubscriptionBlockedActions />
         </div>
       </section>
     );
@@ -48,9 +52,11 @@ export function SubscriptionAccessView({
 
   const showAdminAlert = decision.showAdminValidationAlert && canViewReports(role);
 
+  const refundSlot = <ClientRefundSlot payments={refundPayments} access={refundAccess} />;
+
   return (
     <div data-testid="subscription-access-allowed" data-effective-state={decision.effectiveState}>
-      <ClientRefundSlot payments={refundPayments} access={refundAccess} />
+      {refundPlacement === "bottom" ? null : refundSlot}
       {showAdminAlert ? (
         <div
           role="status"
@@ -67,6 +73,11 @@ export function SubscriptionAccessView({
         </div>
       ) : null}
       {children}
+      {refundPlacement === "bottom" ? (
+        <div className="mx-auto w-full max-w-[1600px] border-t border-border bg-background empty:hidden">
+          {refundSlot}
+        </div>
+      ) : null}
     </div>
   );
 }

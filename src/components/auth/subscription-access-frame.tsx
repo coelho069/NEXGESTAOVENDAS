@@ -11,6 +11,7 @@ type SubscriptionAccessFrameProps = {
   skip?: boolean;
   refundPayments?: ClientRefundPaymentView[];
   refundAccess?: RefundGmailAccess;
+  refundPlacement?: "top" | "bottom";
   children: React.ReactNode;
 };
 
@@ -21,6 +22,7 @@ export async function SubscriptionAccessFrame({
   skip,
   refundPayments = [],
   refundAccess = "allowed",
+  refundPlacement = "top",
   children,
 }: SubscriptionAccessFrameProps) {
   const decision = await resolveTenantSubscriptionGate({ orgId, userId, skip });
@@ -30,6 +32,7 @@ export async function SubscriptionAccessFrame({
       role={role}
       refundPayments={refundPayments}
       refundAccess={refundAccess}
+      refundPlacement={refundPlacement}
     >
       {children}
     </SubscriptionAccessView>

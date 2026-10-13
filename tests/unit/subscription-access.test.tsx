@@ -1,7 +1,10 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }) }));
+vi.mock("@/lib/offline/end-session", () => ({ endClientSession: vi.fn(async () => undefined) }));
 import { SubscriptionAccessView } from "@/components/auth/subscription-access-view";
 import {
   gateTenantSubscriptionAccess,
@@ -148,6 +151,55 @@ describe("SubscriptionAccessView", () => {
     expect(screen.getByTestId("pdv-shell")).toBeInTheDocument();
     expect(screen.queryByTestId("subscription-validation-unavailable-alert")).not.toBeInTheDocument();
     expect(screen.queryByTestId("subscription-blocked")).not.toBeInTheDocument();
+  });
+
+  it("renders one refund slot after children when refundPlacement is bottom", () => {
+    const decision = gateTenantSubscriptionAccess(
+      resolveSubscriptionCheck({ kind: "success", recordedStatus: "active" })
+    );
+    render(
+      <SubscriptionAccessView
+        decision={decision}
+        role="client"
+        refundPlacement="bottom"
+        refundPayments={[
+          {
+            mpPaymentId: "181533292037",
+            paidOn: "2026-10-06",
+            eligible: true,
+            blockReason: null,
+            latestStatus: null,
+          },
+        ]}
+      >
+        <div data-testid="pdv-shell">PDV</div>
+      </SubscriptionAccessView>
+    );
+
+    const root = screen.getByTestId("subscription-access-allowed");
+    const order = [...root.querySelectorAll("[data-testid='pdv-shell'], [data-testid='client-refund-slot']")].map(
+      (node) => node.getAttribute("data-testid")
+    );
+    expect(order).toEqual(["pdv-shell", "client-refund-slot"]);
+    expect(screen.getAllByTestId("client-refund-slot")).toHaveLength(1);
+    expect(screen.getAllByTestId("client-refund-panel")).toHaveLength(1);
+  });
+
+  it("shows resubscribe, support and sign-out actions on the refunded block screen", () => {
+    const decision = gateTenantSubscriptionAccess({
+      recordedStatus: "active",
+      effectiveState: "canceled",
+      reason: "refunded",
+    });
+    render(
+      <SubscriptionAccessView decision={decision} role="client">
+        <div>PDV</div>
+      </SubscriptionAccessView>
+    );
+    expect(screen.getByText("Assinatura cancelada (reembolsada)")).toBeInTheDocument();
+    expect(screen.getByTestId("subscription-blocked-resubscribe")).toHaveAttribute("href", "/planos");
+    expect(screen.getByTestId("subscription-blocked-support")).toHaveAttribute("href", "/suporte");
+    expect(screen.getByTestId("subscription-blocked-signout")).toHaveTextContent("Sair da conta");
   });
 
   it("keeps a blocking card for real expired / canceled / none", () => {

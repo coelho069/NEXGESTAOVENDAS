@@ -71,6 +71,7 @@ export default async function PdvPage({
         skip={fixtureMode}
         refundPayments={refundPayments}
         refundAccess={refundAccess}
+        refundPlacement="bottom"
       >
         <PdvScreen stores={stores} initialStoreId={initialStoreId} role={role} />
       </SubscriptionAccessFrame>
