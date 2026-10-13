@@ -147,6 +147,7 @@ export const SUBSCRIPTION_GATE_REASON_LABELS: Record<SubscriptionCheckReason, st
   expired: "Assinatura expirada — PDV bloqueado",
   canceled: "Assinatura cancelada — PDV bloqueado",
   none: "Sem assinatura cadastrada — PDV bloqueado",
+  refunded: "Assinatura cancelada (reembolsada) — PDV bloqueado",
 };
 
 const OPEN_STATUSES = new Set<AdminSubscriptionStatus>(["active", "trialing", "past_due"]);
@@ -225,7 +226,7 @@ export function describeSubscriptionAccessForAdmin(
     accessMessage:
       decision.effectiveState === "active"
         ? accessMessageFor(decision)
-        : `${subscriptionBlockTitle(decision.effectiveState)}. ${accessMessageFor(decision)}`,
+        : `${subscriptionBlockTitle(decision.effectiveState, decision.reason)}. ${accessMessageFor(decision)}`,
   };
 }
 

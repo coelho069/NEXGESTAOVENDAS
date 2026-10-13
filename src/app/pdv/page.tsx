@@ -66,6 +66,7 @@ export default async function PdvPage({
     <main className={`pdv-theme ${inter.variable} ${jakarta.variable}`}>
       <SubscriptionAccessFrame
         orgId={auth?.orgId ?? null}
+        userId={auth?.userId}
         role={role}
         skip={fixtureMode}
         refundPayments={refundPayments}

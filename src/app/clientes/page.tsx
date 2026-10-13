@@ -29,7 +29,12 @@ export default async function ClientesPage({
 
   return (
     <main>
-      <SubscriptionAccessFrame orgId={auth?.orgId ?? null} role={role} skip={fixtureMode || !auth}>
+      <SubscriptionAccessFrame
+        orgId={auth?.orgId ?? null}
+        userId={auth?.userId}
+        role={role}
+        skip={fixtureMode || !auth}
+      >
         <div className="border-b border-slate-200 bg-white px-4 py-3">
           <AppNav role={role} storeId={storeId} isPlatformAdmin={platformAdmin !== null} />
         </div>

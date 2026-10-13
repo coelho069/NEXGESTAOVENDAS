@@ -6,6 +6,7 @@ import { resolveTenantSubscriptionGate } from "@/lib/server/subscription-access"
 
 type SubscriptionAccessFrameProps = {
   orgId: string | null;
+  userId?: string | null;
   role: MemberRole | null;
   skip?: boolean;
   refundPayments?: ClientRefundPaymentView[];
@@ -15,13 +16,14 @@ type SubscriptionAccessFrameProps = {
 
 export async function SubscriptionAccessFrame({
   orgId,
+  userId,
   role,
   skip,
   refundPayments = [],
   refundAccess = "allowed",
   children,
 }: SubscriptionAccessFrameProps) {
-  const decision = await resolveTenantSubscriptionGate({ orgId, skip });
+  const decision = await resolveTenantSubscriptionGate({ orgId, userId, skip });
   return (
     <SubscriptionAccessView
       decision={decision}

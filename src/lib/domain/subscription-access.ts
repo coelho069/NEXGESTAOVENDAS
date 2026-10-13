@@ -34,6 +34,7 @@ export const SUBSCRIPTION_CHECK_REASONS = [
   "expired",
   "canceled",
   "none",
+  "refunded",
 ] as const;
 
 export type SubscriptionCheckReason = (typeof SUBSCRIPTION_CHECK_REASONS)[number];
@@ -59,6 +60,7 @@ export type SubscriptionQueryOutcome =
 
 export type SubscriptionLookupRow = {
   status?: unknown;
+  mp_payer_email?: unknown;
 };
 
 export type SubscriptionLookupResult = {
@@ -210,7 +212,7 @@ export function gateTenantSubscriptionAccess(check: SubscriptionCheck): Subscrip
         allowed: false,
         showAdminValidationAlert: false,
         effectiveState: "canceled",
-        reason: "canceled",
+        reason: check.reason === "refunded" ? "refunded" : "canceled",
         recordedStatus: check.recordedStatus,
       };
     case "none":
@@ -228,7 +230,13 @@ export function gateTenantSubscriptionAccess(check: SubscriptionCheck): Subscrip
   }
 }
 
-export function subscriptionBlockTitle(state: SubscriptionEffectiveState): string {
+export function subscriptionBlockTitle(
+  state: SubscriptionEffectiveState,
+  reason?: SubscriptionCheckReason
+): string {
+  if (state === "canceled" && reason === "refunded") {
+    return "Assinatura cancelada (reembolsada)";
+  }
   switch (state) {
     case "expired":
       return "Assinatura expirada";
@@ -245,4 +253,34 @@ export function subscriptionBlockTitle(state: SubscriptionEffectiveState): strin
       return _never;
     }
   }
+}
+
+/** Normalize a payer e-mail for case-insensitive comparison. */
+export function normalizePayerEmail(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  return normalized.includes("@") ? normalized : null;
+}
+
+/** Extract the payer e-mail from the latest subscription row, if any. */
+export function payerEmailFromSubscriptionLookup(result: SubscriptionLookupResult): string | null {
+  if (result.error) return null;
+  return normalizePayerEmail(result.data?.[0]?.mp_payer_email);
+}
+
+/**
+ * A payer (or requester) with an approved refund loses access, regardless of
+ * the recorded subscription status. `hasApprovedRefund` must be `false` when
+ * the refund lookup failed (fail-open).
+ */
+export function applyApprovedRefundBlock(
+  check: SubscriptionCheck,
+  hasApprovedRefund: boolean
+): SubscriptionCheck {
+  if (!hasApprovedRefund) return check;
+  return {
+    recordedStatus: check.recordedStatus,
+    effectiveState: "canceled",
+    reason: "refunded",
+  };
 }

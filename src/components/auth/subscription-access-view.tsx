@@ -34,7 +34,7 @@ export function SubscriptionAccessView({
       >
         <ClientRefundSlot payments={refundPayments} access={refundAccess} />
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-6 text-rose-950">
-          <h1 className="text-xl font-semibold">{subscriptionBlockTitle(decision.effectiveState)}</h1>
+          <h1 className="text-xl font-semibold">{subscriptionBlockTitle(decision.effectiveState, decision.reason)}</h1>
           <p className="mt-2 text-sm text-rose-800">
             O PDV e as rotas operacionais ficam bloqueados enquanto não houver uma assinatura ativa.
           </p>

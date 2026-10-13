@@ -24,7 +24,12 @@ export default async function InventoryPage({
 
   return (
     <main>
-      <SubscriptionAccessFrame orgId={auth?.orgId ?? null} role={initial.role} skip={!auth}>
+      <SubscriptionAccessFrame
+        orgId={auth?.orgId ?? null}
+        userId={auth?.userId}
+        role={initial.role}
+        skip={!auth}
+      >
         <div className="border-b border-slate-200 bg-white px-4 py-3">
           <AppNav
             role={initial.role}
