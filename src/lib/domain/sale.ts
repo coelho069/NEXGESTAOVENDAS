@@ -44,9 +44,11 @@ export function buildProcessSalePayload(
   if (
     paymentMethod !== "cash" &&
     paymentMethod !== "pix_manual" &&
+    paymentMethod !== "debito_manual" &&
+    paymentMethod !== "credito_manual" &&
     paymentMethod !== "voucher"
   ) {
-    throw new Error("Only direct checkout payments (cash, pix_manual, voucher) are supported");
+    throw new Error("Only direct checkout payments (cash, pix_manual, debito_manual, credito_manual, voucher) are supported");
   }
 
   return {

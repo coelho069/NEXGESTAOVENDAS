@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import type { ManualPaymentMethod } from "@/lib/domain/store-payment-methods";
 import { Delete, X } from "lucide-react";
 import { formatBRL } from "@/lib/money";
 import { resolveCashChange } from "@/lib/domain/cash-change";
@@ -10,10 +11,13 @@ type PaymentSheetProps = {
   open: boolean;
   total: string;
   disabled: boolean;
-  cardSelectable?: boolean;
+  acceptedMethods: readonly ManualPaymentMethod[];
   onCash: () => void;
-  onCard: () => void;
   onPixManual: () => void;
+  onDebit: () => void;
+  onCredit: () => void;
+  /** Dono/gerente pode marcar as formas aceitas aqui mesmo. */
+  settings?: ReactNode;
   onClose: () => void;
 };
 
@@ -25,10 +29,12 @@ export function PaymentSheet({
   open,
   total,
   disabled,
-  cardSelectable = false,
+  acceptedMethods,
   onCash,
-  onCard,
   onPixManual,
+  onDebit,
+  onCredit,
+  settings,
   onClose,
 }: PaymentSheetProps) {
   const [cashStep, setCashStep] = useState<CashStep>("methods");
@@ -120,15 +126,22 @@ export function PaymentSheet({
           {cashStep === "methods" ? (
             <PaymentActions
               disabled={disabled}
-              cardSelectable={cardSelectable}
+              acceptedMethods={acceptedMethods}
               onCash={() => {
                 setChangeError(null);
                 setReceivedRaw("");
                 setCashStep("ask-change");
               }}
-              onCard={onCard}
               onPixManual={onPixManual}
+              onDebit={onDebit}
+              onCredit={onCredit}
             />
+          ) : null}
+          {cashStep === "methods" && settings ? (
+            <details data-testid="accepted-methods-toggle">
+              <summary className="cursor-pointer text-sm text-muted-foreground">Configurar formas aceitas</summary>
+              <div className="pt-3">{settings}</div>
+            </details>
           ) : null}
 
           {cashStep === "ask-change" ? (

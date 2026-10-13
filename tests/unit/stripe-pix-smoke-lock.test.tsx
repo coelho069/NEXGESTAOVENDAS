@@ -440,27 +440,23 @@ describe("PIX smoke lock — Gate 4 cash + card regression", () => {
     expect(cardExec.status).toBe("not_configured");
   });
 
-  it("keeps provider pix out of checkout and pix_manual not_configured", () => {
-    const onCard = vi.fn();
-    const onPixManual = vi.fn();
+  it("PDV only offers manual methods; no provider pix button", () => {
     const onCash = vi.fn();
     render(
       <PaymentActions
         disabled={false}
-        cardSelectable={true}
+        acceptedMethods={["cash", "pix_manual", "debito_manual", "credito_manual"]}
         onCash={onCash}
-        onCard={onCard}
-        onPixManual={onPixManual}
+        onPixManual={() => undefined}
+        onDebit={() => undefined}
+        onCredit={() => undefined}
       />
     );
 
     expect(screen.getByTestId("checkout-cash")).toBeEnabled();
     expect(screen.getByTestId("checkout-card")).toBeEnabled();
-    expect(screen.getByTestId("checkout-pix-manual")).toBeDisabled();
-    expect(screen.getByTestId("checkout-pix-manual")).toHaveTextContent("PIX próprio");
-    expect(screen.getByTestId("checkout-pix-manual")).toHaveTextContent("não configurado");
-    screen.getByTestId("checkout-pix-manual").click();
-    expect(onPixManual).not.toHaveBeenCalled();
+    expect(screen.getByTestId("checkout-pix-manual")).toBeEnabled();
+    expect(screen.queryByText("não configurado")).toBeNull();
   });
 
   it("routes card PaymentIntents to card RPCs, not process_pix_sale", async () => {

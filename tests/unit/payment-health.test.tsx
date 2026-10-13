@@ -257,50 +257,43 @@ describe("PDV payment actions", () => {
     cleanup();
   });
 
-  it("disables card and pix when health is unknown; cash stays available", () => {
-    const onCard = vi.fn();
+  it("shows only the methods the store checked, all enabled, without 'não configurado'", () => {
+    const onDebit = vi.fn();
     const onPixManual = vi.fn();
     render(
       <PaymentActions
         disabled={false}
-        cardSelectable={false}
+        acceptedMethods={["cash", "pix_manual", "debito_manual"]}
         onCash={() => undefined}
-        onCard={onCard}
         onPixManual={onPixManual}
+        onDebit={onDebit}
+        onCredit={() => undefined}
       />
     );
-
-    const card = screen.getByTestId("checkout-card");
-    const pixManual = screen.getByTestId("checkout-pix-manual");
-    const cash = screen.getByTestId("checkout-cash");
-    expect(card).toBeDisabled();
-    expect(pixManual).toBeDisabled();
-    expect(cash).toBeEnabled();
-    expect(card).toHaveTextContent("não configurado");
-    expect(pixManual).toHaveTextContent("não configurado");
-    expect(pixManual).toHaveTextContent("PIX próprio");
-    card.click();
-    pixManual.click();
-    expect(onCard).not.toHaveBeenCalled();
-    expect(onPixManual).not.toHaveBeenCalled();
+    expect(screen.getByTestId("checkout-cash")).toBeEnabled();
+    expect(screen.getByTestId("checkout-pix-manual")).toBeEnabled();
+    expect(screen.getByTestId("checkout-card")).toBeEnabled();
+    expect(screen.queryByTestId("checkout-card-credit")).toBeNull();
+    expect(document.body).not.toHaveTextContent("não configurado");
+    screen.getByTestId("checkout-card").click();
+    screen.getByTestId("checkout-pix-manual").click();
+    expect(onDebit).toHaveBeenCalledTimes(1);
+    expect(onPixManual).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps pix restricted (not_configured) even when card health is configured", () => {
-    const onPixManual = vi.fn();
+  it("hides unchecked methods", () => {
     render(
       <PaymentActions
         disabled={false}
-        cardSelectable={true}
+        acceptedMethods={["cash"]}
         onCash={() => undefined}
-        onCard={() => undefined}
-        onPixManual={onPixManual}
+        onPixManual={() => undefined}
+        onDebit={() => undefined}
+        onCredit={() => undefined}
       />
     );
-
-    const pixManual = screen.getByTestId("checkout-pix-manual");
-    expect(pixManual).toBeDisabled();
-    expect(pixManual).toHaveTextContent("não configurado");
-    pixManual.click();
-    expect(onPixManual).not.toHaveBeenCalled();
+    expect(screen.getByTestId("checkout-cash")).toBeEnabled();
+    expect(screen.queryByTestId("checkout-pix-manual")).toBeNull();
+    expect(screen.queryByTestId("checkout-card")).toBeNull();
   });
 });

@@ -37,6 +37,7 @@ export async function GET(request: Request) {
     require_customer_on_sale: policy.requireCustomerOnSale,
     require_customer_document: policy.requireCustomerDocument,
     require_open_cash_session: policy.requireOpenCashSession,
+    accepted_payment_methods: policy.acceptedPaymentMethods,
     defaults: DEFAULT_STORE_SALE_POLICY,
   });
 }

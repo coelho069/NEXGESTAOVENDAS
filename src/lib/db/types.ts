@@ -2105,7 +2105,7 @@ export type Database = {
         | "unknown"
       inventory_movement_type: "sale" | "refund" | "restock" | "adjustment"
       member_role: "admin" | "cashier" | "client" | "manager"
-      payment_method: "cash" | "card" | "pix" | "pix_manual" | "voucher" | "other"
+      payment_method: "cash" | "card" | "pix" | "pix_manual" | "debito_manual" | "credito_manual" | "voucher" | "other"
       payment_status:
         | "pending"
         | "authorized"
@@ -2279,7 +2279,7 @@ export const Constants = {
       ],
       inventory_movement_type: ["sale", "refund", "restock", "adjustment"],
       member_role: ["admin", "cashier", "client", "manager"],
-      payment_method: ["cash", "card", "pix", "pix_manual", "voucher", "other"],
+      payment_method: ["cash", "card", "pix", "pix_manual", "debito_manual", "credito_manual", "voucher", "other"],
       payment_status: [
         "pending",
         "authorized",

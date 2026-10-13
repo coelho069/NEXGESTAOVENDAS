@@ -70,6 +70,46 @@ export class VoucherPaymentAdapter implements PaymentAdapter {
   }
 }
 
+/** Cartão na maquininha da própria loja: só registra a forma, sem cobrança online. */
+export class ManualCardPaymentAdapter implements PaymentAdapter {
+  constructor(readonly method: "debito_manual" | "credito_manual") {}
+
+  process(amount: string): PaymentAdapterResult {
+    void amount;
+    return { status: "configured", message: "Cartão (maquininha própria) registrado." };
+  }
+
+  authorize(amount: string, context?: PaymentOperationContext): PaymentOperationResult {
+    void amount;
+    void context;
+    return { status: "captured", message: "Cartão (maquininha própria) registrado." };
+  }
+
+  capture(amount: string, context?: PaymentOperationContext): PaymentOperationResult {
+    void amount;
+    void context;
+    return { status: "captured", message: "Cartão (maquininha própria) registrado." };
+  }
+
+  cancel(amount: string, context?: PaymentOperationContext): PaymentOperationResult {
+    void amount;
+    void context;
+    return {
+      status: "not_configured",
+      message: "Cancelamento de cartão próprio exige o fluxo de estorno do caixa.",
+    };
+  }
+
+  reconcile(amount: string, context?: PaymentOperationContext): PaymentOperationResult {
+    void amount;
+    void context;
+    return {
+      status: "unknown",
+      message: "A reconciliação deve consultar o registro server-side do pagamento.",
+    };
+  }
+}
+
 export class PixManualPaymentAdapter implements PaymentAdapter {
   readonly method = "pix_manual" as const;
 
@@ -150,7 +190,7 @@ export class CashPaymentAdapter implements PaymentAdapter {
 
 export class NotConfiguredPaymentAdapter implements PaymentAdapter {
   constructor(
-    readonly method: Exclude<Enums<"payment_method">, "cash" | "pix_manual" | "voucher">
+    readonly method: Exclude<Enums<"payment_method">, "cash" | "pix_manual" | "debito_manual" | "credito_manual" | "voucher">
   ) {}
 
   process(amount: string): PaymentAdapterResult {
@@ -217,6 +257,7 @@ export function bindMercadoPagoPixAdapter(adapter: PaymentAdapter | null): void 
 export function getPaymentAdapter(method: Enums<"payment_method">): PaymentAdapter {
   if (method === "cash") return new CashPaymentAdapter();
   if (method === "pix_manual") return new PixManualPaymentAdapter();
+  if (method === "debito_manual" || method === "credito_manual") return new ManualCardPaymentAdapter(method);
   if (method === "voucher") return new VoucherPaymentAdapter();
   if (method === "card" && boundStripeCardAdapter) return boundStripeCardAdapter;
   if (method === "pix" && boundMercadoPagoPixAdapter) return boundMercadoPagoPixAdapter;

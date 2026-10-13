@@ -100,6 +100,10 @@ export function paymentMethodLabel(method: string | null): string {
       return "PIX";
     case "pix_manual":
       return "PIX próprio";
+    case "debito_manual":
+      return "Débito";
+    case "credito_manual":
+      return "Crédito";
     case "voucher":
       return "Vale";
     case "other":

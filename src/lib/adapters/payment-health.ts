@@ -99,6 +99,9 @@ export async function isCheckoutPaymentSelectable(
       return getPaymentAdapter("cash").process("0.00").status === "configured";
     case "pix_manual":
       return getPaymentAdapter("pix_manual").process("0.00").status === "configured";
+    case "debito_manual":
+    case "credito_manual":
+      return getPaymentAdapter(method).process("0.00").status === "configured";
     case "voucher":
       return getPaymentAdapter("voucher").process("0.00").status === "configured";
     case "card":

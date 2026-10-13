@@ -28,7 +28,8 @@ import { useSalesHistory } from "@/hooks/use-sales-history";
 import { useCashSession } from "@/hooks/use-cash-session";
 import { useHidScanner } from "@/hooks/use-hid-scanner";
 import { usePdvShortcuts } from "@/hooks/use-pdv-shortcuts";
-import { useCardPaymentHealth } from "@/hooks/use-card-payment-health";
+import { useStorePaymentMethods } from "@/hooks/use-store-payment-methods";
+import { AcceptedPaymentMethodsSettings } from "@/components/pdv/accepted-payment-methods-settings";
 import { usePdvSale } from "@/hooks/use-pdv-sale";
 import { resolveOpenCashSaleContext } from "@/lib/domain/cash";
 import { lineTotal } from "@/lib/domain/sale";
@@ -65,7 +66,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     setSuspendedContext,
   } = useCartStore();
   const cash = useCashSession(storeId);
-  const cardSelectable = useCardPaymentHealth();
+  const paymentMethods = useStorePaymentMethods(storeId);
   const { products, loading, error, fromCatalog } = useProducts({ storeId });
   const { online, pendingCount, failedCount, syncing, conflicts, quotaExceeded, sessionEnded } = useSyncStore();
   const {
@@ -499,10 +500,16 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             open={openPanel === "payment"}
             total={sale.totals.total}
             disabled={checkoutDisabled}
-            cardSelectable={cardSelectable}
+            acceptedMethods={paymentMethods.accepted}
             onCash={() => void sale.pay("cash")}
-            onCard={() => void sale.pay("card")}
             onPixManual={() => void sale.pay("pix_manual")}
+            onDebit={() => void sale.pay("debito_manual")}
+            onCredit={() => void sale.pay("credito_manual")}
+            settings={
+              effectiveRole === "admin" || effectiveRole === "manager" ? (
+                <AcceptedPaymentMethodsSettings accepted={paymentMethods.accepted} onSave={paymentMethods.save} />
+              ) : undefined
+            }
             onClose={() => setOpenPanel("none")}
           />
           <PixQrSheet

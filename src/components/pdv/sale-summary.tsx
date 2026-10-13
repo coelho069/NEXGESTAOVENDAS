@@ -1,83 +1,82 @@
 import { Banknote, CreditCard, QrCode } from "lucide-react";
 import { formatBRL } from "@/lib/money";
+import type { ManualPaymentMethod } from "@/lib/domain/store-payment-methods";
 import type { SaleTotals } from "@/lib/domain/sale-ops";
 
 type PaymentActionsProps = {
   disabled: boolean;
-  cardSelectable?: boolean;
-  /** Mapa de integração: PIX restrito (not_configured) até o health-check ser ligado. */
-  pixSelectable?: boolean;
+  /** Formas marcadas pela loja. Só registro: maquininha e PIX próprios. */
+  acceptedMethods: readonly ManualPaymentMethod[];
   onCash: () => void;
-  onCard: () => void;
   onPixManual: () => void;
+  onDebit: () => void;
+  onCredit: () => void;
 };
 
 export function PaymentActions({
   disabled,
-  cardSelectable = false,
-  pixSelectable = false,
+  acceptedMethods,
   onCash,
-  onCard,
   onPixManual,
+  onDebit,
+  onCredit,
 }: PaymentActionsProps) {
-  const cardDisabled = disabled || !cardSelectable;
-  const pixDisabled = disabled || !pixSelectable;
   const methodBase =
     "flex min-h-[44px] flex-col items-center gap-2 rounded-2xl border-2 p-4 font-semibold transition disabled:cursor-not-allowed disabled:opacity-50";
+  const accepts = (method: ManualPaymentMethod) => acceptedMethods.includes(method);
 
   return (
     <div className="grid grid-cols-2 gap-3">
-      <button
-        type="button"
-        data-testid="checkout-cash"
-        disabled={disabled}
-        onClick={onCash}
-        className={`${methodBase} border-success/40 bg-success/10 text-emerald-200 hover:border-success hover:bg-success/20`}
-      >
-        <Banknote size={24} aria-hidden="true" />
-        <span>Dinheiro</span>
-      </button>
-      <button
-        type="button"
-        data-testid="checkout-pix-manual"
-        disabled={pixDisabled}
-        aria-label="PIX próprio"
-        title="PIX próprio"
-        onClick={onPixManual}
-        className={`${methodBase} border-teal-500/30 bg-teal-500/10 text-teal-200 hover:border-teal-400 hover:bg-teal-500/20`}
-      >
-        <QrCode size={24} aria-hidden="true" />
-        <span>PIX próprio</span>
-        {!pixSelectable ? (
-          <small className="font-normal text-muted-foreground">não configurado</small>
-        ) : null}
-      </button>
-      <button
-        type="button"
-        data-testid="checkout-card"
-        disabled={cardDisabled}
-        onClick={onCard}
-        className={`${methodBase} border-border bg-background/30 text-foreground hover:border-primary/50 hover:bg-primary/10`}
-      >
-        <CreditCard size={24} aria-hidden="true" />
-        <span>Débito</span>
-        {!cardSelectable ? (
-          <small className="font-normal text-muted-foreground">não configurado</small>
-        ) : null}
-      </button>
-      <button
-        type="button"
-        data-testid="checkout-card-credit"
-        disabled={cardDisabled}
-        onClick={onCard}
-        className={`${methodBase} border-border bg-background/30 text-foreground hover:border-primary/50 hover:bg-primary/10`}
-      >
-        <CreditCard size={24} aria-hidden="true" />
-        <span>Crédito</span>
-        {!cardSelectable ? (
-          <small className="font-normal text-muted-foreground">não configurado</small>
-        ) : null}
-      </button>
+      {accepts("cash") ? (
+        <button
+          type="button"
+          data-testid="checkout-cash"
+          disabled={disabled}
+          onClick={onCash}
+          className={`${methodBase} border-success/40 bg-success/10 text-emerald-200 hover:border-success hover:bg-success/20`}
+        >
+          <Banknote size={24} aria-hidden="true" />
+          <span>Dinheiro</span>
+        </button>
+      ) : null}
+      {accepts("pix_manual") ? (
+        <button
+          type="button"
+          data-testid="checkout-pix-manual"
+          disabled={disabled}
+          aria-label="PIX"
+          title="PIX (QR/chave da própria loja)"
+          onClick={onPixManual}
+          className={`${methodBase} border-teal-500/30 bg-teal-500/10 text-teal-200 hover:border-teal-400 hover:bg-teal-500/20`}
+        >
+          <QrCode size={24} aria-hidden="true" />
+          <span>PIX</span>
+        </button>
+      ) : null}
+      {accepts("debito_manual") ? (
+        <button
+          type="button"
+          data-testid="checkout-card"
+          disabled={disabled}
+          onClick={onDebit}
+          className={`${methodBase} border-border bg-background/30 text-foreground hover:border-primary/50 hover:bg-primary/10`}
+        >
+          <CreditCard size={24} aria-hidden="true" />
+          <span>Débito</span>
+        </button>
+      ) : null}
+      {accepts("credito_manual") ? (
+        <button
+          type="button"
+          data-testid="checkout-card-credit"
+          disabled={disabled}
+          onClick={onCredit}
+          className={`${methodBase} border-border bg-background/30 text-foreground hover:border-primary/50 hover:bg-primary/10`}
+        >
+          <CreditCard size={24} aria-hidden="true" />
+          <span>Crédito</span>
+        </button>
+      ) : null}
     </div>
   );
 }

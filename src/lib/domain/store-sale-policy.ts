@@ -1,13 +1,21 @@
+import {
+  DEFAULT_ACCEPTED_PAYMENT_METHODS,
+  normalizeAcceptedPaymentMethods,
+  type ManualPaymentMethod,
+} from "@/lib/domain/store-payment-methods";
+
 export type StoreSalePolicy = {
   requireCustomerOnSale: boolean;
   requireCustomerDocument: boolean;
   requireOpenCashSession: boolean;
+  acceptedPaymentMethods: ManualPaymentMethod[];
 };
 
 export const DEFAULT_STORE_SALE_POLICY: StoreSalePolicy = {
   requireCustomerOnSale: false,
   requireCustomerDocument: false,
   requireOpenCashSession: false,
+  acceptedPaymentMethods: [...DEFAULT_ACCEPTED_PAYMENT_METHODS],
 };
 
 function asBoolean(value: unknown, fallback: boolean): boolean {
@@ -31,5 +39,6 @@ export function parseStoreSalePolicy(value: unknown): StoreSalePolicy {
     requireCustomerOnSale: asBoolean(settings.require_customer_on_sale, false),
     requireCustomerDocument: asBoolean(settings.require_customer_document, false),
     requireOpenCashSession: asBoolean(settings.require_open_cash_session, false),
+    acceptedPaymentMethods: normalizeAcceptedPaymentMethods(settings.accepted_payment_methods),
   };
 }

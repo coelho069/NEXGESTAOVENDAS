@@ -6,7 +6,8 @@ const TOTAL = "3.50";
 
 function renderSheet(overrides: Partial<Parameters<typeof PaymentSheet>[0]> = {}) {
   const onCash = vi.fn();
-  const onCard = vi.fn();
+  const onDebit = vi.fn();
+  const onCredit = vi.fn();
   const onPixManual = vi.fn();
   const onClose = vi.fn();
   render(
@@ -14,15 +15,16 @@ function renderSheet(overrides: Partial<Parameters<typeof PaymentSheet>[0]> = {}
       open={true}
       total={TOTAL}
       disabled={false}
-      cardSelectable={false}
+      acceptedMethods={["cash", "pix_manual", "debito_manual", "credito_manual"]}
       onCash={onCash}
-      onCard={onCard}
       onPixManual={onPixManual}
+      onDebit={onDebit}
+      onCredit={onCredit}
       onClose={onClose}
       {...overrides}
     />
   );
-  return { onCash, onCard, onPixManual, onClose };
+  return { onCash, onDebit, onCredit, onPixManual, onClose };
 }
 
 describe("PaymentSheet cash change UX", () => {

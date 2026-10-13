@@ -26,7 +26,7 @@ function assertDirectCheckoutAndNoSecrets(input: CloseSaleInput): void {
     !payment ||
     !isDirectCheckoutPaymentMethod(payment.method)
   ) {
-    throw new Error("Only one direct checkout payment (cash, pix_manual, or voucher) is supported");
+    throw new Error("Only one direct checkout payment (cash, pix_manual, debito_manual, credito_manual, or voucher) is supported");
   }
 }
 
