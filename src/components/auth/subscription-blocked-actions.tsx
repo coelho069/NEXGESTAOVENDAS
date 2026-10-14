@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { endClientSession } from "@/lib/offline/end-session";
+import { RenewSubscriptionButton } from "@/components/auth/renew-subscription-button";
 
 /** Actions shown on the subscription block screen. */
 export function SubscriptionBlockedActions() {
@@ -12,10 +13,11 @@ export function SubscriptionBlockedActions() {
 
   return (
     <div data-testid="subscription-blocked-actions" className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+      <RenewSubscriptionButton />
       <Link
         href="/planos"
         data-testid="subscription-blocked-resubscribe"
-        className="inline-flex items-center justify-center rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800"
+        className="inline-flex items-center justify-center rounded-lg border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-900 hover:bg-rose-100"
       >
         Assinar novamente
       </Link>

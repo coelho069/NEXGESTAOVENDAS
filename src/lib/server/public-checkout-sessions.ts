@@ -103,6 +103,7 @@ export async function createPublicCheckoutSession(input: {
   payerEmail: string;
   clientMutationId: string;
   correlationId?: string;
+  renewal?: { userId: string; orgId: string };
 }): Promise<CreatePublicCheckoutSessionResult> {
   // Idempotency: a second POST with the same client_mutation_id returns the
   // original session instead of creating a new checkout intent.
@@ -138,6 +139,9 @@ export async function createPublicCheckoutSession(input: {
       plan_id: input.planId,
       payer_email: input.payerEmail,
       status: "pending",
+      ...(input.renewal
+        ? { onboarding_user_id: input.renewal.userId, onboarding_organization_id: input.renewal.orgId }
+        : {}),
     })
     .select("id, client_mutation_id")
     .single();

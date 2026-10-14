@@ -37,7 +37,9 @@ import {
   buildOrganizationSlug,
   buildTransactionalAccessEmailContent,
   orgHasForeignOpenSubscription,
+  planSubscriptionRenewal,
 } from "@/lib/domain/onboarding-visitor";
+import { businessDateToday } from "@/lib/domain/subscription-access";
 
 const logger = createLogger({ service: "nexgestaovendas", component: "visitor-onboarding" });
 
@@ -117,6 +119,122 @@ async function organizationHasForeignSubscription(
     input.clientMutationId,
     input.providerRef
   );
+}
+
+const RENEWAL_MEMBER_ROLES = new Set(["client", "owner"]);
+
+/** Org do próprio cliente (membro client/owner ou pagador da última assinatura). */
+async function resolveRenewalOrganization(
+  admin: SupabaseClient<Database>,
+  input: {
+    candidateOrgId: string | null;
+    previousOrgId: string | null;
+    userId: string;
+    payerEmail: string;
+    clientMutationId: string;
+  }
+): Promise<string | null> {
+  const orgId = input.candidateOrgId;
+  if (!orgId) return null;
+  if (input.previousOrgId && input.previousOrgId !== orgId) return null;
+  const { data: members, error: memberError } = await admin
+    .from("store_members")
+    .select("role")
+    .eq("org_id", orgId)
+    .eq("user_id", input.userId);
+  if (memberError) throw new Error("onboarding_member_lookup_failed");
+  const isMember = (members ?? []).some((row) => RENEWAL_MEMBER_ROLES.has(String(row.role)));
+  const { data: latest, error: latestError } = await admin
+    .from("subscriptions")
+    .select("id, mp_payer_email, checkout_client_mutation_id")
+    .eq("org_id", orgId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (latestError) throw new Error("onboarding_subscription_lookup_failed");
+  if (!latest) return null;
+  // Assinatura criada por este mesmo checkout (retomada): fluxo normal.
+  if (latest.checkout_client_mutation_id === input.clientMutationId) return null;
+  const payerMatches = (latest.mp_payer_email ?? "").trim().toLowerCase() === input.payerEmail;
+  return isMember || payerMatches ? orgId : null;
+}
+
+async function applySubscriptionRenewal(
+  admin: SupabaseClient<Database>,
+  input: {
+    orgId: string;
+    planId: string;
+    currency: string;
+    amount: unknown;
+    paymentRef: string;
+    paidAt: string | null;
+    payerEmail: string;
+    clientMutationId: string;
+  }
+): Promise<string> {
+  const { data: byPayment, error: byPaymentError } = await admin
+    .from("subscriptions")
+    .select("id")
+    .eq("org_id", input.orgId)
+    .eq("mp_preapproval_id", input.paymentRef)
+    .maybeSingle();
+  if (byPaymentError) throw new Error("onboarding_subscription_lookup_failed");
+  if (byPayment) return byPayment.id;
+
+  const { data: latest, error: latestError } = await admin
+    .from("subscriptions")
+    .select("id, status, period_end, mp_preapproval_id")
+    .eq("org_id", input.orgId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (latestError) throw new Error("onboarding_subscription_lookup_failed");
+
+  const paidDate = formatDateOnlyUtc(billingPeriodStartFromPaidAt(input.paidAt));
+  const plan = planSubscriptionRenewal({
+    latest: latest
+      ? { id: latest.id, status: String(latest.status), periodEnd: latest.period_end, providerRef: latest.mp_preapproval_id }
+      : null,
+    paymentRef: input.paymentRef,
+    paidDate,
+    today: businessDateToday(),
+  });
+  if (plan.kind === "already_applied") return plan.subscriptionId;
+  if (plan.kind === "extend") {
+    const { error } = await admin
+      .from("subscriptions")
+      .update({
+        status: "active",
+        period_end: plan.periodEnd,
+        ...(plan.periodStart ? { period_start: plan.periodStart } : {}),
+        plan_id: input.planId,
+        mp_preapproval_id: input.paymentRef,
+        mp_payer_email: input.payerEmail,
+      })
+      .eq("id", plan.subscriptionId);
+    if (error) throw new Error("onboarding_subscription_renew_failed");
+    return plan.subscriptionId;
+  }
+  const contractedAmount = typeof input.amount === "number" ? input.amount : Number(input.amount);
+  if (!Number.isFinite(contractedAmount)) throw new Error("onboarding_invalid_plan_amount");
+  const { data: created, error: createError } = await admin
+    .from("subscriptions")
+    .insert({
+      org_id: input.orgId,
+      plan_id: input.planId,
+      status: "active",
+      contracted_amount: contractedAmount,
+      currency: input.currency,
+      period_start: plan.periodStart,
+      period_end: plan.periodEnd,
+      mp_preapproval_id: input.paymentRef,
+      mp_payer_email: input.payerEmail,
+      checkout_client_mutation_id: input.clientMutationId,
+    })
+    .select("id")
+    .single();
+  if (createError || !created) throw new Error("onboarding_subscription_create_failed");
+  return created.id;
 }
 
 async function verifyAuthUserExists(
@@ -309,6 +427,20 @@ export async function runVisitorOnboarding(
       .maybeSingle();
     if (profileLookupError) throw new Error("onboarding_profile_lookup_failed");
     const previousOrgId = existingProfile?.org_id ?? null;
+    // Renovação: cliente que já é dono/cliente da org paga de novo. Mantém a
+    // mesma org, loja e vínculos; nunca cria org nova nem remove membros.
+    const renewalOrgId = await resolveRenewalOrganization(admin, {
+      candidateOrgId: organizationId ?? previousOrgId,
+      previousOrgId,
+      userId,
+      payerEmail,
+      clientMutationId: input.clientMutationId,
+    });
+    if (renewalOrgId && organizationId !== renewalOrgId) {
+      organizationId = renewalOrgId;
+      await saveProgress({ organizationId });
+    }
+    if (!renewalOrgId) {
     if (organizationId && (await organizationHasForeignSubscription(admin, organizationId, input))) {
       organizationId = null;
     }
@@ -320,6 +452,7 @@ export async function runVisitorOnboarding(
       }
     } else if (previousOrgId && organizationId && organizationId !== previousOrgId) {
       throw new Error("onboarding_profile_organization_conflict");
+    }
     }
 
     // 3. Organization.
@@ -417,6 +550,24 @@ export async function runVisitorOnboarding(
       if (memberRoleError) throw new Error("onboarding_member_create_failed");
     }
 
+    // 5a. Renovação: estende a mesma assinatura (idempotente por pagamento).
+    if (renewalOrgId && !subscriptionId) {
+      subscriptionId = await applySubscriptionRenewal(admin, {
+        orgId,
+        planId: planRow.id,
+        currency: planRow.currency,
+        amount: planRow.amount,
+        paymentRef: input.providerRef,
+        paidAt: input.paidAt ?? null,
+        payerEmail,
+        clientMutationId: input.clientMutationId,
+      });
+      onboardingLogger.info("onboarding_subscription_renewed", {
+        client_mutation_id: input.clientMutationId,
+        subscription_id: subscriptionId,
+      });
+    }
+
     // 5. Reuse a subscription already created by a partial attempt or by the
     // same provider reference; otherwise create the active subscription.
     const { data: existingSubscription, error: subscriptionLookupError } = await admin
@@ -427,7 +578,9 @@ export async function runVisitorOnboarding(
       .maybeSingle();
     if (subscriptionLookupError) throw new Error("onboarding_subscription_lookup_failed");
 
-    if (existingSubscription) {
+    if (renewalOrgId && subscriptionId) {
+      // já resolvido pela renovação
+    } else if (existingSubscription) {
       if (
         existingSubscription.mp_preapproval_id &&
         existingSubscription.mp_preapproval_id !== input.providerRef

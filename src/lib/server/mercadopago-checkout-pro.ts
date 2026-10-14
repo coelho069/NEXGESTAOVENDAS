@@ -67,6 +67,8 @@ export async function executeCheckoutProPreference(input: {
   payerEmail: string;
   clientMutationId: string;
   correlationId?: string;
+  /** Renovação de cliente logado: ancora usuário e org já existentes. */
+  renewal?: { userId: string; orgId: string };
   envSource?: Record<string, string | undefined>;
 }): Promise<CheckoutProResult> {
   const envSource = input.envSource ?? process.env;
@@ -91,6 +93,7 @@ export async function executeCheckoutProPreference(input: {
     payerEmail: input.payerEmail,
     clientMutationId: input.clientMutationId,
     correlationId: input.correlationId,
+    renewal: input.renewal,
   });
   if (!session.ok) {
     return { ok: false, error: session.error, status: session.status };

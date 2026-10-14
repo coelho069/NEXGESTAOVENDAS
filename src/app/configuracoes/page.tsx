@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ClientRefundRequestPanel } from "@/components/account/client-refund-request-panel";
 import { AppNav } from "@/components/layout/app-nav";
+import { RenewSubscriptionButton } from "@/components/auth/renew-subscription-button";
 import { getPlatformAdminAccess } from "@/lib/auth/admin";
 import { getAuthedContext } from "@/lib/auth/session";
 import { loadClientRefundAccess, loadClientRefundPayments } from "@/lib/server/client-refund-page-data";
@@ -39,6 +40,12 @@ export default async function ConfiguracoesPage({
       </div>
       <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6">
         <h1 className="text-2xl font-semibold text-slate-900">Configurações</h1>
+        {auth.orgId ? (
+          <section data-testid="settings-renew" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <p className="text-sm text-slate-700">Assinatura: renove para somar mais 30 dias à sua loja atual.</p>
+            <RenewSubscriptionButton className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60" />
+          </section>
+        ) : null}
         <nav aria-label="Seções de configurações" className="mt-4 flex gap-2 border-b border-slate-200">
           {TABS.map((tab) => (
             <Link

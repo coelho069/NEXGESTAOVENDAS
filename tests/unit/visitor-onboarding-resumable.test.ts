@@ -117,6 +117,12 @@ function createAdmin(state: OnboardingState) {
         in() {
           return builder;
         },
+        order() {
+          return builder;
+        },
+        limit() {
+          return builder;
+        },
         update() {
           return builder;
         },

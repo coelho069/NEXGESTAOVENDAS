@@ -256,3 +256,53 @@ export function buildAccessEmailContent(input: {
     expiresAt: null,
   });
 }
+
+export type RenewableSubscription = {
+  id: string;
+  status: string;
+  periodEnd: string;
+  providerRef: string | null;
+};
+
+export type RenewalPlan =
+  | { kind: "already_applied"; subscriptionId: string }
+  | { kind: "extend"; subscriptionId: string; periodStart: string | null; periodEnd: string }
+  | { kind: "new_subscription"; periodStart: string; periodEnd: string };
+
+const RENEWAL_DAY_MS = 24 * 60 * 60 * 1000;
+const OPEN_STATUSES = new Set(["active", "trialing", "past_due"]);
+
+function addDaysToDateOnly(date: string, days: number): string {
+  const ms = Date.parse(`${date.slice(0, 10)}T00:00:00Z`);
+  return new Date(ms + days * RENEWAL_DAY_MS).toISOString().slice(0, 10);
+}
+
+/**
+ * Renovação (Checkout Pro) da assinatura mais recente da org.
+ * - mesmo pagamento já aplicado: idempotente;
+ * - aberta e não vencida (period_end > hoje): empilha period_end + 30 dias;
+ * - aberta e vencida: period_start = aprovação, period_end = aprovação + 30;
+ * - cancelada/reembolsada ou inexistente: nova assinatura na mesma org.
+ */
+export function planSubscriptionRenewal(input: {
+  latest: RenewableSubscription | null;
+  paymentRef: string;
+  paidDate: string;
+  today: string;
+  periodDays?: number;
+}): RenewalPlan {
+  const days = input.periodDays ?? 30;
+  const latest = input.latest;
+  if (latest && latest.providerRef === input.paymentRef) {
+    return { kind: "already_applied", subscriptionId: latest.id };
+  }
+  const freshEnd = addDaysToDateOnly(input.paidDate, days);
+  if (!latest || !OPEN_STATUSES.has(latest.status)) {
+    return { kind: "new_subscription", periodStart: input.paidDate.slice(0, 10), periodEnd: freshEnd };
+  }
+  const currentEnd = latest.periodEnd.slice(0, 10);
+  if (currentEnd > input.today) {
+    return { kind: "extend", subscriptionId: latest.id, periodStart: null, periodEnd: addDaysToDateOnly(currentEnd, days) };
+  }
+  return { kind: "extend", subscriptionId: latest.id, periodStart: input.paidDate.slice(0, 10), periodEnd: freshEnd };
+}
