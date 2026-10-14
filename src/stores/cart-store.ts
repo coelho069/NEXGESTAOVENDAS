@@ -29,6 +29,7 @@ export type CartState = {
   setCustomer: (customerId: string | null, customerName: string | null) => void;
   setSuspendedContext: (context: { suspendedSaleId: string; claimId: string } | null) => void;
   clear: () => void;
+  discardForeignStore: () => void;
   total: () => string;
 };
 
@@ -94,6 +95,18 @@ const createCartSlice: StateCreator<CartState> = (set, get) => ({
       suspendedSaleId: null,
       suspensionClaimId: null,
       checkoutAttemptId: null,
+    }),
+  discardForeignStore: () =>
+    set({
+      storeId: null,
+      lines: [],
+      discount: "0.00",
+      customerId: null,
+      customerName: null,
+      suspendedSaleId: null,
+      suspensionClaimId: null,
+      checkoutAttemptId: null,
+      checkoutInFlight: false,
     }),
   total: () => cartTotal(get().lines, get().discount),
 });

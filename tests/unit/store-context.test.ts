@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildAuthorizedStores,
   hasPdvStoreContext,
+  isForeignCartStore,
   resolveAutoStoreId,
   selectAuthorizedStore,
   shouldShowStoreSelect,
@@ -74,6 +75,18 @@ describe("authorized store context", () => {
     expect(resolveAutoStoreId(single, STORE_A)).toBe(STORE_A);
     expect(resolveAutoStoreId([], STORE_A)).toBe(STORE_A);
     expect(resolveAutoStoreId([], null)).toBeNull();
+  });
+
+  it("flags a cart store that is not in the authorized list", () => {
+    const stores = [
+      { id: STORE_A, name: "Loja Centro" },
+      { id: STORE_B, name: "Loja Shopping" },
+    ];
+    expect(isForeignCartStore(stores, null)).toBe(false);
+    expect(isForeignCartStore(stores, STORE_A)).toBe(false);
+    expect(isForeignCartStore(stores, STORE_C)).toBe(true);
+    expect(isForeignCartStore([], null)).toBe(false);
+    expect(isForeignCartStore([], STORE_A)).toBe(true);
   });
 
   it("requires an authorized store id that matches the route context", () => {

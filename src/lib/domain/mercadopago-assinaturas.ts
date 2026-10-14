@@ -232,11 +232,22 @@ export function mapMercadoPagoPreapprovalStatusToSubscriptionStatus(
   }
 }
 
+export const SUBSCRIPTION_MONTHLY_PERIOD_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Início do período: aprovação do pagamento quando conhecida; senão agora. */
+export function billingPeriodStartFromPaidAt(paidAt: string | null | undefined, now: Date = new Date()): Date {
+  if (!paidAt) return now;
+  const ms = Date.parse(paidAt);
+  return Number.isNaN(ms) ? now : new Date(ms);
+}
+
 export function addBillingPeriodStart(start: Date, interval: SubscriptionBillingInterval): Date {
   const end = new Date(start);
   switch (interval) {
     case "monthly":
-      end.setUTCMonth(end.getUTCMonth() + 1);
+      // Mensal = exatamente 30 dias após a aprovação do pagamento.
+      end.setTime(end.getTime() + SUBSCRIPTION_MONTHLY_PERIOD_DAYS * DAY_MS);
       return end;
     case "yearly":
       end.setUTCFullYear(end.getUTCFullYear() + 1);

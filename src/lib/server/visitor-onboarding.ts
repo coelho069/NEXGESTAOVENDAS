@@ -23,6 +23,7 @@ import {
 } from "@/lib/server/client-account-sync";
 import {
   addBillingPeriodStart,
+  billingPeriodStartFromPaidAt,
   formatDateOnlyUtc,
 } from "@/lib/domain/mercadopago-assinaturas";
 import {
@@ -66,6 +67,8 @@ export type VisitorOnboardingInput = {
   clientMutationId: string;
   /** Confirmed MP preapproval id (already verified against the MP API upstream). */
   providerRef: string;
+  /** Aprovação do pagamento no MP; ancora period_end = paidAt + 30 dias. */
+  paidAt?: string | null;
   correlationId?: string;
   /** Overrides for tests. */
   depsOverride?: {
@@ -460,7 +463,7 @@ export async function runVisitorOnboarding(
         if (!Number.isFinite(contractedAmount)) {
           throw new Error("onboarding_invalid_plan_amount");
         }
-        const periodStart = new Date();
+        const periodStart = billingPeriodStartFromPaidAt(input.paidAt);
         const periodEnd = addBillingPeriodStart(periodStart, interval);
         const { data: subscription, error: subscriptionError } = await admin
           .from("subscriptions")

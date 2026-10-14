@@ -300,6 +300,7 @@ export async function applyMercadoPagoCheckoutProWebhookEvent(
   const onboarding = await runVisitorOnboarding({
     clientMutationId,
     providerRef: payment.id,
+    paidAt: persisted.session.mp_payment_paid_at ?? null,
     correlationId: options.correlationId,
   });
 

@@ -2,6 +2,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
   applyApprovedRefundBlock,
+  applyPeriodEndExpiry,
+  periodEndFromSubscriptionLookup,
   refundBlocksSubscription,
   payerEmailFromSubscriptionLookup,
   gateTenantSubscriptionAccess,
@@ -43,12 +45,13 @@ async function queryTenantSubscription(
   outcome: SubscriptionQueryOutcome;
   payerEmail: string | null;
   subscriptionCreatedAt: string | null;
+  periodEnd: string | null;
 }> {
   try {
     const supabase = (await createClient()) as unknown as LooseFromClient;
     const result = await supabase
       .from("subscriptions")
-      .select("status, mp_payer_email, created_at")
+      .select("status, mp_payer_email, created_at, period_end")
       .eq("org_id", orgId)
       .order("created_at", { ascending: false })
       .limit(1);
@@ -56,10 +59,11 @@ async function queryTenantSubscription(
       outcome: outcomeFromSubscriptionLookup(result),
       payerEmail: payerEmailFromSubscriptionLookup(result),
       subscriptionCreatedAt: subscriptionCreatedAtFromLookup(result),
+      periodEnd: periodEndFromSubscriptionLookup(result),
     };
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : "subscription_query_threw";
-    return { outcome: { kind: "unavailable", detail }, payerEmail: null, subscriptionCreatedAt: null };
+    return { outcome: { kind: "unavailable", detail }, payerEmail: null, subscriptionCreatedAt: null, periodEnd: null };
   }
 }
 
@@ -183,14 +187,17 @@ export async function resolveTenantSubscriptionGate(input: {
   }
 
   const userId = input.userId !== undefined ? input.userId : await sessionUserId();
-  const { outcome, payerEmail, subscriptionCreatedAt } = input.orgId
+  const { outcome, payerEmail, subscriptionCreatedAt, periodEnd } = input.orgId
     ? await queryTenantSubscription(input.orgId)
-    : { outcome: { kind: "unavailable" as const, detail: "missing_org" }, payerEmail: null, subscriptionCreatedAt: null };
+    : { outcome: { kind: "unavailable" as const, detail: "missing_org" }, payerEmail: null, subscriptionCreatedAt: null, periodEnd: null };
   const refundedAt = await hasApprovedRefund({ payerEmail, userId });
   // Bloqueia só a assinatura reembolsada: uma assinatura criada depois do
   // reembolso (o cliente assinou de novo) volta a dar acesso normal.
   const refunded = refundBlocksSubscription(refundedAt, subscriptionCreatedAt);
-  const check = applyApprovedRefundBlock(resolveSubscriptionCheck(outcome), refunded);
+  const check = applyApprovedRefundBlock(
+    applyPeriodEndExpiry(resolveSubscriptionCheck(outcome), periodEnd),
+    refunded
+  );
   const decision = gateTenantSubscriptionAccess(check);
 
   if (check.effectiveState === "unavailable") {

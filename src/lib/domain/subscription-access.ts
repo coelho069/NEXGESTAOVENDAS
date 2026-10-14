@@ -60,6 +60,7 @@ export type SubscriptionQueryOutcome =
 
 export type SubscriptionLookupRow = {
   status?: unknown;
+  period_end?: unknown;
   mp_payer_email?: unknown;
 };
 
@@ -178,6 +179,37 @@ export function resolveSubscriptionCheck(outcome: SubscriptionQueryOutcome): Sub
       return _never;
     }
   }
+}
+
+/** Data (YYYY-MM-DD) de hoje no fuso do negócio (America/Manaus). */
+export function businessDateToday(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Manaus",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+/**
+ * period_end é a data de expiração (pagamento + 30 dias). A partir desse dia
+ * o acesso é bloqueado, mesmo com status ainda active/trialing/past_due.
+ */
+export function applyPeriodEndExpiry(
+  check: SubscriptionCheck,
+  periodEnd: string | null,
+  now: Date = new Date()
+): SubscriptionCheck {
+  if (check.effectiveState !== "active") return check;
+  if (!periodEnd || !/^\d{4}-\d{2}-\d{2}/.test(periodEnd)) return check;
+  if (businessDateToday(now) < periodEnd.slice(0, 10)) return check;
+  return { recordedStatus: check.recordedStatus, effectiveState: "expired", reason: "expired" };
+}
+
+export function periodEndFromSubscriptionLookup(result: SubscriptionLookupResult): string | null {
+  if (result.error) return null;
+  const value = result.data?.[0]?.period_end;
+  return typeof value === "string" ? value : null;
 }
 
 /** Fail-open only for infrastructural `unavailable`. Real lapses stay blocked. */

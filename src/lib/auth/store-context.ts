@@ -74,6 +74,15 @@ export function resolveAutoStoreId(
   return initialStoreId ?? soleAuthorizedStoreId(stores);
 }
 
+/** Cart store id is set and missing from the authorized store list. */
+export function isForeignCartStore(
+  stores: readonly { id: string }[],
+  storeId: string | null
+): boolean {
+  if (!storeId) return false;
+  return !stores.some((store) => store.id === storeId);
+}
+
 export function hasPdvStoreContext(
   stores: readonly StoreOption[],
   storeId: string | null,

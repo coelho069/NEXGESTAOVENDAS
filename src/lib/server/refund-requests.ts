@@ -135,6 +135,10 @@ export type RefundRequestStore = {
     patch: Partial<RefundRequestRow>
   ): Promise<RefundRequestRow | null>;
   listRecent(limit: number): Promise<RefundRequestRow[]>;
+  cancelSubscriptionForPayment?(
+    mpPaymentId: string,
+    at: string
+  ): Promise<"canceled" | "already" | "none">;
 };
 
 function refundTable(admin: SupabaseClient<Database>) {
@@ -191,6 +195,32 @@ export function createRefundRequestStore(admin: SupabaseClient<Database>): Refun
         .limit(limit);
       if (error) throw new Error("refund_request_list_failed");
       return data ?? [];
+    },
+    async cancelSubscriptionForPayment(mpPaymentId, at) {
+      const { data: session, error: sessionError } = await admin
+        .from("checkout_sessions")
+        .select("onboarding_subscription_id")
+        .eq("mp_payment_id", mpPaymentId)
+        .maybeSingle();
+      if (sessionError) throw new Error("refund_subscription_lookup_failed");
+      const subscriptionId = session?.onboarding_subscription_id ?? null;
+      if (!subscriptionId) return "none";
+
+      const { data: subscription, error: subscriptionError } = await admin
+        .from("subscriptions")
+        .select("status")
+        .eq("id", subscriptionId)
+        .maybeSingle();
+      if (subscriptionError) throw new Error("refund_subscription_lookup_failed");
+      if (!subscription) return "none";
+      if (subscription.status === "canceled" || subscription.status === "cancelled") return "already";
+
+      const { error: updateError } = await admin
+        .from("subscriptions")
+        .update({ status: "canceled", cancelled_at: at })
+        .eq("id", subscriptionId);
+      if (updateError) throw new Error("refund_subscription_cancel_failed");
+      return "canceled";
     },
   };
 }
@@ -404,6 +434,16 @@ async function settleApprovedRefund(
   if (!updated) {
     refundLog.warn("mp_refund_record_conflict", { refundRequestId: current.id });
     return { ok: false, error: "refund_request_conflict" };
+  }
+  try {
+    const outcome = store.cancelSubscriptionForPayment
+      ? await store.cancelSubscriptionForPayment(current.mp_payment_id, finishedAt)
+      : "none";
+    if (outcome === "canceled") {
+      refundLog.info("refund_subscription_canceled", { refundRequestId: current.id });
+    }
+  } catch {
+    refundLog.warn("refund_subscription_cancel_failed", { refundRequestId: current.id });
   }
   refundLog.info("mp_refund_completed", { refundRequestId: current.id, alreadyRefunded: live.alreadyRefunded });
   return { ok: true, id: updated.id, status: updated.status };

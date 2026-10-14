@@ -35,6 +35,33 @@ describe("cart store context", () => {
     expect(store.getState().setStoreId(STORE_B)).toBe(false);
   });
 
+  it("discards a foreign store cart even when it still has lines", () => {
+    const store = createCartStore({ persist: false });
+    store.getState().setStoreId(STORE_A);
+    store.getState().addLine(line);
+    store.getState().setDiscount("1.50");
+    store.getState().setCustomer("66666666-6666-4666-8666-666666666666", "Ana");
+    store.getState().setSuspendedContext({
+      suspendedSaleId: "77777777-7777-4777-8777-777777777777",
+      claimId: "88888888-8888-4888-8888-888888888888",
+    });
+    store.getState().setCheckoutAttemptId("55555555-5555-4555-8555-555555555555");
+    store.getState().setCheckoutInFlight(true);
+
+    store.getState().discardForeignStore();
+
+    expect(store.getState().storeId).toBeNull();
+    expect(store.getState().lines).toEqual([]);
+    expect(store.getState().discount).toBe("0.00");
+    expect(store.getState().customerId).toBeNull();
+    expect(store.getState().customerName).toBeNull();
+    expect(store.getState().suspendedSaleId).toBeNull();
+    expect(store.getState().suspensionClaimId).toBeNull();
+    expect(store.getState().checkoutAttemptId).toBeNull();
+    expect(store.getState().checkoutInFlight).toBe(false);
+    expect(store.getState().setStoreId(STORE_B)).toBe(true);
+  });
+
   it("allows a new store after the cart is cleared", () => {
     const store = createCartStore({ persist: false });
     store.getState().setStoreId(STORE_A);

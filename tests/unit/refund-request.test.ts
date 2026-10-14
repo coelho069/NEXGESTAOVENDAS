@@ -91,6 +91,9 @@ function memoryStore(initial: RefundRequestRow[] = []): RefundRequestStore & { r
     async listRecent() {
       return rows;
     },
+    async cancelSubscriptionForPayment() {
+      return "none";
+    },
   };
 }
 
@@ -244,5 +247,41 @@ describe("refund request store workflow", () => {
     expect(result).toEqual({ ok: true, id: row().id, status: "refunded" });
     expect(store.rows[0]?.provider_refund_status).toBe("completed");
     expect(store.rows[0]?.provider_refund_id).toBe("123456789");
+  });
+
+  it("approve cancels the subscription tied to the refunded payment", async () => {
+    const store = memoryStore([row({ status: "in_review" })]);
+    const cancelSubscriptionForPayment = vi.fn(async () => "canceled" as const);
+    store.cancelSubscriptionForPayment = cancelSubscriptionForPayment;
+    const result = await reviewRefundRequest(store, {
+      id: row().id,
+      action: "approve",
+      resolutionNote: "",
+      acknowledgeOutsideWindow: false,
+      reviewerId: "44444444-4444-4444-8444-444444444444",
+      now: new Date("2026-10-06T15:00:00.000Z"),
+      refundExecutor: async () => ({ ok: true, refundId: "123456789", status: "approved", alreadyRefunded: false }),
+    });
+    expect(result).toEqual({ ok: true, id: row().id, status: "refunded" });
+    expect(cancelSubscriptionForPayment).toHaveBeenCalledWith(baseInput.mpPaymentId, "2026-10-06T15:00:00.000Z");
+  });
+
+  it("approve still returns refunded when subscription cancel fails", async () => {
+    const store = memoryStore([row({ status: "in_review" })]);
+    store.cancelSubscriptionForPayment = vi.fn(async () => {
+      throw new Error("subscription_update_failed");
+    });
+    const result = await reviewRefundRequest(store, {
+      id: row().id,
+      action: "approve",
+      resolutionNote: "",
+      acknowledgeOutsideWindow: false,
+      reviewerId: "44444444-4444-4444-8444-444444444444",
+      now: new Date("2026-10-06T15:00:00.000Z"),
+      refundExecutor: async () => ({ ok: true, refundId: "123456789", status: "approved", alreadyRefunded: false }),
+    });
+    expect(result).toEqual({ ok: true, id: row().id, status: "refunded" });
+    expect(store.rows[0]?.status).toBe("refunded");
+    expect(store.rows[0]?.provider_refund_status).toBe("completed");
   });
 });

@@ -39,6 +39,7 @@ import { useSyncStore } from "@/stores/sync-store";
 import { usePdvUiStore } from "@/stores/pdv-ui-store";
 import {
   hasPdvStoreContext,
+  isForeignCartStore,
   resolveAutoStoreId,
   type StoreOption,
 } from "@/lib/auth/store-context";
@@ -58,6 +59,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
   const {
     storeId,
     setStoreId,
+    discardForeignStore,
     suspendedSaleId,
     suspensionClaimId,
     setLines,
@@ -65,9 +67,10 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     setCustomer,
     setSuspendedContext,
   } = useCartStore();
-  const cash = useCashSession(storeId);
-  const paymentMethods = useStorePaymentMethods(storeId);
-  const { products, loading, error, fromCatalog } = useProducts({ storeId });
+  const boundStoreId = isForeignCartStore(stores, storeId) ? null : storeId;
+  const cash = useCashSession(boundStoreId);
+  const paymentMethods = useStorePaymentMethods(boundStoreId);
+  const { products, loading, error, fromCatalog } = useProducts({ storeId: boundStoreId });
   const { online, pendingCount, failedCount, syncing, conflicts, quotaExceeded, sessionEnded } = useSyncStore();
   const {
     openPanel,
@@ -92,9 +95,9 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
   );
   const effectiveRole = role ?? authorizedStore?.role ?? "cashier";
   const displayRole = role ?? authorizedStore?.role ?? null;
-  const { balances, loading: stockLoading } = useProjectedStock(storeId, inventoryEpoch);
-  const suspended = useSuspendedSales(storeId);
-  const salesHistory = useSalesHistory(storeId);
+  const { balances, loading: stockLoading } = useProjectedStock(boundStoreId, inventoryEpoch);
+  const suspended = useSuspendedSales(boundStoreId);
+  const salesHistory = useSalesHistory(boundStoreId);
   const [query, setQuery] = useState("");
 
   const openSalesHistory = () => {
@@ -196,9 +199,17 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
   useEffect(() => {
     if (authLoading) return;
 
+    const storesReady = stores.length > 0 || !authLoading;
+    const discardedForeign = Boolean(storeId && isForeignCartStore(stores, storeId) && storesReady);
+    if (discardedForeign) {
+      discardForeignStore();
+      setContextMessage("Sua loja mudou; o carrinho anterior foi descartado.");
+    }
+
+    const currentStoreId = useCartStore.getState().storeId;
     const targetStoreId = resolveAutoStoreId(stores, initialStoreId);
-    if (targetStoreId && storeId !== targetStoreId) {
-      if (!setStoreId(targetStoreId)) {
+    if (targetStoreId && currentStoreId !== targetStoreId) {
+      if (!setStoreId(targetStoreId) && !discardedForeign) {
         setContextMessage(
           initialStoreId
             ? "A loja da URL não pode substituir o carrinho aberto."
@@ -213,6 +224,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
   }, [
     authLoading,
     authorizedStore,
+    discardForeignStore,
     initialStoreId,
     sale.checkoutAttemptId,
     sale.checkoutInFlight,
@@ -332,7 +344,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      <PdvSidebar storeId={storeId} role={role} onOpenSalesHistory={openSalesHistory} />
+      <PdvSidebar storeId={boundStoreId} role={role} onOpenSalesHistory={openSalesHistory} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col gap-4 overflow-y-auto p-4 lg:p-6">
           <header className="flex flex-wrap items-center justify-between gap-3">
@@ -365,7 +377,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
               testId="store-select"
               className="pdv-input w-auto min-w-[12rem]"
               stores={stores}
-              value={storeId}
+              value={boundStoreId}
               disabled={Boolean(sale.checkoutAttemptId) || sale.checkoutInFlight || sale.lines.length > 0}
               onChange={(nextStoreId) => {
                 if (nextStoreId && !stores.some((store) => store.id === nextStoreId)) return;
@@ -390,7 +402,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             </div>
           ) : null}
 
-          <CashRegisterPanel storeId={storeId} cash={cash} />
+          <CashRegisterPanel storeId={boundStoreId} cash={cash} />
 
           {contextMessage ? (
             <div data-testid="store-context-message" className="pdv-alert-warning">
@@ -515,7 +527,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
           <PixQrSheet
             open={openPanel === "pix-qr"}
             pending={pendingPix}
-            storeId={storeId}
+            storeId={boundStoreId}
             onClose={() => setOpenPanel("none")}
             onCancel={() => sale.cancelPendingPixCheckout()}
             onConfirmed={(input) => sale.confirmPendingPix(input)}
