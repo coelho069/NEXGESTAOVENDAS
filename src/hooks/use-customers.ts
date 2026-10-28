@@ -16,7 +16,7 @@ export function useCustomers() {
       const supabase = createClient();
       const { data, error: queryError } = await supabase
         .from("customers")
-        .select("id, name, document, email")
+        .select("id, name, document, phone, email, age")
         .order("name");
 
       if (queryError || !data) {

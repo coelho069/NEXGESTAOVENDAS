@@ -37,7 +37,10 @@ export function CustomerDialog({ open, customers, selectedId, onSelect, onClose 
                 onClick={() => onSelect(customer)}
               >
                 <div className="font-medium">{customer.name}</div>
-                <div className="text-xs text-slate-500">{customer.document ?? customer.email}</div>
+                <div className="text-xs text-slate-500">
+                  {customer.document ?? customer.email}
+                  {customer.age != null ? ` · ${customer.age} anos` : ""}
+                </div>
               </button>
             </li>
           ))}

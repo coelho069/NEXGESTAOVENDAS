@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { canManageInventory, canViewReports, type MemberRole } from "@/lib/domain/rbac";
+import { canManageInventory, canViewReports, canEditCustomers, type MemberRole } from "@/lib/domain/rbac";
 
 function storeHref(path: string, storeId?: string | null): string {
   return storeId ? `${path}?store=${encodeURIComponent(storeId)}` : path;
@@ -17,6 +17,14 @@ export function AppNav({ role, storeId }: { role?: MemberRole | null; storeId?: 
       >
         Inventário
       </Link>
+      {canEditCustomers(role) ? (
+        <Link
+          href={storeHref("/customers", storeId)}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-medium"
+        >
+          Clientes
+        </Link>
+      ) : null}
       {canViewReports(role) ? (
         <Link
           href={storeHref("/dashboard", storeId)}

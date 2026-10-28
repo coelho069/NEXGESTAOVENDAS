@@ -366,6 +366,24 @@ export const dashboardMetricsQuerySchema = z.object({
 
 export type DashboardMetricsQuery = z.infer<typeof dashboardMetricsQuerySchema>;
 
+export const customerWriteSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  document: z.string().trim().max(50).nullable().optional(),
+  phone: z.string().trim().max(30).nullable().optional(),
+  email: z.string().trim().email().nullable().optional().or(z.literal("").transform(() => null)),
+  age: z
+    .union([z.number().int().min(0).max(120), z.literal(""), z.null()])
+    .optional()
+    .transform((v) => (v === "" || v === undefined ? null : v))
+    .pipe(z.number().int().min(0).max(120).nullable()),
+});
+
+export type CustomerWriteInput = z.infer<typeof customerWriteSchema>;
+
+export const customerPatchSchema = customerWriteSchema.partial();
+
+export type CustomerPatchInput = z.infer<typeof customerPatchSchema>;
+
 export const productWriteSchema = z.object({
   store_id: storeIdSchema,
   sku: z.string().trim().min(1).max(64),
