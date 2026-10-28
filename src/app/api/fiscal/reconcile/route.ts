@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthedContext } from "@/lib/auth/session";
+import { canManageFiscal } from "@/lib/domain/rbac";
 import { fiscalReconcileInputSchema } from "@/lib/validation/schemas";
 import { fiscalRpcErrorResponse } from "@/lib/server/fiscal-api";
 import { settleFiscalOutbox } from "@/lib/server/fiscal-operation";
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
   }
 
   const auth = await getAuthedContext(parsed.data.store_id);
-  if (!auth?.orgId || !auth.role) {
+  if (!auth?.orgId || !auth.role || !canManageFiscal(auth.role)) {
     return NextResponse.json({ error: "fiscal_forbidden" }, { status: 403 });
   }
 

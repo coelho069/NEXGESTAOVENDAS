@@ -52,6 +52,7 @@ describe("customer domain", () => {
       name: "Ana Nova",
       document: null,
       email: null,
+      discountLimit: null,
     };
     const next = upsertCustomer(DEMO_CUSTOMERS, created);
     expect(next.some((customer) => customer.id === CUSTOMER_ID)).toBe(true);
@@ -72,6 +73,7 @@ describe("customer domain", () => {
       name: "Ana",
       document: "123",
       email: "ana@example.invalid",
+      discountLimit: null,
     });
   });
 
@@ -89,6 +91,7 @@ describe("customerWriteSchema", () => {
       name: "Ana",
       document: null,
       email: null,
+      discount_limit: null,
     });
     expect(customerWriteSchema.safeParse({ name: "Ana", email: "not-an-email" }).success).toBe(false);
   });
@@ -101,7 +104,7 @@ describe("CustomerDialog create + select", () => {
 
   it("creates a customer and associates it on the sale", async () => {
     const onSelect = vi.fn();
-    const created = { id: CUSTOMER_ID, name: "Ana Nova", document: "123", email: null };
+    const created = { id: CUSTOMER_ID, name: "Ana Nova", document: "123", email: null , discountLimit: null};
     const onCreate = vi.fn().mockResolvedValue({ ok: true, customer: created });
 
     render(
@@ -130,6 +133,7 @@ describe("CustomerDialog create + select", () => {
         name: "Ana Nova",
         document: "123",
         email: "",
+        discountLimit: "",
       });
       expect(onSelect).toHaveBeenCalledWith(created);
     });
@@ -181,12 +185,12 @@ describe("POST /api/customers", () => {
   });
 
   it("inserts with the authenticated org_id and ignores a client org_id", async () => {
-    const single = vi.fn().mockResolvedValue({
-      data: { id: CUSTOMER_ID, name: "Ana Nova", document: null, email: null },
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: { id: CUSTOMER_ID, name: "Ana Nova", document: null, email: null , discountLimit: null},
       error: null,
     });
     const insert = vi.fn(() => ({
-      select: vi.fn(() => ({ single })),
+      select: vi.fn(() => ({ maybeSingle, single: maybeSingle })),
     }));
     createClient.mockResolvedValue({
       auth: {
@@ -218,6 +222,7 @@ describe("POST /api/customers", () => {
       name: "Ana Nova",
       document: null,
       email: null,
+      discountLimit: null,
     });
   });
 

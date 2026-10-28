@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -8,7 +8,7 @@ import { BrandMark } from "@/components/landing/components/BrandMark";
 import { Reveal } from "@/components/landing/components/Reveal";
 import { landingTheme as t } from "@/components/landing/theme/landing-theme";
 
-const CSS = `
+export const AUTH_CSS = `
 .nx-login-input {
   width: 100%;
   border-radius: ${t.radius.md};
@@ -77,23 +77,36 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("senha") === "ok") {
+      setNotice("Senha redefinida com sucesso. Entre com a nova senha.");
+    }
+  }, []);
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoading(true);
     setError(null);
 
-    const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-
-    setLoading(false);
-    if (signInError) {
+    try {
+      const supabase = createClient();
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (signInError) {
+        setError("Credenciais inválidas ou sessão indisponível.");
+        return;
+      }
+      router.replace("/pdv");
+      router.refresh();
+    } catch {
       setError("Credenciais inválidas ou sessão indisponível.");
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    router.replace("/pdv");
-    router.refresh();
   };
 
   return (
@@ -112,7 +125,7 @@ export function LoginForm() {
         overflowX: "hidden",
       }}
     >
-      <style>{CSS}</style>
+      <style>{AUTH_CSS}</style>
 
       {/* Glows de fundo — mesmo gesto visual da landing */}
       <div
@@ -243,6 +256,24 @@ export function LoginForm() {
                 />
               </label>
 
+              {notice ? (
+                <p
+                  role="status"
+                  style={{
+                    margin: 0,
+                    padding: "10px 12px",
+                    borderRadius: t.radius.md,
+                    border: "1px solid rgba(16, 185, 129, 0.35)",
+                    background: "rgba(16, 185, 129, 0.1)",
+                    color: "#6EE7B7",
+                    fontSize: 13.5,
+                    lineHeight: 1.45,
+                  }}
+                >
+                  {notice}
+                </p>
+              ) : null}
+
               {error ? (
                 <p
                   role="alert"
@@ -264,6 +295,12 @@ export function LoginForm() {
               <button type="submit" disabled={loading} className="nx-login-submit">
                 {loading ? "Entrando..." : "Entrar"}
               </button>
+
+              <div style={{ textAlign: "center" }}>
+                <Link href="/esqueci-senha" className="nx-login-back">
+                  Esqueci minha senha
+                </Link>
+              </div>
             </div>
 
             <div

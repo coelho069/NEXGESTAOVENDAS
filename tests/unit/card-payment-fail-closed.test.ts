@@ -93,10 +93,11 @@ describe("card capture fail-closed", () => {
         providerReference: "pi_test_123",
       }),
     } as never);
-    const userRpc = vi.fn().mockResolvedValue({
-      data: null,
-      error: { code: "22023", message: "card_payment_not_captured" },
-    });
+    const userRpc = vi.fn(async (name: string) =>
+      name === "get_card_payment_intent"
+        ? { data: { provider_ref: "pi_test_123" }, error: null }
+        : { data: null, error: { code: "22023", message: "card_payment_not_captured" } }
+    );
 
     const result = await executeCardPayment({ rpc: userRpc } as never, captureInput(), OPERATOR);
 
@@ -124,10 +125,11 @@ describe("card capture fail-closed", () => {
         providerReference: "pi_test_123",
       }),
     } as never);
-    const userRpc = vi.fn().mockResolvedValue({
-      data: null,
-      error: { code: "23514", message: "inventory_movement_chain_mismatch" },
-    });
+    const userRpc = vi.fn(async (name: string) =>
+      name === "get_card_payment_intent"
+        ? { data: { provider_ref: "pi_test_123" }, error: null }
+        : { data: null, error: { code: "23514", message: "inventory_movement_chain_mismatch" } }
+    );
 
     const result = await executeCardPayment({ rpc: userRpc } as never, captureInput(), OPERATOR);
 

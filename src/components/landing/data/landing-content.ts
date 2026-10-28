@@ -7,8 +7,8 @@ export type LandingFeature = {
   id: string;
   title: string;
   description: string;
-  /** Área do bento grid: a = grande, b/c = médios, d/e = pequenos */
-  area: 'a' | 'b' | 'c' | 'd' | 'e';
+  /** Área do bento grid: a = grande, b/c = médios, d = largo */
+  area: 'a' | 'b' | 'c' | 'd';
 };
 
 export const LANDING_FEATURES: readonly LandingFeature[] = [
@@ -38,13 +38,6 @@ export const LANDING_FEATURES: readonly LandingFeature[] = [
     title: 'Dashboard e relatórios',
     description:
       'Indicadores da operação, margem e desempenho por SKU — disponíveis no plano Enterprise.',
-  },
-  {
-    id: 'pagamentos',
-    area: 'e',
-    title: 'Pagamentos no PDV',
-    description:
-      'Dinheiro, cartão e Pix via Mercado Pago no ponto de venda. Assinaturas do SaaS via Stripe.',
   },
 ];
 

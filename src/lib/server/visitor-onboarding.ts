@@ -319,6 +319,11 @@ export async function runVisitorOnboarding(
     return { status: "missing_email" };
   }
 
+  // Ancora de identidade: criada no servidor (renovação logada) ou gravada por um
+  // checkpoint de uma tentativa anterior que já havia sido liberada. Um e-mail
+  // digitado no checkout anônimo NUNCA é ancora.
+  const identityAnchored = Boolean(resolved.session.onboarding_user_id);
+
   const envSource = input.depsOverride?.env ?? process.env;
   const emailConfig = getEmailSenderConfig(envSource);
 
@@ -396,6 +401,15 @@ export async function runVisitorOnboarding(
     if (!userId) {
       const existingUser = await findAuthUserByEmail(admin, payerEmail);
       if (existingUser.error) throw new Error(existingUser.error);
+      // Conta já existente sem ancora de renovação: fail closed. Não vincula,
+      // não gera link, não altera assinatura, perfil, membership nem papel.
+      if (existingUser.user && !identityAnchored) {
+        onboardingLogger.warn("onboarding_manual_review_required", {
+          client_mutation_id: input.clientMutationId,
+          reason: "existing_account_without_renewal_anchor",
+        });
+        throw new Error("onboarding_manual_review_required");
+      }
 
       const redirectTo = `${appOrigin(envSource).replace(/\/+$/, "")}/ativar-conta`;
       const link = await generateAccessLink(admin, {
@@ -429,8 +443,10 @@ export async function runVisitorOnboarding(
     const previousOrgId = existingProfile?.org_id ?? null;
     // Renovação: cliente que já é dono/cliente da org paga de novo. Mantém a
     // mesma org, loja e vínculos; nunca cria org nova nem remove membros.
+    // Somente a org da âncora (ou checkpoint de sessão já ancorada) pode ser
+    // estendida; a org inferida do perfil de quem tem o e-mail digitado não.
     const renewalOrgId = await resolveRenewalOrganization(admin, {
-      candidateOrgId: organizationId ?? previousOrgId,
+      candidateOrgId: identityAnchored ? organizationId : null,
       previousOrgId,
       userId,
       payerEmail,

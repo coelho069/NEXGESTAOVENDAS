@@ -137,18 +137,19 @@ describe("dashboard OPEX P0", () => {
 
   it("shows amber payment not_configured and unknown from adapter/payload", () => {
     const alerts: PaymentAdapterAlert[] = [
-      { method: "card", adapterStatus: "not_configured", operationStatus: "not_configured" },
-      { method: "pix", adapterStatus: "not_configured", operationStatus: "not_configured" },
-      { method: "other", adapterStatus: "not_configured", operationStatus: "unknown" },
+      { method: "debito_manual", adapterStatus: "not_configured", operationStatus: "not_configured" },
+      { method: "pix_manual", adapterStatus: "not_configured", operationStatus: "not_configured" },
+      { method: "credito_manual", adapterStatus: "not_configured", operationStatus: "unknown" },
     ];
     render(<DashboardScreen storeId={STORE_ID} initial={makeResult()} paymentAlerts={alerts} />);
 
     const strip = screen.getByTestId("dashboard-alerts");
     expect(strip).toHaveClass("bg-amber-50");
     expect(strip).toHaveTextContent("not_configured");
-    expect(strip).toHaveTextContent("Cartão");
+    expect(strip).toHaveTextContent("Débito");
     expect(strip).toHaveTextContent("PIX");
-    expect(strip).toHaveTextContent("Outro");
+    expect(strip).toHaveTextContent("Crédito");
+    expect(strip).not.toHaveTextContent("Apenas dinheiro é processado no MVP");
     expect(strip).toHaveTextContent("unknown");
     expect(strip).toHaveTextContent("3 venda(s) e 4 pagamento(s)");
   });
@@ -195,12 +196,17 @@ describe("dashboard OPEX P0", () => {
 });
 
 describe("electronic payment adapter alerts", () => {
-  it("reports card/pix/other as not_configured without Stripe KPIs", () => {
+  it("reports the manual PDV methods as configured (no false not_configured alert)", () => {
     const alerts = getElectronicPaymentAdapterAlerts();
-    expect(alerts.map((alert) => alert.method)).toEqual(["card", "pix", "other"]);
+    expect(alerts.map((alert) => alert.method)).toEqual([
+      "cash",
+      "pix_manual",
+      "debito_manual",
+      "credito_manual",
+    ]);
     for (const alert of alerts) {
-      expect(alert.adapterStatus).toBe("not_configured");
-      expect(alert.operationStatus).toBe("not_configured");
+      expect(alert.adapterStatus).toBe("configured");
+      expect(alert.operationStatus).toBe("captured");
     }
   });
 });

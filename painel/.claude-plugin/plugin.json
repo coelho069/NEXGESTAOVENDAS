@@ -1,0 +1,9 @@
+{
+  "name": "painel",
+  "version": "1.0.0",
+  "description": "Painel de monitoramento de agentes e subagentes em execução",
+  "author": {
+    "name": "Nex Gestão Vendas",
+    "email": "dev@nexgestaovendas.com"
+  }
+}

@@ -307,6 +307,7 @@ export function useCheckout() {
         const createdAt = new Date().toISOString();
         const receiptLines = cart.lines;
         const customerName = cart.customerName;
+        const customerDiscountLimit = cart.customerDiscountLimit ?? null;
 
         try {
           const online = typeof navigator === "undefined" || navigator.onLine;
@@ -361,6 +362,7 @@ export function useCheckout() {
           storeName: input.storeName,
           createdAt,
           customerName,
+          customerDiscountLimit,
           lines: receiptLines,
           subtotal: totals.subtotal,
           discount: totals.discount,

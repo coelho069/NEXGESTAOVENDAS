@@ -67,6 +67,17 @@ async function queryTenantSubscription(
   }
 }
 
+type TenantSubscriptionLookup = Awaited<ReturnType<typeof queryTenantSubscription>>;
+
+function missingOrgLookup(): Promise<TenantSubscriptionLookup> {
+  return Promise.resolve({
+    outcome: { kind: "unavailable", detail: "missing_org" },
+    payerEmail: null,
+    subscriptionCreatedAt: null,
+    periodEnd: null,
+  });
+}
+
 function subscriptionCreatedAtFromLookup(result: {
   data: SubscriptionLookupRow[] | null;
   error: unknown;
@@ -157,6 +168,39 @@ async function hasApprovedRefund(input: {
   }
 }
 
+/**
+ * Último pagamento aprovado da org (checkout_sessions é restrita: cliente de
+ * serviço). Falha ou ausência devolve null e a regra cai para created_at.
+ */
+async function lastApprovedPaymentAt(orgId: string): Promise<string | null> {
+  try {
+    const admin = createAdminClient() as unknown as LooseFromClient | null;
+    if (!admin) return null;
+    const result = (await Promise.resolve(
+      admin
+        .from("checkout_sessions")
+        .select("mp_payment_paid_at, transaction_paid_at")
+        .eq("onboarding_organization_id", orgId)
+        .eq("mp_payment_status", "approved")
+        .order("created_at", { ascending: false })
+        .limit(20)
+    )) as RefundLookupResult;
+    if (result.error || !Array.isArray(result.data)) return null;
+    let latest: number | null = null;
+    for (const row of result.data as Array<{ mp_payment_paid_at?: unknown; transaction_paid_at?: unknown }>) {
+      for (const raw of [row.mp_payment_paid_at, row.transaction_paid_at]) {
+        if (typeof raw !== "string") continue;
+        const ms = Date.parse(raw);
+        if (!Number.isNaN(ms) && (latest === null || ms > latest)) latest = ms;
+      }
+    }
+    return latest === null ? null : new Date(latest).toISOString();
+  } catch (cause) {
+    log.warn("refund_block_payment_lookup_failed", { detail: refundLookupDetail(cause) });
+    return null;
+  }
+}
+
 /** Session user for the requester check. Lookup failure is fail-open (null). */
 async function sessionUserId(): Promise<string | null> {
   try {
@@ -186,14 +230,21 @@ export async function resolveTenantSubscriptionGate(input: {
     });
   }
 
-  const userId = input.userId !== undefined ? input.userId : await sessionUserId();
-  const { outcome, payerEmail, subscriptionCreatedAt, periodEnd } = input.orgId
-    ? await queryTenantSubscription(input.orgId)
-    : { outcome: { kind: "unavailable" as const, detail: "missing_org" }, payerEmail: null, subscriptionCreatedAt: null, periodEnd: null };
+  // Leitura da sessão (quando o chamador não passou o usuário) e a consulta de
+  // assinatura são independentes: rodam juntas. O reembolso depende do e-mail do
+  // pagador, que vem da assinatura, então roda depois.
+  const [userId, lookup] = await Promise.all([
+    input.userId !== undefined ? input.userId : sessionUserId(),
+    input.orgId ? queryTenantSubscription(input.orgId) : missingOrgLookup(),
+  ]);
+  const { outcome, payerEmail, subscriptionCreatedAt, periodEnd } = lookup;
+  // Sem atalho por status: um reembolso aprovado bloqueia também uma assinatura
+  // `active` criada antes dele, então o reembolso é sempre consultado.
   const refundedAt = await hasApprovedRefund({ payerEmail, userId });
+  const lastPaymentAt = refundedAt && input.orgId ? await lastApprovedPaymentAt(input.orgId) : null;
   // Bloqueia só a assinatura reembolsada: uma assinatura criada depois do
   // reembolso (o cliente assinou de novo) volta a dar acesso normal.
-  const refunded = refundBlocksSubscription(refundedAt, subscriptionCreatedAt);
+  const refunded = refundBlocksSubscription(refundedAt, subscriptionCreatedAt, lastPaymentAt);
   const check = applyApprovedRefundBlock(
     applyPeriodEndExpiry(resolveSubscriptionCheck(outcome), periodEnd),
     refunded

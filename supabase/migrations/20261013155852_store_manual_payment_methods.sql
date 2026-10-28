@@ -3,6 +3,27 @@
 -- maquininha própria). A venda só registra a forma escolhida: nada é cobrado
 -- online. Os métodos cash, pix_manual e voucher continuam aceitos.
 
+CREATE TABLE IF NOT EXISTS public.store_settings (
+  store_id uuid PRIMARY KEY REFERENCES public.stores (id) ON DELETE CASCADE,
+  org_id uuid NOT NULL REFERENCES public.organizations (id) ON DELETE CASCADE,
+  trade_name text,
+  document text,
+  phone text,
+  address_line text,
+  city text,
+  state text,
+  postal_code text,
+  receipt_footer text,
+  auto_print_receipt boolean NOT NULL DEFAULT false,
+  show_operator_on_receipt boolean NOT NULL DEFAULT true,
+  beep_on_scan boolean NOT NULL DEFAULT true,
+  require_customer_on_sale boolean NOT NULL DEFAULT false,
+  require_open_cash_session boolean NOT NULL DEFAULT false,
+  require_customer_document boolean NOT NULL DEFAULT false,
+  updated_at timestamptz,
+  updated_by uuid
+);
+
 ALTER TYPE public.payment_method ADD VALUE IF NOT EXISTS 'debito_manual';
 ALTER TYPE public.payment_method ADD VALUE IF NOT EXISTS 'credito_manual';
 
@@ -168,7 +189,7 @@ BEGIN
 
   SELECT COALESCE(array_agg(DISTINCT value ORDER BY value), ARRAY[]::text[]) INTO v_methods
   FROM jsonb_array_elements_text(p_payload->'accepted_payment_methods') AS value;
-  IF cardinality(v_methods) < 1
+  if cardinality(v_methods) < 1
      OR NOT (v_methods <@ ARRAY['cash', 'pix_manual', 'debito_manual', 'credito_manual']::text[])
   THEN
     RAISE EXCEPTION 'invalid_settings_payment_methods' USING ERRCODE = '22023';

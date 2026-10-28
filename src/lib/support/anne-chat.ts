@@ -35,6 +35,8 @@ const AUTHENTICATED_ROUTE_PREFIXES = [
   "/clientes",
   "/suporte",
   "/admin",
+  "/conta",
+  "/configuracoes",
 ] as const;
 
 export function isAnneSupportRoute(pathname: string): boolean {

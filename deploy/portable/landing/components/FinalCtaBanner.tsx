@@ -73,27 +73,6 @@ export function FinalCtaBanner() {
               Setup completo em menos de 10 minutos. Sem necessidade de cartão para começar.
             </p>
 
-            {/* CTAButtonPrimaryHighContrast */}
-            <a
-              className="nx-final-cta"
-              href="#"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                height: 56,
-                padding: '0 36px',
-                borderRadius: t.radius.md,
-                background: '#FFFFFF',
-                color: t.color.primary,
-                fontFamily: t.font.heading,
-                fontSize: 16,
-                fontWeight: 800,
-                textDecoration: 'none',
-                border: 'none',
-              }}
-            >
-              Criar Conta Gratuita
-            </a>
 
             {/* SupportContactLink */}
             <p style={{ margin: '24px 0 0', fontSize: 14, color: t.color.textMuted }}>

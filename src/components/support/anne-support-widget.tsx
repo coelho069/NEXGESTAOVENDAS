@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { MessageCircle, SendHorizontal, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useAnneChat } from "@/hooks/use-anne-chat";
+import { useSessionStore } from "@/stores/session-store";
 import {
   ANNE_CHAT_MAX_MESSAGE_LENGTH,
   ANNE_SUPPORT_EMAIL,
@@ -33,14 +34,17 @@ function TypingIndicator() {
 export function AnneSupportWidget() {
   const pathname = usePathname();
   const { user, loading } = useAuth();
+  const sessionUserId = useSessionStore((state) => state.userId);
+  const resolvedUserId = user?.id ?? sessionUserId ?? null;
+  const isAuthenticated = Boolean(resolvedUserId);
   const [open, setOpen] = useState(false);
   const messagesRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { messages, input, setInput, sending, canSend, sendMessage, initialized } = useAnneChat(
-    user?.id ?? null
+    resolvedUserId
   );
 
-  const visible = !loading && Boolean(user) && isAnneSupportRoute(pathname);
+  const visible = !loading && isAuthenticated && isAnneSupportRoute(pathname);
   const onPdvRoute = pathname === "/pdv" || pathname.startsWith("/pdv/");
 
   useEffect(() => {

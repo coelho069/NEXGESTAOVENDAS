@@ -14,7 +14,8 @@ import {
 import { BrandMark } from "@/components/landing/components/BrandMark";
 import { AdminSignOut } from "@/components/admin/admin-sign-out";
 
-const activeItem = "bg-primary text-primary-foreground shadow-lg shadow-primary/25";
+const activeItem =
+  "text-white shadow-[0_12px_32px_-8px_rgba(37,99,235,0.55)] bg-[linear-gradient(135deg,#2563EB_0%,#1D4ED8_55%,#10B981_100%)]";
 const inactiveItem = "text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground";
 
 function navClass(active: boolean): string {
@@ -35,12 +36,12 @@ export function AdminSidebar() {
 
   return (
     <>
-      <aside className="hidden w-72 shrink-0 flex-col border-r border-border bg-card/50 backdrop-blur-xl lg:flex">
-        <div className="border-b border-border px-6 py-6">
+      <aside className="hidden w-72 shrink-0 flex-col border-r border-white/[0.08] bg-[rgba(15,23,42,0.6)] backdrop-blur-xl lg:flex">
+        <div className="border-b border-white/[0.08] px-6 py-6">
           <Link href="/admin" className="flex items-center gap-3">
             <BrandMark size={36} gradientId="nx-admin-sidebar-grad" />
             <span>
-              <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+              <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-blue-300">
                 Nex Gestão
               </span>
               <span
@@ -90,10 +91,10 @@ export function AdminSidebar() {
           </span>
         </nav>
 
-        <div className="space-y-2 border-t border-border p-4">
+        <div className="space-y-2 border-t border-white/[0.08] p-4">
           <Link
             href="/pdv"
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
           >
             <ArrowLeft size={18} aria-hidden="true" />
             Voltar ao PDV
@@ -104,7 +105,7 @@ export function AdminSidebar() {
 
       <nav
         aria-label="Navegação administrativa móvel"
-        className="flex gap-2 overflow-x-auto border-b border-border bg-card/95 px-4 py-3 backdrop-blur-md lg:hidden"
+        className="flex gap-2 overflow-x-auto border-b border-white/[0.08] bg-[rgba(15,23,42,0.75)] px-4 py-3 backdrop-blur-md lg:hidden"
       >
         <Link href="/admin" className={mobileNavClass(isOverview)}>
           <BarChart3 size={17} aria-hidden="true" />

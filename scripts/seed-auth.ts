@@ -4,6 +4,7 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "../src/lib/db/types";
+import { assertSeedTargetAllowed } from "./seed-auth-guard";
 
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
 const STORE_CENTRO = "22222222-2222-4222-8222-222222222201";
@@ -40,6 +41,7 @@ async function main() {
   if (!url || !serviceRoleKey) {
     throw new Error("Missing SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
   }
+  assertSeedTargetAllowed(url, process.env);
 
   const users = USERS.map((user) => {
     const password = process.env[user.passwordEnv]?.trim();

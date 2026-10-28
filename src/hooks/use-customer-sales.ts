@@ -11,7 +11,14 @@ import { SALES_HISTORY_SYNC_EVENT } from "@/lib/pdv/sales-history-sync";
 
 function readError(body: unknown, fallback: string): string {
   if (body && typeof body === "object" && "error" in body && typeof body.error === "string") {
-    return body.error;
+    const code = body.error;
+    if (code === "customer_sales_unavailable") {
+      return "Histórico de vendas temporariamente indisponível. Tente novamente.";
+    }
+    if (code === "customer_not_found") return "Cliente não encontrado.";
+    if (code === "forbidden_customers") return "Sem permissão para ver vendas deste cliente.";
+    if (code === "Unauthorized") return "Faça login novamente.";
+    return code;
   }
   return fallback;
 }

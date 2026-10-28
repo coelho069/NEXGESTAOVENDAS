@@ -269,8 +269,13 @@ export const ELECTRONIC_PAYMENT_METHODS = ["card", "pix", "other"] as const;
 
 export type ElectronicPaymentMethod = (typeof ELECTRONIC_PAYMENT_METHODS)[number];
 
+/** Formas realmente vendidas no PDV: só marcação, sem integração (ver store-payment-methods). */
+export const PDV_PAYMENT_METHODS = ["cash", "pix_manual", "debito_manual", "credito_manual"] as const;
+
+export type PdvPaymentMethod = (typeof PDV_PAYMENT_METHODS)[number];
+
 export type PaymentAdapterAlert = {
-  method: ElectronicPaymentMethod;
+  method: PdvPaymentMethod;
   adapterStatus: Enums<"adapter_status">;
   operationStatus: PaymentState | "not_configured";
 };
@@ -284,8 +289,8 @@ function syncAuthorizeStatus(
   return result.status;
 }
 
-export function getElectronicPaymentAdapterAlerts(): PaymentAdapterAlert[] {
-  return ELECTRONIC_PAYMENT_METHODS.map((method) => {
+export function getPdvPaymentAdapterAlerts(): PaymentAdapterAlert[] {
+  return PDV_PAYMENT_METHODS.map((method) => {
     const adapter = getPaymentAdapter(method);
     return {
       method,
@@ -293,4 +298,9 @@ export function getElectronicPaymentAdapterAlerts(): PaymentAdapterAlert[] {
       operationStatus: syncAuthorizeStatus(adapter.authorize("0.00")),
     };
   });
+}
+
+/** Compat: o dashboard só alerta sobre as formas do PDV, não sobre adapters eletrônicos legados. */
+export function getElectronicPaymentAdapterAlerts(): PaymentAdapterAlert[] {
+  return getPdvPaymentAdapterAlerts();
 }

@@ -635,11 +635,22 @@ export const customerWriteSchema = z
         "email must be a valid address"
       )
       .optional(),
+    discount_limit: z
+      .union([z.string(), z.number(), z.null()])
+      .optional()
+      .transform((value) => {
+        if (value == null || value === "") return null;
+        const normalized =
+          typeof value === "number" ? value : Number(String(value).trim().replace(",", "."));
+        if (!Number.isFinite(normalized) || normalized < 0) return null;
+        return normalized.toFixed(2);
+      }),
   })
   .transform((value) => ({
     name: value.name,
     document: value.document ?? null,
     email: value.email ?? null,
+    discount_limit: value.discount_limit ?? null,
   }));
 
 export type CustomerWriteInput = z.infer<typeof customerWriteSchema>;
@@ -840,6 +851,8 @@ const checkoutEmailSchema = z
 export const publicCheckoutInputSchema = z.object({
   plan_id: z.string().uuid(),
   payer_email: checkoutEmailSchema,
+  /** `YYYY-MM-DD`. A regra de maioridade é aplicada em `isAdultOnDate`, na rota. */
+  birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "birth_date must be YYYY-MM-DD"),
   client_mutation_id: z.string().uuid().optional(),
 });
 

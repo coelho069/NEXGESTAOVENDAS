@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shouldReloadCatalogOnAuthEvent } from "@/lib/auth/auth-events";
-import { fetchProducts } from "@/lib/catalog-api";
+import { clearProductsCache, fetchProducts } from "@/lib/catalog-api";
 import {
   catalogLoadCauseFromUnknown,
   resolveCatalogLoad,
@@ -89,6 +89,7 @@ export function useProducts(options: UseProductsOptions = {}) {
       if (!shouldReloadCatalogOnAuthEvent(event)) {
         return;
       }
+      clearProductsCache();
       void load({ background: hasProductsRef.current });
     });
 

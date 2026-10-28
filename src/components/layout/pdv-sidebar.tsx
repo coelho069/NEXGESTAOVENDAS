@@ -12,7 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { BrandMark } from "@/components/landing/components/BrandMark";
-import { isClientRole, type MemberRole } from "@/lib/domain/rbac";
+import { canViewReports, isClientRole, type MemberRole } from "@/lib/domain/rbac";
 import { endClientSession } from "@/lib/offline/end-session";
 
 type NavItem = {
@@ -47,12 +47,18 @@ export function PdvSidebar({
   role?: MemberRole | null;
   onOpenSalesHistory?: () => void;
 }) {
-  const items = (isClientRole(role)
-    ? navItems.filter((item) => item.href !== "/dashboard")
-    : navItems
-  ).map((item) =>
-    isClientRole(role) && item.href === "/inventory" ? { ...item, label: "Produtos" } : item
-  );
+  const items = navItems
+    .filter((item) => {
+      if (item.href === "/dashboard" && !canViewReports(role) && !isClientRole(role)) {
+        return false;
+      }
+      return true;
+    })
+    .map((item) => {
+      if (isClientRole(role) && item.href === "/inventory") return { ...item, label: "Produtos" };
+      if (isClientRole(role) && item.href === "/dashboard") return { ...item, label: "Dashboard" };
+      return item;
+    });
 
   return (
     <aside className="hidden w-64 shrink-0 flex-col gap-8 border-r border-border bg-card/50 p-4 backdrop-blur-xl lg:flex">

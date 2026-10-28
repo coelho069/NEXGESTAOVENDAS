@@ -5,6 +5,7 @@ import {
   toInventoryQuantity,
   type QuantityInput,
 } from "@/lib/domain/quantity";
+import { csvCell, csvQuotedCell } from "@/lib/domain/csv-export";
 
 export type InventoryCsvRow = {
   row: number;
@@ -123,11 +124,11 @@ export function toExportCsv(
   const header = "sku,name,quantity,unit_price,cost_price";
   const body = lines.map((line) =>
     [
-      line.sku,
-      `"${line.name.replace(/"/g, '""')}"`,
-      toInventoryQuantity(line.quantity),
-      line.unitPrice,
-      line.costPrice ?? "",
+      csvCell(line.sku),
+      csvQuotedCell(line.name),
+      csvCell(toInventoryQuantity(line.quantity)),
+      csvCell(line.unitPrice),
+      csvCell(line.costPrice ?? ""),
     ].join(",")
   );
   return [header, ...body].join("\n");

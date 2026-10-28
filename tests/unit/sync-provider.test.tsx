@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -70,7 +70,7 @@ describe("SyncProvider", () => {
     expect(refreshSyncUiMock).not.toHaveBeenCalled();
   });
 
-  it("starts heartbeat and sync after auth loading completes", () => {
+  it("starts heartbeat and sync after auth loading completes", async () => {
     cartStoreState.storeId = "22222222-2222-4222-8222-222222222201";
     useAuthMock.mockReturnValue({ user: { id: "user-1" }, loading: false });
 
@@ -81,12 +81,13 @@ describe("SyncProvider", () => {
     );
 
     expect(screen.getByText("PDV")).toBeVisible();
-    expect(startHeartbeatMock).toHaveBeenCalledTimes(1);
+    // Sync inicial é adiado para depois do primeiro paint (runWhenIdle).
+    await waitFor(() => expect(startHeartbeatMock).toHaveBeenCalledTimes(1));
     expect(refreshSyncUiMock).toHaveBeenCalledTimes(1);
     expect(flushPendingMock).toHaveBeenCalledTimes(1);
   });
 
-  it("pulls again when storeId becomes available", () => {
+  it("pulls again when storeId becomes available", async () => {
     cartStoreState.storeId = null;
     useAuthMock.mockReturnValue({ user: { id: "user-1" }, loading: false });
 
@@ -96,7 +97,7 @@ describe("SyncProvider", () => {
       </SyncProvider>
     );
 
-    expect(flushPendingMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(flushPendingMock).toHaveBeenCalledTimes(1));
 
     cartStoreState.storeId = "22222222-2222-4222-8222-222222222201";
     rerender(
@@ -105,7 +106,7 @@ describe("SyncProvider", () => {
       </SyncProvider>
     );
 
-    expect(flushPendingMock).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(flushPendingMock).toHaveBeenCalledTimes(2));
   });
 
   it("never blanks the tree with an auth-loading return null", () => {

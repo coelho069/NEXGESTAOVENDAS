@@ -6,6 +6,7 @@ import {
   parseStoreSalePolicy,
   type StoreSalePolicy,
 } from "@/lib/domain/store-sale-policy";
+import { runWhenIdle } from "@/lib/offline/run-when-idle";
 
 export async function fetchStoreSalePolicy(storeId: string): Promise<StoreSalePolicy> {
   try {
@@ -35,9 +36,11 @@ export function useStoreSalePolicy(storeId: string | null): StoreSalePolicy {
       const next = await fetchStoreSalePolicy(storeId);
       if (!cancelled) setPolicy(next);
     };
-    void load();
+    // Após o primeiro paint; até lá vale a política padrão (o servidor continua validando).
+    const cancelIdle = runWhenIdle(() => void load());
     return () => {
       cancelled = true;
+      cancelIdle();
     };
   }, [storeId]);
 

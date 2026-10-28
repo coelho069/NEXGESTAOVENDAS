@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthedContext } from "@/lib/auth/session";
 import { canWriteCustomers } from "@/lib/domain/customer";
+import { listCustomerSales } from "@/lib/server/list-customer-sales";
 import { createClient } from "@/lib/supabase/server";
 import { customerIdSchema, customerSalesListQuerySchema } from "@/lib/validation/schemas";
 
@@ -39,33 +40,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: "forbidden_customers" }, { status: 403 });
   }
 
-  const payload = {
-    customer_id: id,
+  const result = await listCustomerSales(supabase, {
+    customerId: id,
+    orgId: auth.orgId,
     limit: parsed.data.limit,
-    ...(parsed.data.after_created_at && parsed.data.after_id
-      ? {
-          after_created_at: parsed.data.after_created_at,
-          after_id: parsed.data.after_id,
-        }
-      : {}),
-  };
-
-  const { data, error } = await supabase.rpc("list_customer_sales", {
-    p_payload: payload,
+    afterCreatedAt: parsed.data.after_created_at,
+    afterId: parsed.data.after_id,
   });
-  if (error) {
-    const message = error.message ?? "";
-    if (message.includes("customer_not_found") || error.code === "P0002") {
-      return NextResponse.json({ error: "customer_not_found" }, { status: 404 });
-    }
-    if (message.includes("forbidden")) {
-      return NextResponse.json({ error: "forbidden_customers" }, { status: 403 });
-    }
-    if (message.includes("invalid_customer_sales_query") || error.code === "22023") {
-      return NextResponse.json({ error: "Validation failed" }, { status: 400 });
-    }
-    return NextResponse.json({ error: "customer_sales_unavailable" }, { status: 503 });
+
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: result.error, ...(result.detail ? { detail: result.detail } : {}) },
+      { status: result.status }
+    );
   }
 
-  return NextResponse.json(data);
+  return NextResponse.json(result.data);
 }

@@ -1,14 +1,10 @@
 import { test, expect } from "@playwright/test";
 
-// A raiz `/` serve a landing de conversão (kit deploy/portable/landing).
-// A página de planos/assinaturas passou para `/planos`.
+// A raiz `/` serve a landing de conversão.
 test("home renders the NexGestão landing", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("PDV profissional");
   await expect(page.getByRole("link", { name: "Entrar na Conta" })).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "Testar Gratuitamente por 14 Dias" })
-  ).toBeVisible();
   await expect(page.getByRole("link", { name: "Começar agora" })).toBeVisible();
 });
 

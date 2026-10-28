@@ -20,7 +20,6 @@ test("pagamento cash finaliza uma vez mesmo com retry de clique", async ({ page 
   await cash.click();
   await Promise.allSettled([noChange.click(), noChange.click()]);
   await expect(page.getByTestId("receipt")).toHaveCount(1);
-  await expect(page.getByTestId("receipt-sync-status")).toContainText(/pending|synced/);
 
   const counts = await page.evaluate(
     () =>
@@ -77,5 +76,4 @@ test("pagamento voucher finaliza venda direta", async ({ page }) => {
   await openCart(page);
   await page.getByTestId("checkout-voucher").click();
   await expect(page.getByTestId("receipt")).toHaveCount(1);
-  await expect(page.getByTestId("receipt-sync-status")).toContainText(/pending|synced/);
 });

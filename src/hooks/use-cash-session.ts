@@ -12,6 +12,7 @@ import {
 import { pdvFixturesEnabled } from "@/lib/pdv/fixtures";
 import { getTerminalId } from "@/lib/offline/terminal-identity";
 import { useSessionStore } from "@/stores/session-store";
+import { cashErrorMessage } from "@/lib/domain/cash-errors";
 
 const CACHE_KEY_PREFIX = "nex-cash-session:";
 const FIXTURE_ORG_ID = "11111111-1111-4111-8111-111111111111";
@@ -204,7 +205,7 @@ export function useCashSession(storeId: string | null) {
       if (!result.ok) {
         const message =
           body && typeof body === "object" && typeof (body as CashActionError).error === "string"
-            ? (body as CashActionError).error
+            ? cashErrorMessage((body as CashActionError).error)
             : "Não foi possível consultar o caixa";
         throw new Error(message);
       }
@@ -239,7 +240,7 @@ export function useCashSession(storeId: string | null) {
       if (!result.ok) {
         const message =
           body && typeof body === "object" && typeof (body as CashActionError).error === "string"
-            ? (body as CashActionError).error
+            ? cashErrorMessage((body as CashActionError).error)
             : "Operação de caixa rejeitada";
         throw new CashActionRejected(message);
       }

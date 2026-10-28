@@ -8,6 +8,23 @@ import {
   subscriptionBlockTitle,
   type SubscriptionGateDecision,
 } from "@/lib/domain/subscription-access";
+import { landingTheme as t } from "@/components/landing/theme/landing-theme";
+
+/** Cartão de bloqueio: vidro escuro do login com acento rosé. */
+const BLOCKED_CARD_STYLE = {
+  borderRadius: t.radius.xl,
+  border: "1px solid rgba(244, 63, 94, 0.35)",
+  background: t.color.glassBg,
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
+  boxShadow: t.shadow.card,
+} as const;
+
+/** Aviso de validação indisponível: âmbar escuro (sem superfície clara). */
+const WARNING_CARD_STYLE = {
+  border: "1px solid rgba(245, 158, 11, 0.35)",
+  background: "rgba(245, 158, 11, 0.1)",
+} as const;
 
 type SubscriptionAccessViewProps = {
   decision: SubscriptionGateDecision;
@@ -36,12 +53,14 @@ export function SubscriptionAccessView({
         className="mx-auto w-full max-w-lg p-6"
       >
         <ClientRefundSlot payments={refundPayments} access={refundAccess} />
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-6 text-rose-950">
-          <h1 className="text-xl font-semibold">{subscriptionBlockTitle(decision.effectiveState, decision.reason)}</h1>
-          <p className="mt-2 text-sm text-rose-800">
+        <div className="px-5 py-6" style={BLOCKED_CARD_STYLE}>
+          <h1 className="text-xl font-semibold" style={{ color: t.color.text }}>
+            {subscriptionBlockTitle(decision.effectiveState, decision.reason)}
+          </h1>
+          <p className="mt-2 text-sm" style={{ color: t.color.textBody }}>
             O PDV e as rotas operacionais ficam bloqueados enquanto não houver uma assinatura ativa.
           </p>
-          <p className="mt-3 text-xs text-rose-700">
+          <p className="mt-3 text-xs" style={{ color: "#FDA4AF" }}>
             estado: {decision.effectiveState} · motivo: {decision.reason}
           </p>
           <SubscriptionBlockedActions />
@@ -63,10 +82,11 @@ export function SubscriptionAccessView({
           data-testid="subscription-validation-unavailable-alert"
           data-effective-state="unavailable"
           data-reason={decision.reason}
-          className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          className="px-4 py-3 text-sm"
+          style={{ ...WARNING_CARD_STYLE, color: t.color.textBody }}
         >
-          <p className="font-semibold">Não foi possível validar a assinatura</p>
-          <p className="mt-1 text-amber-800">
+          <p className="font-semibold" style={{ color: "#FCD34D" }}>Não foi possível validar a assinatura</p>
+          <p className="mt-1" style={{ color: t.color.textMuted }}>
             A verificação está indisponível (schema ou consulta). O PDV permanece liberado. Isto não
             é ausência de assinatura.
           </p>

@@ -4,12 +4,15 @@ export type CustomerDraft = {
   name: string;
   document: string;
   email: string;
+  /** Limite de desconto em R$ (texto livre do formulário, ex.: "30" ou "30,00"). */
+  discountLimit: string;
 };
 
 export const EMPTY_CUSTOMER_DRAFT: CustomerDraft = {
   name: "",
   document: "",
   email: "",
+  discountLimit: "",
 };
 
 export function customerDraftFrom(customer: CatalogCustomer | null): CustomerDraft {
@@ -18,6 +21,7 @@ export function customerDraftFrom(customer: CatalogCustomer | null): CustomerDra
     name: customer.name,
     document: customer.document ?? "",
     email: customer.email ?? "",
+    discountLimit: customer.discountLimit ?? "",
   };
 }
 
@@ -51,10 +55,19 @@ export function parseCatalogCustomer(value: unknown): CatalogCustomer | null {
   if (typeof row.id !== "string" || typeof row.name !== "string" || row.name.trim() === "") {
     return null;
   }
+  const discountRaw = row.discount_limit ?? row.discountLimit;
+  let discountLimit: string | null = null;
+  if (typeof discountRaw === "number" && Number.isFinite(discountRaw) && discountRaw >= 0) {
+    discountLimit = discountRaw.toFixed(2);
+  } else if (typeof discountRaw === "string" && discountRaw.trim()) {
+    const n = Number(discountRaw.trim().replace(",", "."));
+    discountLimit = Number.isFinite(n) && n >= 0 ? n.toFixed(2) : null;
+  }
   return {
     id: row.id,
     name: row.name,
     document: typeof row.document === "string" ? row.document : null,
     email: typeof row.email === "string" ? row.email : null,
+    discountLimit,
   };
 }

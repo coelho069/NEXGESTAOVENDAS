@@ -12,6 +12,7 @@ import {
 } from "@/lib/server/mercadopago";
 import {
   isMercadoPagoWebhookEventAllowed,
+  mapMercadoPagoOrderStatus,
   reconcileMercadoPagoOrder,
   webhookActionToPaymentState,
   type MercadoPagoWebhookNotification,
@@ -29,6 +30,15 @@ export type MercadoPagoPixPaymentApiResult = PaymentOperationResult & {
   qr?: StripePixQr | null;
   replay?: boolean;
   ignored?: boolean;
+  /** binding_mismatch: body data.id differs from the signed query data.id. Nothing was applied. */
+  rejected?: "binding_mismatch";
+  /** The provider could not be queried. Nothing was applied; the caller should answer 5xx so Mercado Pago retries. */
+  retryable?: boolean;
+};
+
+export type MercadoPagoWebhookApplyOptions = {
+  /** data.id from the query string. It is covered by the HMAC signature. */
+  signedDataId: string | null;
 };
 
 function asJson(value: unknown): Json {
@@ -102,6 +112,14 @@ export async function executeMercadoPagoPixPayment(
       };
     }
     case "cancel": {
+      if (!(await mercadoPagoIntentBelongsToStore(supabase, input.store_id, input.provider_reference))) {
+        return {
+          status: "failed",
+          message: MERCADOPAGO_INTENT_NOT_IN_STORE_MESSAGE,
+          configured: true,
+          sale_confirmed: false,
+        };
+      }
       const result = await adapter.cancel(input.amount, context);
       if (result.providerReference && (result.status === "cancelled" || result.status === "failed")) {
         await applyPixProviderStatus(result.providerReference, result.status);
@@ -112,6 +130,29 @@ export async function executeMercadoPagoPixPayment(
       const _exhaustive: never = input.action;
       return _exhaustive;
     }
+  }
+}
+
+const MERCADOPAGO_INTENT_NOT_IN_STORE_MESSAGE = "PaymentIntent não encontrado nesta loja.";
+
+/**
+ * Ownership before any provider call. Uses the caller's session: get_pix_payment_intent checks
+ * user_has_store_access and filters by store, org and provider_ref. Any error means "not owned".
+ */
+async function mercadoPagoIntentBelongsToStore(
+  supabase: DbClient,
+  storeId: string,
+  providerRef: string | undefined
+): Promise<boolean> {
+  if (!providerRef) return false;
+  try {
+    const { data, error } = await supabase.rpc("get_pix_payment_intent", {
+      p_payload: asJson({ store_id: storeId, provider_ref: providerRef }),
+    });
+    if (error || !data || typeof data !== "object" || Array.isArray(data)) return false;
+    return (data as { provider_ref?: unknown }).provider_ref === providerRef;
+  } catch {
+    return false;
   }
 }
 
@@ -194,8 +235,17 @@ export async function reconcileMercadoPagoPix(input: {
   return { ...result, configured: true, sale_confirmed: false };
 }
 
+/**
+ * Applies one order webhook. The body is not trusted:
+ * - body data.id must equal the signed query data.id (else nothing is applied);
+ * - the status comes from a fresh query to the provider, and must equal the status the action
+ *   implies (else nothing is applied). Because the provider state is what gets applied, an event
+ *   that arrives late (for example, pending after captured) cannot move the intent backwards.
+ * Duplicates are handled by apply_pix_provider_event (replay by event_id).
+ */
 export async function applyMercadoPagoWebhookEvent(
-  notification: MercadoPagoWebhookNotification
+  notification: MercadoPagoWebhookNotification,
+  options: MercadoPagoWebhookApplyOptions
 ): Promise<MercadoPagoPixPaymentApiResult> {
   if (!isMercadoPagoWebhookEventAllowed(notification.action)) {
     return {
@@ -203,6 +253,17 @@ export async function applyMercadoPagoWebhookEvent(
       message: "Evento Mercado Pago fora da allowlist.",
       configured: true,
       ignored: true,
+    };
+  }
+
+  const signedId = options.signedDataId?.trim().toLowerCase() ?? "";
+  const bodyId = notification.data.id?.trim().toLowerCase() ?? "";
+  if (!signedId || signedId !== bodyId) {
+    return {
+      status: "unknown",
+      message: "data.id do corpo diferente do data.id assinado; evento rejeitado.",
+      configured: true,
+      rejected: "binding_mismatch",
     };
   }
 
@@ -230,6 +291,44 @@ export async function applyMercadoPagoWebhookEvent(
       status: "unknown",
       message: "Evento Mercado Pago ignorado.",
       configured: true,
+      ignored: true,
+    };
+  }
+
+  // Confirmação no provedor pelo id assinado, antes de qualquer efeito.
+  const env = getMercadoPagoEnv();
+  if (!env.configured) {
+    return {
+      status: "unknown",
+      message: "Mercado Pago não configurado; evento não aplicado.",
+      configured: false,
+      retryable: true,
+    };
+  }
+  let snapshot: Awaited<ReturnType<ReturnType<typeof createMercadoPagoPixGateway>["retrieve"]>>;
+  try {
+    snapshot = await createMercadoPagoPixGateway(env).retrieve({ providerReference: providerRef });
+  } catch {
+    return {
+      status: "unknown",
+      message: "Consulta ao Mercado Pago falhou; evento não aplicado.",
+      configured: true,
+      providerReference: providerRef,
+      sale_confirmed: false,
+      retryable: true,
+    };
+  }
+  const providerStatus =
+    snapshot && snapshot.id === providerRef
+      ? mapMercadoPagoOrderStatus(snapshot.status, snapshot.statusDetail, "reconcile")
+      : null;
+  if (providerStatus !== mapped) {
+    return {
+      status: "unknown",
+      message: "Status do evento divergente do Mercado Pago; evento não aplicado.",
+      configured: true,
+      providerReference: providerRef,
+      sale_confirmed: false,
       ignored: true,
     };
   }

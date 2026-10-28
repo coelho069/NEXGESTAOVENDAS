@@ -1,7 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
-import { createServerClient } from "@supabase/ssr";
-import type { Database } from "@/lib/db/types";
 import { isMutatingMethod, isSameOriginRequest } from "@/lib/security/request";
 import { isMercadoPagoRootPaymentIpn } from "@/lib/domain/mercadopago-payment-ipn";
 import {
@@ -57,7 +55,7 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/clientes") ||
     request.nextUrl.pathname.startsWith("/dashboard") ||
     request.nextUrl.pathname.startsWith("/admin");
-  const response = await updateSession(request);
+  const { response, user } = await updateSession(request);
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -72,22 +70,6 @@ export async function middleware(request: NextRequest) {
     }
     return withSecurityHeaders(response, correlationId);
   }
-
-  const supabase = createServerClient<Database>(url, anonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll() {
-        // Session refresh cookie writes are owned by updateSession so Secure /
-        // HttpOnly / SameSite are applied in one place.
-      },
-    },
-  });
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   if (!user && isProtected) {
     const publicOrigin = process.env.APP_ORIGIN?.trim() || request.nextUrl.origin;

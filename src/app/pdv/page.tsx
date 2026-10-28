@@ -15,8 +15,9 @@ const jakarta = Plus_Jakarta_Sans({
   display: "swap",
   variable: "--font-jakarta",
 });
-import { getAuthedContext } from "@/lib/auth/session";
-import { loadClientRefundAccess, loadClientRefundPayments } from "@/lib/server/client-refund-page-data";
+import { getAuthedContext, getSessionUser } from "@/lib/auth/session";
+import { loadRefundPanel } from "@/lib/server/client-refund-page-data";
+import { resolveTenantSubscriptionGate } from "@/lib/server/subscription-access";
 import { fixtureStoreOptions, pdvFixturesEnabled } from "@/lib/pdv/fixtures";
 import type { MemberRole } from "@/lib/domain/rbac";
 import type { StoreOption } from "@/lib/auth/store-context";
@@ -34,7 +35,9 @@ export default async function PdvPage({
   searchParams?: Promise<{ store?: string; role?: string }>;
 }) {
   const resolvedSearchParams = await searchParams;
-  const auth = await getAuthedContext(resolvedSearchParams?.store);
+  // Uma única leitura de sessão para o contexto e para o painel de reembolso.
+  const user = await getSessionUser();
+  const auth = await getAuthedContext(resolvedSearchParams?.store, user);
   const fixtureMode = !auth && pdvFixturesEnabled();
   const fixtureRole = fixtureRoleFromSearch(resolvedSearchParams?.role);
   const stores: Array<StoreOption & { role?: MemberRole }> =
@@ -50,9 +53,17 @@ export default async function PdvPage({
       : null;
   const initialStoreId = auth?.storeId ?? fixtureStoreId;
   const role = auth?.role ?? (fixtureMode ? fixtureRole : null);
-  const refundAccess = fixtureMode ? "allowed" : await loadClientRefundAccess();
-  const refundPayments =
-    fixtureMode || refundAccess !== "allowed" ? [] : await loadClientRefundPayments(auth?.orgId ?? null);
+  // Gate de assinatura e painel de reembolso são independentes: rodam juntos.
+  const [gateDecision, refundPanel] = await Promise.all([
+    resolveTenantSubscriptionGate({
+      orgId: auth?.orgId ?? null,
+      userId: user?.id ?? null,
+      skip: fixtureMode,
+    }),
+    fixtureMode
+      ? { refundAccess: "allowed" as const, refundPayments: [] }
+      : loadRefundPanel(user, auth?.orgId ?? null),
+  ]);
 
   return (
     <main className={`pdv-theme ${inter.variable} ${jakarta.variable}`}>
@@ -61,8 +72,9 @@ export default async function PdvPage({
         userId={auth?.userId}
         role={role}
         skip={fixtureMode}
-        refundPayments={refundPayments}
-        refundAccess={refundAccess}
+        decision={gateDecision}
+        refundPayments={refundPanel.refundPayments}
+        refundAccess={refundPanel.refundAccess}
         refundPlacement="blocked-only"
       >
         <PdvScreen stores={stores} initialStoreId={initialStoreId} role={role} />

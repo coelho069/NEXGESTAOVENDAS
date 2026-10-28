@@ -10,6 +10,7 @@ import {
 } from "@/lib/domain/catalog-load";
 import { fixtureProducts, pdvFixturesEnabled } from "@/lib/pdv/fixtures";
 import { createClient } from "@/lib/supabase/client";
+import { requestCatalogProducts } from "@/lib/catalog-api";
 
 function applyCatalogResult(
   failed: boolean,
@@ -64,21 +65,13 @@ export function useProducts(options: { storeId?: string | null } = {}) {
     }
 
     try {
-      const supabase = createClient();
-      const { data, error: queryError } = await supabase
-        .from("products")
-        .select("id, sku, name, unit_price, barcode, category_id, is_active")
-        .order("name");
+      const data = await requestCatalogProducts();
 
       if (generation !== loadGenerationRef.current) {
         return;
       }
 
-      const resolved = applyCatalogResult(
-        Boolean(queryError) || !data,
-        (data as ProductRow[] | null) ?? null,
-        queryError ? { message: queryError.message, code: queryError.code } : null
-      );
+      const resolved = applyCatalogResult(false, data, null);
       setProducts(resolved.products);
       setFromCatalog(false);
       setError(resolved.error);

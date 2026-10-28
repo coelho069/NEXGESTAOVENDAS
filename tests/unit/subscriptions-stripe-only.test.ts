@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -6,13 +6,11 @@ import {
   resolveStripePriceIdForSlug,
   isStripeSubscriptionCheckoutEnabled,
 } from "@/lib/domain/onboarding-stripe";
-import { loadPublicPlans } from "@/lib/server/public-plans-query";
 import {
   isStripePlanSlug,
   resolveStripePriceForPlanSlug,
   toJevPlanSlug,
 } from "@/lib/advisor/plan-slug";
-import type { PublicPlanRecord } from "@/lib/domain/public-plans";
 
 // ---------------------------------------------------------------------------//  Testes da mudança "assinaturas = checkout online nos trilhos Stripe,
 //  cobrança comunicada via Mercado Pago":
@@ -135,39 +133,31 @@ describe("gating público (loadPublicPlans + checkout gate)", () => {
   });
 });
 
-describe("4–6. Assinatura: checkout online nos trilhos Stripe, cobrança via Mercado Pago", () => {
-  it("4. nenhuma UI de planos chama endpoint Mercado Pago de assinatura", () => {
+describe("4–6. Assinatura: checkout online via Mercado Pago Checkout Pro", () => {
+  it("4. UI de planos chama endpoint Mercado Pago de assinatura (public-checkout)", () => {
     const button = readFileSync(
       join(process.cwd(), "src/components/marketing/subscribe-plan-button.tsx"),
       "utf8"
     );
-    expect(button).toContain("/api/subscriptions/stripe/public-checkout");
-    expect(button).not.toContain("mercadopago");
-    expect(button).not.toContain("pix");
+    expect(button).toContain("/api/subscriptions/mercadopago/public-checkout");
   });
 
-  it("5. trilhos públicos de assinatura presentes: checkout MP (novo rail) e webhook MP de legado", () => {
-    const { existsSync } = require("node:fs") as { existsSync: (p: string) => boolean };
+  it("5. trilhos públicos de assinatura presentes: public-checkout MP e webhook MP", () => {
     expect(
-      existsSync(join(process.cwd(), "src/app/api/subscriptions/mercadopago/checkout/route.ts"))
+      existsSync(join(process.cwd(), "src/app/api/subscriptions/mercadopago/public-checkout/route.ts"))
     ).toBe(true);
-    // Webhook MP de assinatura é preservado para legado.
     expect(
       existsSync(join(process.cwd(), "src/app/api/subscriptions/mercadopago/webhook/route.ts"))
     ).toBe(true);
   });
 
-  it("5b. não existe rota pública MP de assinatura alternativa (public-pix-checkout etc.)", () => {
-    const { existsSync, readdirSync } = require("node:fs") as {
-      existsSync: (p: string) => boolean;
-      readdirSync: (p: string) => string[];
-    };
+  it("5b. rotas públicas MP de assinatura presentes", () => {
     const mpDir = join(process.cwd(), "src/app/api/subscriptions/mercadopago");
     if (!existsSync(mpDir)) {
       expect(true).toBe(true);
       return;
     }
-    expect(readdirSync(mpDir).sort()).toEqual(["checkout", "webhook"]);
+    expect(readdirSync(mpDir).sort()).toEqual(["checkout", "public-checkout", "webhook"]);
   });
 
   it("6. a página de planos comunica a cobrança recorrente via Mercado Pago", () => {
@@ -186,8 +176,6 @@ describe("4–6. Assinatura: checkout online nos trilhos Stripe, cobrança via M
 });
 
 describe("12–13. PDV/pagamentos preservados (arquivos e rotas intactos)", () => {
-  const { existsSync } = require("node:fs") as { existsSync: (p: string) => boolean };
-
   it("rotas do PDV Mercado Pago/Pix/Stripe continuam presentes", () => {
     const paths = [
       "src/app/api/payments/mercadopago/pix/route.ts",

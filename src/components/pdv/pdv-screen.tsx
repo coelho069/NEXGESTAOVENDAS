@@ -76,6 +76,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     openPanel,
     setOpenPanel,
     lastReceipt,
+    setLastReceipt,
     pendingPix,
     draftReason,
     inventoryEpoch,
@@ -304,7 +305,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     },
     customer: () => setOpenPanel("customer"),
     discount: () => {
-      sale.setDiscountDraft(sale.discount);
+      sale.setDiscountDraft(sale.discountPercent);
       setOpenPanel("discount");
     },
     finalize: openPaymentSheet,
@@ -404,6 +405,12 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
 
           <CashRegisterPanel storeId={boundStoreId} cash={cash} />
 
+          {hasStoreContext && !cash.loading && !cash.canSell ? (
+            <div role="status" data-testid="cash-required-banner" className="pdv-alert-warning">
+              Abra o caixa deste terminal antes de vender em dinheiro. Sangria, suprimento e fechamento ficam no painel acima.
+            </div>
+          ) : null}
+
           {contextMessage ? (
             <div data-testid="store-context-message" className="pdv-alert-warning">
               {contextMessage}
@@ -494,7 +501,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
                 online={online}
                 onCustomer={() => setOpenPanel("customer")}
                 onDiscount={() => {
-                  sale.setDiscountDraft(sale.discount);
+                  sale.setDiscountDraft(sale.discountPercent);
                   setOpenPanel("discount");
                 }}
                 onOpenPayment={() => setOpenPanel("payment")}
@@ -544,7 +551,8 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
           <DiscountDialog
             open={openPanel === "discount"}
             value={sale.discountDraft}
-            max={sale.maxDiscount}
+            max={`${Number(sale.maxDiscountPercent).toLocaleString("pt-BR")}% (até ${Number(sale.maxDiscount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`}
+            subtotal={sale.totals.subtotal}
             role={effectiveRole}
             error={sale.discountError}
             onChange={sale.setDiscountDraft}
@@ -578,6 +586,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
             receipt={lastReceipt}
             onClose={() => setOpenPanel("none")}
             onReconcile={sale.reconcileLastPayment}
+            onEdit={(next) => setLastReceipt(next)}
           />
           <SuspendedSalesPanel
             open={showSuspendedSales}

@@ -180,6 +180,14 @@ export async function executePixPayment(
       };
     }
     case "cancel": {
+      if (!(await pixIntentBelongsToStore(supabase, input.store_id, input.provider_reference))) {
+        return {
+          status: "failed",
+          message: PIX_INTENT_NOT_IN_STORE_MESSAGE,
+          configured: true,
+          sale_confirmed: false,
+        };
+      }
       const result = await adapter.cancel(input.amount, context);
       if (result.providerReference && (result.status === "cancelled" || result.status === "failed")) {
         await applyPixProviderStatus(result.providerReference, result.status);
@@ -415,6 +423,29 @@ export async function applyStripeWebhookEventBranched(event: {
   }
   const card = await applyCardStripeWebhookEvent(event);
   return card;
+}
+
+const PIX_INTENT_NOT_IN_STORE_MESSAGE = "PaymentIntent não encontrado nesta loja.";
+
+/**
+ * Ownership before any provider call. Uses the caller's session: get_pix_payment_intent checks
+ * user_has_store_access and filters by store, org and provider_ref. Any error means "not owned".
+ */
+async function pixIntentBelongsToStore(
+  supabase: DbClient,
+  storeId: string,
+  providerRef: string | undefined
+): Promise<boolean> {
+  if (!providerRef) return false;
+  try {
+    const { data, error } = await supabase.rpc("get_pix_payment_intent", {
+      p_payload: asJson({ store_id: storeId, provider_ref: providerRef }),
+    });
+    if (error || !data || typeof data !== "object" || Array.isArray(data)) return false;
+    return (data as { provider_ref?: unknown }).provider_ref === providerRef;
+  } catch {
+    return false;
+  }
 }
 
 async function pixIntentExists(providerRef: string | null): Promise<boolean> {

@@ -10,6 +10,7 @@ import {
   calculateTotals,
   cartQtyByProduct,
   maxDiscountForRole,
+  DISCOUNT_LIMIT_PERCENT,
   parseMoneyInput,
   setQuantity,
   type MemberRole,
@@ -50,7 +51,7 @@ export function usePdvSale(
   stockLoading = false
 ) {
   const catalog = useMemo(() => products.map(toCatalogProduct), [products]);
-  const { storeId, lines, discount, customerId, customerName, setCustomer, removeLine } = useCartStore();
+  const { storeId, lines, discount, customerId, customerName, customerDiscountLimit, setCustomer, removeLine } = useCartStore();
   const {
     selectedProductId,
     setSelectedProductId,
@@ -149,14 +150,27 @@ export function usePdvSale(
   const applyDiscountValue = useCallback(
     (raw: string) => {
       if (checkoutInFlight) return false;
-      const parsed = parseMoneyInput(raw);
-      if (!parsed) {
-        setDiscountError("Valor inválido");
+      const cleaned = raw.replace("%", "").trim().replace(",", ".") || "0";
+      if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) {
+        setDiscountError("Porcentagem inválida");
         return false;
       }
-      const result = applyDiscount(saleSnapshot(), parsed, role);
+      const percent = Number(cleaned);
+      if (percent > 100) {
+        setDiscountError("Desconto não pode passar de 100%");
+        return false;
+      }
+      const subtotalCents = Math.round(Number(totals.subtotal) * 100);
+      const amountCents = Math.floor((subtotalCents * Math.round(percent * 100)) / 10000);
+      const amount = (amountCents / 100).toFixed(2);
+      const result = applyDiscount(saleSnapshot(), amount, role);
       if (!result.ok) {
-        setDiscountError(result.error);
+        const limit = DISCOUNT_LIMIT_PERCENT[role];
+        setDiscountError(
+          result.error.startsWith("Desconto excede")
+            ? `Desconto excede o limite permitido (${Number(limit).toLocaleString("pt-BR")}%)`
+            : result.error
+        );
         return false;
       }
       applyState(result.state);
@@ -165,13 +179,17 @@ export function usePdvSale(
       report(null);
       return true;
     },
-    [checkoutInFlight, report, role, setOpenPanel]
+    [checkoutInFlight, report, role, setOpenPanel, totals.subtotal]
   );
 
   const associateCustomer = useCallback(
     (customer: CatalogCustomer | null) => {
       if (checkoutInFlight) return;
-      setCustomer(customer?.id ?? null, customer?.name ?? null);
+      setCustomer(
+        customer?.id ?? null,
+        customer?.name ?? null,
+        customer?.discountLimit ?? null
+      );
       setOpenPanel("none");
     },
     [checkoutInFlight, setCustomer, setOpenPanel]
@@ -181,6 +199,9 @@ export function usePdvSale(
     async (method: Enums<"payment_method">) => {
       setMessage(null);
       try {
+        // Só cash é processado no MVP (AGENTS.md). card, pix, voucher e other
+        // dependem do adapter configurado e, sem ele, ficam not_configured.
+        // PIX pendente volta como `pendingPix` e a venda só confirma após o pagamento.
         const result = await paySale({
           method,
           role,
@@ -265,6 +286,7 @@ export function usePdvSale(
       const createdAt = new Date().toISOString();
       const receiptLines = cart.lines;
       const customerName = cart.customerName;
+      const customerDiscountLimit = cart.customerDiscountLimit ?? null;
       cart.clear();
       setPendingPix(null);
       setLastReceipt({
@@ -273,6 +295,7 @@ export function usePdvSale(
         storeName,
         createdAt,
         customerName,
+        customerDiscountLimit,
         lines: receiptLines,
         subtotal: totals.subtotal,
         discount: totals.discount,
@@ -362,6 +385,13 @@ export function usePdvSale(
     discountDraft,
     discountError,
     maxDiscount: maxDiscountForRole(totals.subtotal, role),
+    maxDiscountPercent: DISCOUNT_LIMIT_PERCENT[role],
+    discountPercent: (() => {
+      const sub = Number(totals.subtotal);
+      if (!sub) return "0";
+      const pct = Math.round((Number(discount) / sub) * 10000) / 100;
+      return String(pct).replace(".", ",");
+    })(),
     addProduct,
     scanCode,
     changeQty,

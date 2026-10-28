@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { dashboardMetricsQuerySchema, storeIdSchema } from "@/lib/validation/schemas";
 import { getAuthedContext } from "@/lib/auth/session";
-import { canViewReports } from "@/lib/domain/rbac";
+import { canViewReports, isClientRole } from "@/lib/domain/rbac";
+import { loadDashboard } from "@/lib/server/dashboard-query";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -24,8 +25,20 @@ export async function GET(request: Request) {
 
   const auth = await getAuthedContext(parsed.data.store_id);
   const role = auth?.role;
-  if (!role || !canViewReports(role)) {
+  if (!role || (!canViewReports(role) && !isClientRole(role))) {
     return NextResponse.json({ error: "forbidden_reports" }, { status: 403 });
+  }
+
+  if (isClientRole(role)) {
+    const result = await loadDashboard({
+      storeId: parsed.data.store_id,
+      from: parsed.data.from,
+      to: parsed.data.to,
+      cursorSku: parsed.data.cursor_sku,
+    });
+    return NextResponse.json(result.payload, {
+      headers: { "Cache-Control": "no-store" },
+    });
   }
 
   try {

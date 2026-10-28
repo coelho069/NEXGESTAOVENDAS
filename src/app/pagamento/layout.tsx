@@ -1,4 +1,5 @@
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
+import { landingTheme } from "@/components/landing/theme/landing-theme";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -15,5 +16,12 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export default function PagamentoLayout({ children }: { children: React.ReactNode }) {
-  return <div className={`${inter.variable} ${jakarta.variable}`}>{children}</div>;
+  return (
+    <div
+      className={`${inter.variable} ${jakarta.variable}`}
+      style={{ minHeight: "100vh", background: landingTheme.color.bg, color: landingTheme.color.text }}
+    >
+      {children}
+    </div>
+  );
 }

@@ -59,7 +59,7 @@ const DEPOIMENTOS = [
 ];
 
 const SELOS = [
-  { titulo: 'Conforme LGPD', sub: 'Dados tratados com base legal e trilha de auditoria', cor: t.color.accent },
+  { titulo: 'Ferramentas LGPD', sub: 'Aviso público, exportação e anonimização de clientes no PDV', cor: t.color.accent },
   { titulo: 'Criptografia Ponta a Ponta', sub: 'TLS 1.3 em trânsito e AES-256 em repouso', cor: t.color.secondary },
   { titulo: 'Backups Diários', sub: 'Restauração testada com RPO de 24h', cor: '#8B5CF6' },
 ];

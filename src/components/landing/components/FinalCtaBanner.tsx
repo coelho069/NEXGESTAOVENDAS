@@ -60,25 +60,6 @@ export function FinalCtaBanner() {
                 Escolha um plano, crie sua conta e comece a operar com o PDV do Nex Gestão Vendas.
               </p>
 
-              <Link
-                href="/planos"
-                className="nx-final-cta"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  height: 56,
-                  padding: '0 36px',
-                  borderRadius: t.radius.md,
-                  background: '#FFFFFF',
-                  color: t.color.primary,
-                  fontFamily: t.font.heading,
-                  fontSize: 16,
-                  fontWeight: 800,
-                  textDecoration: 'none',
-                }}
-              >
-                Criar Conta Gratuita
-              </Link>
             </div>
           </div>
         </Reveal>

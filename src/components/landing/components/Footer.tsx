@@ -38,7 +38,10 @@ const COLUNAS: ReadonlyArray<{ titulo: string; links: readonly FootLink[] }> = [
   },
   {
     titulo: 'Legal',
-    links: [{ label: 'Política de reembolso', href: '/politica-de-reembolso' }],
+    links: [
+      { label: 'Aviso de privacidade', href: '/politica-de-privacidade' },
+      { label: 'Política de reembolso', href: '/politica-de-reembolso' },
+    ],
   },
 ];
 

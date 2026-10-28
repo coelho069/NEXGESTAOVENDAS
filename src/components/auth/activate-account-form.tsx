@@ -11,8 +11,10 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, Loader2, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { AuthCard, AUTH_ERROR_STYLE, AUTH_LABEL_STYLE, AUTH_OK_STYLE } from "@/components/auth/auth-card";
+import { landingTheme as t } from "@/components/landing/theme/landing-theme";
 import {
   canDefineActivationPassword,
   readActivationCallback,
@@ -151,53 +153,66 @@ export function ActivateAccountForm() {
     router.refresh();
   }
 
-  return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-lg backdrop-blur-xl sm:p-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-          NEXGESTAOVENDAS
-        </p>
-        <h1
-          className="mt-2 text-2xl font-bold tracking-tight text-foreground"
-          style={{ fontFamily: "var(--font-jakarta), system-ui, sans-serif" }}
-        >
-          Ativar seu acesso
-        </h1>
+  const isForm = phase === "ready" || phase === "submitting";
+  const subtitle =
+    phase === "checking"
+      ? "Validando seu link de acesso..."
+      : phase === "invalid"
+        ? "O link não pode ser usado para definir sua senha."
+        : phase === "done"
+          ? "Acesso ativado"
+          : "Defina uma senha para acessar o sistema. Ela será usada somente por você.";
 
+  return (
+      <AuthCard title="Ativar seu acesso" subtitle={subtitle} onSubmit={onSubmit}>
         {phase === "checking" ? (
-          <p role="status" className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+          <p role="status" style={{ margin: 0, fontSize: 14, color: t.color.textMuted }}>
             Validando seu link de acesso...
           </p>
         ) : null}
 
         {phase === "invalid" ? (
-          <div role="alert" className="pdv-alert-error mt-6">
-            <p className="font-semibold">Link inválido ou expirado</p>
-            <p className="mt-1">
-              Solicite um novo envio ao suporte ou use a recuperação de senha na página de login.
-            </p>
-            <a href="/login" className="mt-3 inline-block text-sm font-semibold text-primary hover:underline">
-              Ir para o login
+          <>
+            <div role="alert" style={AUTH_ERROR_STYLE}>
+              <p style={{ margin: 0, fontWeight: 600 }}>Link inválido ou expirado</p>
+              <p style={{ margin: "4px 0 0" }}>Solicite um novo link para definir sua senha.</p>
+            </div>
+            <a href="/esqueci-senha" className="nx-login-submit" style={{ display: "block", textAlign: "center", textDecoration: "none", boxSizing: "border-box" }}>
+              Solicitar novo link
             </a>
-          </div>
+            <div style={{ textAlign: "center" }}>
+              <Link href="/login" className="nx-login-back">
+                Ir para o login
+              </Link>
+            </div>
+          </>
         ) : null}
 
         {phase === "done" ? (
-          <p role="status" className="mt-6 flex items-center gap-2 text-sm text-emerald-300">
-            <ShieldCheck size={16} aria-hidden="true" />
+          <p role="status" style={AUTH_OK_STYLE}>
             Acesso ativado. Redirecionando...
           </p>
         ) : null}
 
-        {phase === "ready" || phase === "submitting" ? (
-          <form className="mt-6 flex flex-col gap-4" onSubmit={onSubmit}>
-            <p className="text-sm text-muted-foreground">
-              Defina uma senha para acessar o sistema. Ela será usada somente por você.
-            </p>
+        {isForm ? (
+          <>
+            <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: t.color.textMuted }}>
+              {ACCOUNT_PASSWORD_REQUIREMENTS.map((requirement) => {
+                const satisfied = requirement.test(password);
+                return (
+                  <li key={requirement.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span aria-hidden="true" style={{ color: satisfied ? "#34D399" : t.color.textMuted }}>
+                      {satisfied ? "✓" : "•"}
+                    </span>
+                    <span style={{ color: satisfied ? "#6EE7B7" : undefined }}>{requirement.label}</span>
+                    <span className="sr-only">{satisfied ? "atendido" : "pendente"}</span>
+                  </li>
+                );
+              })}
+            </ul>
 
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-semibold text-foreground">Nova senha</span>
+            <label style={{ display: "block", fontSize: 14 }}>
+              <span style={AUTH_LABEL_STYLE}>Nova senha</span>
               <input
                 type="password"
                 required
@@ -207,29 +222,13 @@ export function ActivateAccountForm() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 disabled={phase === "submitting"}
-                className="pdv-input"
+                className="nx-login-input"
+                placeholder="••••••••"
               />
             </label>
 
-            <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
-              {ACCOUNT_PASSWORD_REQUIREMENTS.map((requirement) => {
-                const satisfied = requirement.test(password);
-                return (
-                  <li key={requirement.id} className="flex items-center gap-2">
-                    <span aria-hidden="true" className={satisfied ? "text-emerald-400" : "text-muted-foreground"}>
-                      {satisfied ? "✓" : "•"}
-                    </span>
-                    <span className={satisfied ? "text-emerald-300" : undefined}>
-                      {requirement.label}
-                    </span>
-                    <span className="sr-only">{satisfied ? "atendido" : "pendente"}</span>
-                  </li>
-                );
-              })}
-            </ul>
-
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-semibold text-foreground">Confirmar senha</span>
+            <label style={{ display: "block", fontSize: 14 }}>
+              <span style={AUTH_LABEL_STYLE}>Confirmar senha</span>
               <input
                 type="password"
                 required
@@ -239,35 +238,26 @@ export function ActivateAccountForm() {
                 value={confirmation}
                 onChange={(event) => setConfirmation(event.target.value)}
                 disabled={phase === "submitting"}
-                className="pdv-input"
+                className="nx-login-input"
+                placeholder="••••••••"
               />
             </label>
 
             {error ? (
-              <p role="alert" className="text-sm text-red-300">
+              <p role="alert" style={AUTH_ERROR_STYLE}>
                 {error}
               </p>
             ) : null}
 
-            <button
-              type="submit"
-              disabled={phase === "submitting" || problems.length > 0}
-              className="pdv-btn-primary inline-flex items-center justify-center gap-2"
-            >
-              {phase === "submitting" ? (
-                <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-              ) : (
-                <KeyRound size={16} aria-hidden="true" />
-              )}
-              Ativar acesso
+            <button type="submit" disabled={phase === "submitting" || problems.length > 0} className="nx-login-submit">
+              {phase === "submitting" ? "Ativando..." : "Ativar acesso"}
             </button>
 
-            <p className="text-xs text-muted-foreground">
+            <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: t.color.textMuted, textAlign: "center" }}>
               Após ativar, entre em /login com seu e-mail. Nunca compartilhe este link.
             </p>
-          </form>
+          </>
         ) : null}
-      </div>
-    </main>
+      </AuthCard>
   );
 }

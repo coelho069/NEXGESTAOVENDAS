@@ -9,6 +9,7 @@ import {
   type SaleHistoryListItem,
   type SaleHistoryListResponse,
 } from "@/lib/domain/sale-history";
+import { runWhenIdle } from "@/lib/offline/run-when-idle";
 import {
   enrichLocalSaleDetailWithReturns,
   processFixtureSaleReturn,
@@ -298,8 +299,10 @@ export function useSalesHistory(storeId: string | null) {
   );
 
   useEffect(() => {
-    void refresh();
+    // Carga inicial após o primeiro paint; mudança de loja também passa por aqui.
     // Refresh on store change only; search applies when the operator clicks Atualizar.
+    const cancelIdle = runWhenIdle(() => void refresh());
+    return cancelIdle;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: avoid per-keystroke fetch
   }, [storeId]);
 

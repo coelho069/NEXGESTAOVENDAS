@@ -1,15 +1,19 @@
 import { createServerClient } from "@supabase/ssr";
+import type { User } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/db/types";
 
-export async function updateSession(request: NextRequest) {
+/** Renova a sessão e devolve o usuário lido, para o middleware não pedir de novo ao Auth. */
+export async function updateSession(
+  request: NextRequest
+): Promise<{ response: NextResponse; user: User | null }> {
   let supabaseResponse = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !anonKey) {
-    return supabaseResponse;
+    return { response: supabaseResponse, user: null };
   }
 
   const supabase = createServerClient<Database>(url, anonKey, {
@@ -35,6 +39,8 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
-  return supabaseResponse;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return { response: supabaseResponse, user };
 }

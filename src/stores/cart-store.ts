@@ -14,6 +14,7 @@ export type CartState = {
   discount: string;
   customerId: string | null;
   customerName: string | null;
+  customerDiscountLimit: string | null;
   suspendedSaleId: string | null;
   suspensionClaimId: string | null;
   checkoutAttemptId: string | null;
@@ -26,7 +27,7 @@ export type CartState = {
   removeLine: (productId: string) => void;
   setDiscount: (discount: string) => void;
   setLines: (lines: CartLine[]) => void;
-  setCustomer: (customerId: string | null, customerName: string | null) => void;
+  setCustomer: (customerId: string | null, customerName: string | null, customerDiscountLimit?: string | null) => void;
   setSuspendedContext: (context: { suspendedSaleId: string; claimId: string } | null) => void;
   clear: () => void;
   discardForeignStore: () => void;
@@ -41,6 +42,7 @@ const createCartSlice: StateCreator<CartState> = (set, get) => ({
   discount: "0.00",
   customerId: null,
   customerName: null,
+  customerDiscountLimit: null,
   suspendedSaleId: null,
   suspensionClaimId: null,
   checkoutAttemptId: null,
@@ -80,7 +82,8 @@ const createCartSlice: StateCreator<CartState> = (set, get) => ({
     })),
   setDiscount: (discount) => set({ discount }),
   setLines: (lines) => set({ lines }),
-  setCustomer: (customerId, customerName) => set({ customerId, customerName }),
+  setCustomer: (customerId, customerName, customerDiscountLimit = null) =>
+    set({ customerId, customerName, customerDiscountLimit: customerDiscountLimit ?? null }),
   setSuspendedContext: (context) =>
     set({
       suspendedSaleId: context?.suspendedSaleId ?? null,
@@ -92,6 +95,7 @@ const createCartSlice: StateCreator<CartState> = (set, get) => ({
       discount: "0.00",
       customerId: null,
       customerName: null,
+      customerDiscountLimit: null,
       suspendedSaleId: null,
       suspensionClaimId: null,
       checkoutAttemptId: null,
@@ -103,6 +107,7 @@ const createCartSlice: StateCreator<CartState> = (set, get) => ({
       discount: "0.00",
       customerId: null,
       customerName: null,
+      customerDiscountLimit: null,
       suspendedSaleId: null,
       suspensionClaimId: null,
       checkoutAttemptId: null,
@@ -126,6 +131,7 @@ export function createCartStore(options?: { persist?: boolean }): CartStore {
           discount: state.discount,
           customerId: state.customerId,
           customerName: state.customerName,
+          customerDiscountLimit: state.customerDiscountLimit,
           suspendedSaleId: state.suspendedSaleId,
           suspensionClaimId: state.suspensionClaimId,
           checkoutAttemptId: state.checkoutAttemptId,

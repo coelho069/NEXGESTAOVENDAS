@@ -1,4 +1,4 @@
 {
   "extends": ["next/core-web-vitals", "next/typescript"],
-  "ignorePatterns": ["next-env.d.ts", ".next/**", ".next-e2e/**", "node_modules/**"]
+  "ignorePatterns": ["next-env.d.ts", ".next/**", ".next-e2e/**", "node_modules/**", "alethe-agents/**", "painel/**"]
 }

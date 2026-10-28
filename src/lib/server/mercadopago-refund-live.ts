@@ -16,6 +16,12 @@ export type LiveMercadoPagoRefundResult =
         | "mp_refund_timeout"
         | "mp_invalid_response";
       message?: string;
+      /**
+       * true only when Mercado Pago refused the request and did not accept a refund.
+       * Any other failure (timeout, network error, 5xx, unreadable response) may hide an
+       * accepted refund, so the caller must treat it as an unknown outcome.
+       */
+      providerRejected?: true;
     };
 
 type RefundEntry = { id: string; status: string };
@@ -132,8 +138,21 @@ async function fetchWithTimeout(
   }
 }
 
-function failed(secret: string, body: unknown, fallback: string): LiveMercadoPagoRefundResult {
-  return { ok: false, error: "mp_refund_failed", message: providerMessage(body, secret, fallback) };
+function failed(
+  secret: string,
+  body: unknown,
+  fallback: string,
+  providerRejected = false
+): LiveMercadoPagoRefundResult {
+  const message = providerMessage(body, secret, fallback);
+  return providerRejected
+    ? { ok: false, error: "mp_refund_failed", message, providerRejected: true }
+    : { ok: false, error: "mp_refund_failed", message };
+}
+
+/** 4xx means the request was refused. 408 and 409 can mean the request is still in progress. */
+function isRefusalStatus(status: number): boolean {
+  return status >= 400 && status < 500 && status !== 408 && status !== 409;
 }
 
 /**
@@ -172,7 +191,12 @@ export async function executeLiveMercadoPagoRefund(input: {
     const paymentBody = await readBody(paymentResponse);
     if (!paymentResponse.ok) {
       if (paymentResponse.status === 404) return { ok: false, error: "mp_payment_not_refundable" };
-      return failed(env.accessToken, paymentBody, "Não foi possível consultar o pagamento no Mercado Pago.");
+      return failed(
+        env.accessToken,
+        paymentBody,
+        "Não foi possível consultar o pagamento no Mercado Pago.",
+        isRefusalStatus(paymentResponse.status)
+      );
     }
 
     if (isUnparsed(paymentBody)) return invalidResponse();
@@ -187,7 +211,12 @@ export async function executeLiveMercadoPagoRefund(input: {
     );
     const refundsBody = await readBody(refundsResponse);
     if (!refundsResponse.ok) {
-      return failed(env.accessToken, refundsBody, "Não foi possível consultar estornos deste pagamento.");
+      return failed(
+        env.accessToken,
+        refundsBody,
+        "Não foi possível consultar estornos deste pagamento.",
+        isRefusalStatus(refundsResponse.status)
+      );
     }
     if (isUnparsed(refundsBody)) return invalidResponse();
     if (!Array.isArray(refundsBody)) {
@@ -239,7 +268,12 @@ export async function executeLiveMercadoPagoRefund(input: {
     if (refundResponse.ok && refundStatus === "approved" && refundId) {
       return { ok: true, refundId, status: refundStatus, alreadyRefunded: false };
     }
-    return failed(env.accessToken, refundBody, "O Mercado Pago não confirmou o estorno.");
+    return failed(
+      env.accessToken,
+      refundBody,
+      "O Mercado Pago não confirmou o estorno.",
+      !refundResponse.ok && isRefusalStatus(refundResponse.status)
+    );
   } catch (error) {
     if (error instanceof MercadoPagoRefundTimeout || isAbortError(error)) {
       return { ok: false, error: "mp_refund_timeout" };

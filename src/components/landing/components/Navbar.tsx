@@ -45,7 +45,7 @@ export function Navbar({
   brandLabel = 'NexGestão',
   loginLabel = 'Entrar na Conta',
   loginHref = '/login',
-  primaryCta = { label: 'Testar Gratuitamente por 14 Dias', href: '/planos' },
+  primaryCta,
 }: NavbarProps = {}) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -113,6 +113,7 @@ export function Navbar({
             >
               {loginLabel}
             </a>
+            {primaryCta && (
             <a
               className="nx-nav-cta"
               href={primaryCta.href}
@@ -133,6 +134,7 @@ export function Navbar({
             >
               {primaryCta.label}
             </a>
+            )}
             <button
               type="button"
               className="nx-nav-menu-btn"
@@ -204,6 +206,7 @@ export function Navbar({
               >
                 {loginLabel}
               </a>
+              {primaryCta && (
               <a
                 href={primaryCta.href}
                 onClick={() => setMenuOpen(false)}
@@ -211,6 +214,7 @@ export function Navbar({
               >
                 {primaryCta.label}
               </a>
+              )}
             </div>
           </div>
         )}

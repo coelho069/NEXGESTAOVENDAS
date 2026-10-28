@@ -1,3 +1,5 @@
+import { trustedClientIp } from "./client-ip";
+
 /**
  * Process-local request limiter for sensitive endpoints.
  *
@@ -63,8 +65,9 @@ export function resetRateLimitStateForTests(): void {
  * Build a rate-limit key.
  *
  * - Prefer an authenticated subject when the caller already resolved one.
- * - Do NOT trust X-Forwarded-For / X-Real-IP unless TRUST_PROXY=1 is set by the
- *   deployment that terminates TLS and sanitizes those headers.
+ * - Do NOT trust X-Forwarded-For unless TRUST_PROXY=1 is set by the deployment
+ *   that terminates TLS and appends the client address; only the last hop is read
+ *   (see client-ip.ts).
  * - Fall back to a coarse bucket so unauthenticated abuse is still bounded.
  */
 export function clientRateLimitKey(
@@ -76,15 +79,8 @@ export function clientRateLimitKey(
     return `${scope}:sub:${subject.trim()}`;
   }
 
-  const trustProxy = process.env.TRUST_PROXY === "1";
-  if (trustProxy) {
-    const forwarded = request.headers.get("x-forwarded-for");
-    const ip =
-      forwarded?.split(",")[0]?.trim() ||
-      request.headers.get("x-real-ip")?.trim() ||
-      "unknown";
-    return `${scope}:ip:${ip}`;
-  }
+  const ip = trustedClientIp(request.headers);
+  if (ip) return `${scope}:ip:${ip}`;
 
   return `${scope}:untrusted`;
 }

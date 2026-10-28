@@ -4,10 +4,39 @@ import type { ReactNode } from "react";
 import { formatBRL } from "@/lib/money";
 import { PermissionGate } from "@/components/auth/permission-gate";
 import { StoreSelect } from "@/components/auth/store-select";
+import { AUTH_CSS } from "@/components/auth/login-form";
+import { landingTheme as t } from "@/components/landing/theme/landing-theme";
 import type { PaymentAdapterAlert } from "@/lib/adapters/payment";
 import type { MemberRole } from "@/lib/domain/rbac";
 import { paymentMethodLabel, saleStatusLabel } from "@/lib/domain/sale-history";
 import type { DashboardLoadResult } from "@/lib/server/dashboard-query";
+
+/** Tokens do tema de login (cartão de vidro sobre t.color.bg). */
+const ui = {
+  panel: {
+    border: `1px solid ${t.color.glassBorder}`,
+    borderRadius: t.radius.lg,
+    background: t.color.glassBg,
+    backdropFilter: "blur(20px)",
+    WebkitBackdropFilter: "blur(20px)",
+    boxShadow: t.shadow.card,
+    color: t.color.textBody,
+  },
+  chip: {
+    border: `1px solid ${t.color.borderStrong}`,
+    borderRadius: t.radius.full,
+    background: "rgba(255, 255, 255, 0.04)",
+    color: t.color.textBody,
+  },
+  heading: { color: t.color.text, fontFamily: t.font.heading },
+  muted: { color: t.color.textMuted },
+  body: { color: t.color.textBody },
+  strong: { color: t.color.text },
+  link: { color: t.color.accent, fontWeight: 600, textDecoration: "none" },
+  theadRow: { background: "rgba(255, 255, 255, 0.04)", color: t.color.textMuted },
+  rowBorder: { borderTop: `1px solid ${t.color.border}` },
+  primaryButton: { width: "auto", padding: "10px 18px", fontSize: 14 },
+} as const;
 
 type DashboardScreenProps = {
   storeId: string | null;
@@ -35,16 +64,18 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 p-4 lg:p-6">
+      <style>{AUTH_CSS}</style>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Dashboard</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-semibold tracking-tight" style={ui.heading}>Dashboard</h1>
+          <p className="mt-1 text-sm" style={ui.muted}>
             {initial.payload.from} → {initial.payload.to} (fim exclusivo) · America/Sao_Paulo
           </p>
         </div>
         <span
           data-testid="dashboard-role"
-          className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
+          className="px-3 py-1 text-xs font-medium"
+          style={ui.chip}
         >
           Papel: {roleLabel(initial.role)}
         </span>
@@ -53,42 +84,44 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
       <form
         method="get"
         action="/dashboard"
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
+        className="flex flex-wrap items-end gap-3 px-4 py-3"
+        style={ui.panel}
       >
-        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <label className="text-xs font-medium uppercase tracking-wide" style={ui.muted}>
           Loja
           <StoreSelect
             name="store"
             testId="dashboard-store"
-            className="mt-1.5 block rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-900"
+            className="nx-login-input mt-1.5 block"
             stores={initial.stores}
             defaultValue={storeId}
           />
         </label>
-        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <label className="text-xs font-medium uppercase tracking-wide" style={ui.muted}>
           De
           <input
             type="date"
             name="from"
             data-testid="dashboard-from"
             defaultValue={initial.payload.from}
-            className="mt-1.5 block rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-900"
+            className="nx-login-input mt-1.5 block"
           />
         </label>
-        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <label className="text-xs font-medium uppercase tracking-wide" style={ui.muted}>
           Até
           <input
             type="date"
             name="to"
             data-testid="dashboard-to"
             defaultValue={initial.payload.to}
-            className="mt-1.5 block rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-900"
+            className="nx-login-input mt-1.5 block"
           />
         </label>
         <button
           type="submit"
           data-testid="dashboard-filter"
-          className="rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white"
+          className="nx-login-submit"
+          style={ui.primaryButton}
         >
           Filtrar
         </button>
@@ -106,7 +139,13 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
         </div>
       ) : null}
 
-      <PermissionGate role={initial.role} allow={["admin", "manager"]}>
+      {initial.role === "client" ? (
+        <div className="rounded-xl px-4 py-3 text-sm" style={ui.panel}>
+          Painel de status das operações (Papel Cliente). Acompanhe o andamento das vendas, pagamentos e estoque da loja.
+        </div>
+      ) : null}
+
+      <PermissionGate role={initial.role} allow={["admin", "manager", "client"]}>
         <AlertStrip
           notConfiguredAlerts={notConfiguredAlerts}
           unknownAlerts={unknownAlerts}
@@ -117,7 +156,8 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
         {initial.degraded ? (
           <div
             data-testid="dashboard-online-only"
-            className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
+            className="rounded-lg px-4 py-3 text-sm"
+            style={ui.panel}
           >
             Indicadores financeiros oficiais ficam indisponíveis sem uma resposta
             online completa do servidor.
@@ -126,7 +166,7 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
           <>
             <div data-testid="dashboard-metrics" className="flex flex-col gap-5">
               <section className="space-y-2">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Resumo</h2>
+                <h2 className="text-xs font-semibold uppercase tracking-wide" style={ui.muted}>Resumo</h2>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Metric
                     dataTestId="dashboard-revenue"
@@ -149,7 +189,7 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
                 </div>
               </section>
               <section className="space-y-2">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <h2 className="text-xs font-semibold uppercase tracking-wide" style={ui.muted}>
                   Rentabilidade e volume
                 </h2>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -195,7 +235,7 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
               >
                 <SummaryLine label="Vendas excluídas" value={String(excludedSalesTotal)} />
                 {excludedSalesEntries.length === 0 ? (
-                  <p className="text-sm text-slate-500">Nenhuma venda excluída no período.</p>
+                  <p className="text-sm" style={ui.muted}>Nenhuma venda excluída no período.</p>
                 ) : (
                   excludedSalesEntries.map(([status, count]) => (
                     <SummaryLine key={`sale-${status}`} label={excludedSaleStatusLabel(status)} value={String(count)} />
@@ -203,7 +243,7 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
                 )}
                 <SummaryLine label="Pagamentos excluídos" value={String(excludedPaymentsTotal)} />
                 {excludedPaymentsEntries.length === 0 ? (
-                  <p className="text-sm text-slate-500">Nenhum pagamento excluído no período.</p>
+                  <p className="text-sm" style={ui.muted}>Nenhum pagamento excluído no período.</p>
                 ) : (
                   excludedPaymentsEntries.map(([status, count]) => (
                     <SummaryLine
@@ -225,7 +265,7 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
                   value={String(summary.inventory.negativeQuantityRows)}
                 />
                 {criticalRows.length === 0 ? (
-                  <p className="text-sm text-slate-500">Nenhum SKU da página atual com saldo ≤ 0.</p>
+                  <p className="text-sm" style={ui.muted}>Nenhum SKU da página atual com saldo ≤ 0.</p>
                 ) : (
                   criticalRows.map((row) => (
                     <SummaryLine
@@ -238,7 +278,8 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
                 <a
                   data-testid="dashboard-inventory-link"
                   href={inventoryHref}
-                  className="inline-block pt-1 text-sm font-medium text-emerald-700"
+                  className="inline-block pt-1 text-sm"
+                  style={ui.link}
                 >
                   Abrir inventário
                 </a>
@@ -250,21 +291,21 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
                 <a
                   data-testid="dashboard-export"
                   href={exportHref}
-                  className="font-medium text-emerald-700"
+                  style={ui.link}
                 >
                   Exportar página CSV
                 </a>
               ) : null}
               {nextHref ? (
-                <a data-testid="dashboard-next" href={nextHref} className="font-medium text-emerald-700">
+                <a data-testid="dashboard-next" href={nextHref} style={ui.link}>
                   Próxima página
                 </a>
               ) : null}
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <div className="overflow-x-auto rounded-xl" style={ui.panel}>
               <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <thead className="text-xs uppercase tracking-wide" style={ui.theadRow}>
                   <tr>
                     <th className="px-4 py-2.5 font-semibold">SKU</th>
                     <th className="px-4 py-2.5 font-semibold">Faturamento</th>
@@ -277,14 +318,14 @@ export function DashboardScreen({ storeId, initial, paymentAlerts }: DashboardSc
                 <tbody>
                   {initial.payload.rows.length === 0 ? (
                     <tr>
-                      <td className="px-4 py-5 text-slate-500" colSpan={6}>
+                      <td className="px-4 py-5" style={ui.muted} colSpan={6}>
                         Sem vendas no período.
                       </td>
                     </tr>
                   ) : (
                     initial.payload.rows.map((row) => (
-                      <tr key={row.product_id} className="border-t border-slate-100">
-                        <td className="px-4 py-2.5 font-medium text-slate-800">{row.sku}</td>
+                      <tr key={row.product_id} style={ui.rowBorder}>
+                        <td className="px-4 py-2.5 font-medium" style={ui.strong}>{row.sku}</td>
                         <td className="px-4 py-2.5 tabular-nums">{formatBRL(row.revenue)}</td>
                         <td className="px-4 py-2.5 tabular-nums">{formatBRL(row.discounts)}</td>
                         <td className="px-4 py-2.5 tabular-nums">{formatOptionalBRL(row.cogs)}</td>
@@ -335,14 +376,15 @@ function Metric({
   emphasis?: boolean;
 }) {
   return (
-    <div data-testid={dataTestId} className="rounded-xl border border-slate-200 bg-white px-5 py-4">
-      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
+    <div data-testid={dataTestId} className="px-5 py-4 rounded-xl" style={ui.panel}>
+      <div className="text-xs font-medium uppercase tracking-wide" style={ui.muted}>{label}</div>
       <div
         className={
           emphasis
-            ? "mt-2 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums"
-            : "mt-1.5 text-lg font-semibold text-slate-800 tabular-nums"
+            ? "mt-2 text-2xl font-semibold tracking-tight tabular-nums"
+            : "mt-1.5 text-lg font-semibold tabular-nums"
         }
+        style={ui.strong}
       >
         {value}
       </div>
@@ -362,9 +404,9 @@ function SummaryCard({
   children: ReactNode;
 }) {
   return (
-    <section data-testid={testId} className="rounded-xl border border-slate-200 bg-white px-5 py-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
-      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
+    <section data-testid={testId} className="px-5 py-4 rounded-xl" style={ui.panel}>
+      <h2 className="text-xs font-semibold uppercase tracking-wide" style={ui.muted}>{title}</h2>
+      {hint ? <p className="mt-1 text-xs" style={ui.muted}>{hint}</p> : null}
       <div className="mt-3 space-y-2">{children}</div>
     </section>
   );
@@ -373,8 +415,8 @@ function SummaryCard({
 function SummaryLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-sm">
-      <span className="text-slate-600">{label}</span>
-      <strong className="tabular-nums text-slate-900">{value}</strong>
+      <span style={ui.body}>{label}</span>
+      <strong className="tabular-nums" style={ui.strong}>{value}</strong>
     </div>
   );
 }
@@ -395,7 +437,7 @@ function AlertStrip({
   const lines: string[] = [];
   if (notConfiguredAlerts.length > 0) {
     const methods = notConfiguredAlerts.map((alert) => paymentMethodLabel(alert.method)).join(", ");
-    lines.push(`${methods}: not_configured. Apenas dinheiro é processado no MVP.`);
+    lines.push(`${methods}: not_configured. Forma de pagamento não configurada.`);
   }
   if (unknownAlerts.length > 0) {
     const methods = unknownAlerts.map((alert) => paymentMethodLabel(alert.method)).join(", ");

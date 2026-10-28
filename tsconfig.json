@@ -31,11 +31,14 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    ".next-deploy-ffa1a6e-auth/types/**/*.ts",
+    ".next-e2e/types/**/*.ts",
     ".next/types/**/*.ts",
-    "next-env.d.ts",
-    ".next-e2e/types/**/*.ts"
+    "next-env.d.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "alethe-agents",
+    "painel"
   ]
 }

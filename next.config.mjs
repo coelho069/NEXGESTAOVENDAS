@@ -53,6 +53,9 @@ const nextConfig = {
   serverExternalPackages: ["stripe", "nodemailer"],
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
+  experimental: {
+    optimizePackageImports: ["lucide-react"],
+  },
   eslint: { ignoreDuringBuilds: true },
   images: {
     remotePatterns: [
@@ -93,6 +96,21 @@ const nextConfig = {
       {
         source: "/reembolso",
         destination: "/politica-de-reembolso",
+        statusCode: 301,
+      },
+      {
+        source: "/privacidade",
+        destination: "/politica-de-privacidade",
+        statusCode: 301,
+      },
+      {
+        source: "/lgpd",
+        destination: "/politica-de-privacidade",
+        statusCode: 301,
+      },
+      {
+        source: "/privacy",
+        destination: "/politica-de-privacidade",
         statusCode: 301,
       },
     ];

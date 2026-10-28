@@ -78,6 +78,29 @@ function createInput(): MercadoPagoPixPaymentInput {
   };
 }
 
+// Provedor simulado: a confirmação do webhook Pix consulta o pedido no MP antes de aplicar.
+function stubProviderOrderProcessed() {
+  vi.stubEnv("MERCADOPAGO_CHECKOUT_ENABLED", "true");
+  vi.stubEnv("MERCADOPAGO_ACCESS_TOKEN", "APP_USR_test");
+  vi.stubEnv("MERCADOPAGO_WEBHOOK_SECRET", "mp_webhook_secret_test");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          id: MP_ORDER,
+          status: "processed",
+          status_detail: "accredited",
+          total_amount: "10.00",
+          currency: "BRL",
+          live_mode: false,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+  );
+}
+
 function orderSnapshot(overrides: Partial<MercadoPagoOrderSnapshot> = {}): MercadoPagoOrderSnapshot {
   return {
     id: MP_ORDER,
@@ -408,6 +431,7 @@ describe("Mercado Pago webhook route", () => {
     vi.stubEnv("MERCADOPAGO_ACCESS_TOKEN", "APP_USR_test");
     vi.stubEnv("MERCADOPAGO_WEBHOOK_SECRET", "mp_webhook_secret_test");
 
+    stubProviderOrderProcessed();
     const rpc = mockAdminRpc((name) => {
       if (name === "apply_pix_provider_event") {
         return { data: { store_id: STORE, client_mutation_id: MUTATION, sale_id: null }, error: null };
@@ -462,6 +486,7 @@ describe("Mercado Pago webhook durable idempotency", () => {
   });
 
   it("confirms sale only after order.processed + process_pix_sale", async () => {
+    stubProviderOrderProcessed();
     const rpc = mockAdminRpc((name) => {
       if (name === "apply_pix_provider_event") {
         return { data: { store_id: STORE, client_mutation_id: MUTATION, sale_id: null }, error: null };
@@ -480,7 +505,7 @@ describe("Mercado Pago webhook durable idempotency", () => {
     });
     expect(notification).not.toBeNull();
 
-    const result = await applyMercadoPagoWebhookEvent(notification!);
+    const result = await applyMercadoPagoWebhookEvent(notification!, { signedDataId: MP_ORDER });
     expect(result.status).toBe("captured");
     expect(result.sale_confirmed).toBe(true);
     expect(result.sale_id).toBe(SALE);
@@ -491,6 +516,7 @@ describe("Mercado Pago webhook durable idempotency", () => {
   });
 
   it("returns replay from DB without double process_pix_sale", async () => {
+    stubProviderOrderProcessed();
     const rpc = mockAdminRpc((name) => {
       if (name === "apply_pix_provider_event") {
         return {
@@ -513,13 +539,14 @@ describe("Mercado Pago webhook durable idempotency", () => {
       data: { id: MP_ORDER },
     })!;
 
-    const result = await applyMercadoPagoWebhookEvent(notification);
+    const result = await applyMercadoPagoWebhookEvent(notification, { signedDataId: MP_ORDER });
     expect(result.replay).toBe(true);
     expect(result.sale_confirmed).toBe(true);
     expect(rpc.mock.calls.map((call) => call[0])).toEqual(["apply_pix_provider_event"]);
   });
 
   it("skips process_pix_sale when intent is unmatched", async () => {
+    stubProviderOrderProcessed();
     mockAdminRpc(() => ({ data: { status: "captured" }, error: null }));
 
     const result = await applyMercadoPagoWebhookEvent({
@@ -527,7 +554,7 @@ describe("Mercado Pago webhook durable idempotency", () => {
       type: "order",
       action: "order.processed",
       data: { id: MP_ORDER },
-    });
+    }, { signedDataId: MP_ORDER });
 
     expect(result.status).toBe("unknown");
     expect(result.sale_confirmed).toBe(false);

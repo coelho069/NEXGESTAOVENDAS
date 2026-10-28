@@ -27,6 +27,7 @@ export const metadata: Metadata = {
     "Planos de assinatura do PDV local-first Nex Gestão Vendas para varejo brasileiro.",
 };
 
+
 export default async function PlanosPage() {
   const [auth, plansResult] = await Promise.all([getAuthedContext(), loadPublicPlans()]);
 

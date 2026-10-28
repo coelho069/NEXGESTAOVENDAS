@@ -41,7 +41,11 @@ export function adminActionErrorMessage(error: string | null | undefined): strin
     case "mp_payment_not_refundable":
       return "Este pagamento não está aprovado no Mercado Pago e não pode ser estornado.";
     case "mp_refund_failed":
-      return "O Mercado Pago não confirmou o estorno. O pedido continua pendente.";
+      return "O Mercado Pago recusou o estorno. O pedido ficou marcado como falho e nenhum valor foi devolvido.";
+    case "mp_refund_outcome_unknown":
+      return "O resultado do estorno no Mercado Pago é desconhecido. Não reenvie: aguarde a reconciliação pela chave de idempotência.";
+    case "refund_record_pending_reconciliation":
+      return "O estorno foi feito no Mercado Pago, mas o registro local falhou. Reconcilie antes de qualquer nova ação.";
     case "mp_invalid_response":
       return "Resposta inválida do Mercado Pago. O pedido continua pendente e pode ser tentado de novo.";
     case "mp_refund_timeout":

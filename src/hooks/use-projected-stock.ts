@@ -41,7 +41,9 @@ export function useProjectedStock(storeId: string | null, epoch = 0) {
       }
       setBalances(next);
       setLoadedStoreId(storeId);
-    } catch {
+    } catch (error) {
+      // Saldos ficam vazios, mas a falha de leitura do IndexedDB precisa aparecer no console.
+      console.error("[pdv] falha ao ler saldos locais de estoque", { storeId, error });
       setBalances({});
       setLoadedStoreId(storeId);
     } finally {

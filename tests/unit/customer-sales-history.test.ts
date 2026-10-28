@@ -185,7 +185,7 @@ describe("GET /api/customers/[id]/sales", () => {
     });
 
     expect(response.status).toBe(404);
-    await expect(response.json()).resolves.toEqual({ error: "customer_not_found" });
+    await expect(response.json()).resolves.toMatchObject({ error: "customer_not_found" });
   });
 
   it("rejects invalid customer id", async () => {

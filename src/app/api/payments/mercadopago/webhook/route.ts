@@ -96,7 +96,21 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await applyMercadoPagoWebhookEvent(notification);
+  const result = await applyMercadoPagoWebhookEvent(notification, {
+    signedDataId: dataIdFromRequest(request),
+  });
+  if (result.rejected === "binding_mismatch") {
+    observeApiResult(obs, "rejected", { error: "mercadopago_webhook_binding_mismatch" });
+    return obs.withHeaders(
+      NextResponse.json({ error: "mercadopago_webhook_binding_mismatch" }, { status: 400 })
+    );
+  }
+  if (result.retryable) {
+    observeApiResult(obs, "server_error", { error: "mercadopago_provider_unavailable" });
+    return obs.withHeaders(
+      NextResponse.json({ error: "mercadopago_provider_unavailable" }, { status: 503 })
+    );
+  }
   observeApiResult(obs, "ok", {
     eventId: notification.id,
     action: notification.action,

@@ -1,5 +1,6 @@
-import { canViewReports, type MemberRole } from "@/lib/domain/rbac";
+import { canViewReports, isClientRole, type MemberRole } from "@/lib/domain/rbac";
 import {
+  averageTicket,
   defaultDashboardPeriod,
   EMPTY_DASHBOARD,
   parseDashboardPeriod,
@@ -13,6 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fixtureStoreOptions, pdvFixturesEnabled } from "@/lib/pdv/fixtures";
 import { storeIdSchema } from "@/lib/validation/schemas";
 import type { StoreOption } from "@/lib/auth/store-context";
+import { money, toMoneyString } from "@/lib/money";
 
 export type DashboardRow = {
   product_id: string;
@@ -329,7 +331,7 @@ export async function loadDashboard(params: {
     };
   }
 
-  if (!storeId || !role || !canViewReports(role)) {
+  if (!storeId || !role || (!canViewReports(role) && !isClientRole(role))) {
     return {
       degraded: false,
       forbidden: true,
@@ -339,6 +341,65 @@ export async function loadDashboard(params: {
       payload: empty,
       message: auth?.stores.length ? "Selecione uma loja autorizada." : "Acesso à loja negado.",
     };
+  }
+
+  if (isClientRole(role)) {
+    try {
+      const supabase = await createClient();
+      const { data: salesData } = await supabase
+        .from("sales")
+        .select("id, status, total, created_at")
+        .eq("store_id", storeId)
+        .gte("created_at", `${from}T00:00:00`)
+        .lt("created_at", `${to}T23:59:59.999Z`);
+
+      const sales = salesData ?? [];
+      const confirmedSales = sales.filter((s) => s.status === "confirmed");
+      const revenue = confirmedSales.reduce((acc, s) => acc.plus(money(s.total ?? "0")), money(0));
+      const revenueStr = toMoneyString(revenue);
+      const salesCount = confirmedSales.length;
+
+      const { data: productsData } = await supabase
+        .from("products")
+        .select("id, sku, name")
+        .eq("org_id", auth?.orgId ?? "")
+        .limit(20);
+
+      const rows: DashboardRow[] = (productsData ?? []).map((p) => ({
+        product_id: p.id,
+        sku: p.sku,
+        product_name: p.name,
+        revenue: "0.00",
+        cogs: null,
+        gross_profit: null,
+        units_sold: 0,
+        on_hand: 0,
+        sell_through: null,
+        discounts: "0.00",
+        cogs_available: false,
+      }));
+
+      const summary: DashboardSummary = {
+        ...EMPTY_DASHBOARD,
+        revenue: revenueStr,
+        salesCount,
+        averageTicket: averageTicket(revenueStr, salesCount),
+        unitsSold: 0,
+        cogsAvailable: false,
+      };
+
+      const payload: DashboardPayload = {
+        summary,
+        rows,
+        next_cursor: null,
+        from,
+        to,
+      };
+
+      return { degraded: false, forbidden: false, role, storeId, stores, payload, message: null };
+    } catch {
+      return { degraded: false, forbidden: false, role, storeId, stores, payload: empty, message: null };
+    }
   }
 
   if (hasRequestedPeriod && !requestedPeriod) {

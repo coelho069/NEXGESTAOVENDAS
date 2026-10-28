@@ -6,6 +6,7 @@ import {
   normalizeAcceptedPaymentMethods,
   type ManualPaymentMethod,
 } from "@/lib/domain/store-payment-methods";
+import { runWhenIdle } from "@/lib/offline/run-when-idle";
 
 export type SaveAcceptedPaymentMethodsResult = { ok: true } | { ok: false; error: string };
 
@@ -19,20 +20,24 @@ export function useStorePaymentMethods(storeId: string | null): {
     setAccepted([...DEFAULT_ACCEPTED_PAYMENT_METHODS]);
     if (!storeId) return;
     let cancelled = false;
-    void (async () => {
-      try {
-        const response = await fetch(`/api/store/settings?store_id=${encodeURIComponent(storeId)}`, {
-          credentials: "include",
-        });
-        if (!response.ok) return;
-        const body = (await response.json()) as { accepted_payment_methods?: unknown };
-        if (!cancelled) setAccepted(normalizeAcceptedPaymentMethods(body.accepted_payment_methods));
-      } catch {
-        // Falha de leitura mantém o padrão (todas marcadas).
-      }
-    })();
+    // Após o primeiro paint: o padrão já está na tela; a leitura da loja só ajusta as opções.
+    const cancelIdle = runWhenIdle(() => {
+      void (async () => {
+        try {
+          const response = await fetch(`/api/store/settings?store_id=${encodeURIComponent(storeId)}`, {
+            credentials: "include",
+          });
+          if (!response.ok) return;
+          const body = (await response.json()) as { accepted_payment_methods?: unknown };
+          if (!cancelled) setAccepted(normalizeAcceptedPaymentMethods(body.accepted_payment_methods));
+        } catch {
+          // Falha de leitura mantém o padrão (todas marcadas).
+        }
+      })();
+    });
     return () => {
       cancelled = true;
+      cancelIdle();
     };
   }, [storeId]);
 

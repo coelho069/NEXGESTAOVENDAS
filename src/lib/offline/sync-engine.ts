@@ -428,6 +428,9 @@ export async function pullChanges(deps: SyncEngineDeps): Promise<PullChangesResp
   const cursorKey = `lastPullAt:${deps.storeId}`;
   const storedCursor = await deps.db.meta.get(cursorKey);
   let cursor = parseStoredPullCursor(storedCursor?.value);
+  // Sem saldos locais para a loja (IndexedDB recriado/limpo), ignora o cursor e faz pull completo.
+  const localBalances = await deps.db.inventoryBalances.where("storeId").equals(deps.storeId).count();
+  if (localBalances === 0) cursor = { since: null };
   const reconciliationIds = await listOutcomeUnknownMutationIds(deps.db, deps.storeId);
   const inventoryReconciliationIds = await listOutcomeUnknownInventoryMutationIds(
     deps.db,

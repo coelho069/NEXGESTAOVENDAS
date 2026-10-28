@@ -302,7 +302,7 @@ export function planSubscriptionRenewal(input: {
   }
   const currentEnd = latest.periodEnd.slice(0, 10);
   if (currentEnd > input.today) {
-    return { kind: "extend", subscriptionId: latest.id, periodStart: null, periodEnd: addDaysToDateOnly(currentEnd, days) };
+    return { kind: "extend", subscriptionId: latest.id, periodStart: null, periodEnd: freshEnd };
   }
   return { kind: "extend", subscriptionId: latest.id, periodStart: input.paidDate.slice(0, 10), periodEnd: freshEnd };
 }

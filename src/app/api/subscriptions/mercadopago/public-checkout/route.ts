@@ -8,6 +8,7 @@ import {
 } from "@/lib/observability/request-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { executeCheckoutProPreference } from "@/lib/server/mercadopago-checkout-pro";
+import { isAdultOnDate, todayInSaoPaulo } from "@/lib/domain/age-gate";
 
 function asAmountString(value: number | string): string {
   return typeof value === "number" ? value.toFixed(2) : value;
@@ -35,6 +36,12 @@ export async function POST(request: Request) {
     return obs.withHeaders(
       validationFailedResponse(process.env.NODE_ENV === "production", parsed.error.flatten())
     );
+  }
+
+  // Maioridade (18+) na data de hoje, em America/Sao_Paulo. A UI faz a mesma
+  // checagem, mas só o servidor é a barreira. A data é autodeclarada e não é verificada.
+  if (!isAdultOnDate(parsed.data.birth_date, todayInSaoPaulo())) {
+    return obs.withHeaders(NextResponse.json({ error: "age_below_minimum" }, { status: 422 }));
   }
 
   const emailRate = consumeRateLimit({

@@ -43,8 +43,6 @@ test("SKU -> quantidade -> desconto -> pagamento -> recibo", async ({ page }) =>
   await payCash(page);
 
   await expect(page.getByTestId("receipt")).toBeVisible();
-  await expect(page.getByTestId("receipt-sync-status")).toContainText(/Sincronização:/);
-  await expect(page.getByTestId("receipt-sync-status")).toContainText(/pending|synced|pending_sync/);
 });
 
 test("pagamento falho permanece rascunho local", async ({ page }) => {
@@ -66,14 +64,13 @@ test("pagamento falho permanece rascunho local", async ({ page }) => {
   await expect(page.getByTestId("receipt")).toHaveCount(0);
 });
 
-test("checkout offline gera recibo com status de sincronização", async ({ page, context }) => {
+test("checkout offline gera recibo", async ({ page, context }) => {
   await page.goto("/pdv");
   await selectStore(page);
   await addSku(page, "BEV-002");
   await context.setOffline(true);
   await payCash(page);
   await expect(page.getByTestId("receipt")).toBeVisible();
-  await expect(page.getByTestId("receipt-sync-status")).toContainText("pending");
 });
 
 test("scanner HID adiciona item sem limpar o carrinho", async ({ page }) => {

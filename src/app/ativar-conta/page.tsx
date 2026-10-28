@@ -30,7 +30,7 @@ export const metadata: Metadata = {
  */
 export default function ActivateAccountPage() {
   return (
-    <div className={`pdv-theme ${inter.variable} ${jakarta.variable}`}>
+    <div className={`${inter.variable} ${jakarta.variable}`}>
       <ActivateAccountForm />
     </div>
   );

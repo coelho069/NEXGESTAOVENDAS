@@ -324,12 +324,18 @@ export function applyApprovedRefundBlock(
  */
 export function refundBlocksSubscription(
   refundedAt: string | null,
-  subscriptionCreatedAt: string | null
+  subscriptionCreatedAt: string | null,
+  lastPaymentAt: string | null = null
 ): boolean {
   if (!refundedAt) return false;
-  if (!subscriptionCreatedAt) return true;
+  if (!subscriptionCreatedAt && !lastPaymentAt) return true;
   const refundMs = Date.parse(refundedAt);
-  const subscriptionMs = Date.parse(subscriptionCreatedAt);
-  if (Number.isNaN(refundMs) || Number.isNaN(subscriptionMs)) return true;
-  return subscriptionMs <= refundMs;
+  if (Number.isNaN(refundMs)) return true;
+  // Renovação estende a mesma assinatura (created_at antigo): vale o instante
+  // mais recente entre a criação e o último pagamento aprovado.
+  const candidates = [subscriptionCreatedAt, lastPaymentAt]
+    .filter((v): v is string => typeof v === "string")
+    .map((v) => Date.parse(v));
+  if (candidates.some((ms) => Number.isNaN(ms))) return true;
+  return Math.max(...candidates) <= refundMs;
 }

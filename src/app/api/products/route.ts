@@ -5,6 +5,41 @@ import { getAuthedContext } from "@/lib/auth/session";
 import { canEditProducts } from "@/lib/domain/rbac";
 import { asCatalogClient } from "@/lib/db/catalog-rpc";
 import { applyCatalogQuantity } from "@/lib/server/catalog-quantity";
+import { parseCatalogProduct } from "@/lib/domain/product";
+
+/**
+ * Lista produtos ativos da org do usuário. Lê pela sessão do servidor (cookie httpOnly):
+ * o navegador não enxerga esse JWT, então a consulta direta via anon key devolvia 401.
+ * A RLS (products_select_active) continua limitando a org.
+ */
+export async function GET() {
+  let supabase: Awaited<ReturnType<typeof createClient>>;
+  try {
+    supabase = await createClient();
+  } catch {
+    return NextResponse.json({ error: "auth_not_configured" }, { status: 503 });
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, sku, name, unit_price, barcode, category_id, is_active")
+    .eq("is_active", true)
+    .order("name");
+
+  if (error || !data) {
+    return NextResponse.json({ error: "product_read_failed" }, { status: 422 });
+  }
+
+  const products = data.map((row) => parseCatalogProduct(row));
+  return NextResponse.json(products.filter((product) => product !== null));
+}
 
 export async function POST(request: Request) {
   let json: unknown;

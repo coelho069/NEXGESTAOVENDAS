@@ -17,6 +17,9 @@ describe("isAnneSupportRoute", () => {
     expect(isAnneSupportRoute("/clientes")).toBe(true);
     expect(isAnneSupportRoute("/admin/assinaturas")).toBe(true);
     expect(isAnneSupportRoute("/suporte/tickets")).toBe(true);
+    expect(isAnneSupportRoute("/conta")).toBe(true);
+    expect(isAnneSupportRoute("/conta/reembolso")).toBe(true);
+    expect(isAnneSupportRoute("/configuracoes")).toBe(true);
   });
 
   it("rejects public routes", () => {

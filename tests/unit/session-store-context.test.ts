@@ -33,7 +33,13 @@ function mockSupabase(
     auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_ID } } }) },
     from: vi.fn((table: string) => {
       if (table === "profiles") return queryResult({ data: { org_id: ORG_A }, error: null });
-      if (table === "store_members") return queryResult({ data: memberships, error: null });
+      // Contrato atual: um único embed (store_members + stores por FK), sem segunda consulta a stores.
+      if (table === "store_members") {
+        return queryResult({
+          data: memberships.map((m) => ({ ...m, stores: stores.find((s) => s.id === m.store_id) ?? null })),
+          error: null,
+        });
+      }
       if (table === "stores") return queryResult({ data: stores, error: null });
       throw new Error(`unexpected table ${table}`);
     }),

@@ -29,7 +29,7 @@ export const DISCOUNT_LIMIT_PERCENT: Record<MemberRole, string> = {
   cashier: "5.00",
   manager: "20.00",
   admin: "100.00",
-  client: "0.00",
+  client: "100.00", // client = dono da loja (assinante); banco nao limita esse papel
 };
 
 const MONEY_PATTERN = /^(?:0|[1-9]\d{0,9})\.\d{2}$/;
@@ -194,7 +194,9 @@ export function applyDiscount(state: SaleState, discount: string, role: MemberRo
   }
   const max = maxDiscountForRole(subtotal, role);
   if (amount.gt(money(max))) {
-    return fail(state, `Desconto excede o limite do ${role} (${max})`);
+    const roleLabels: Record<string, string> = { owner: "proprietário", admin: "administrador", manager: "gerente", cashier: "caixa", clerk: "atendente", seller: "vendedor", client: "cliente" };
+    const maxBrl = Number(max).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    return fail(state, `Desconto excede o limite permitido para ${roleLabels[role] ?? role} (${maxBrl})`);
   }
   return ok({ ...state, discount });
 }

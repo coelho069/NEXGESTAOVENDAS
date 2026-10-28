@@ -8,7 +8,8 @@ VALUES (
   'nex-demo',
   'BRL',
   'America/Sao_Paulo'
-);
+)
+ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.stores (id, org_id, name, code, is_active)
 VALUES
@@ -25,13 +26,15 @@ VALUES
     'Loja Shopping',
     'SHOP',
     true
-  );
+  )
+ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.categories (id, org_id, name, sort_order, is_active)
 VALUES
   ('33333333-3333-4333-8333-333333333301', '11111111-1111-4111-8111-111111111111', 'Bebidas', 1, true),
   ('33333333-3333-4333-8333-333333333302', '11111111-1111-4111-8111-111111111111', 'Padaria', 2, true),
-  ('33333333-3333-4333-8333-333333333303', '11111111-1111-4111-8111-111111111111', 'Higiene', 3, true);
+  ('33333333-3333-4333-8333-333333333303', '11111111-1111-4111-8111-111111111111', 'Higiene', 3, true)
+ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.products (id, org_id, category_id, sku, name, unit_price, cost_price, barcode, is_active)
 VALUES
@@ -39,7 +42,8 @@ VALUES
   ('44444444-4444-4444-8444-444444444402', '11111111-1111-4111-8111-111111111111', '33333333-3333-4333-8333-333333333301', 'BEV-002', 'Refrigerante Lata 350ml', 5.00, 2.50, '7891000100028', true),
   ('44444444-4444-4444-8444-444444444403', '11111111-1111-4111-8111-111111111111', '33333333-3333-4333-8333-333333333302', 'PAD-001', 'Pao Frances Unidade', 1.20, 0.40, '7891000200017', true),
   ('44444444-4444-4444-8444-444444444404', '11111111-1111-4111-8111-111111111111', '33333333-3333-4333-8333-333333333302', 'PAD-002', 'Bolo de Fuba Fatia', 8.90, 3.10, '7891000200024', true),
-  ('44444444-4444-4444-8444-444444444405', '11111111-1111-4111-8111-111111111111', '33333333-3333-4333-8333-333333333303', 'HIG-001', 'Sabonete Liquido 250ml', 12.90, 6.00, '7891000300010', true);
+  ('44444444-4444-4444-8444-444444444405', '11111111-1111-4111-8111-111111111111', '33333333-3333-4333-8333-333333333303', 'HIG-001', 'Sabonete Liquido 250ml', 12.90, 6.00, '7891000300010', true)
+ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.inventory_balances (org_id, store_id, product_id, quantity)
 SELECT
@@ -61,11 +65,13 @@ SELECT
   END
 FROM public.stores s
 CROSS JOIN public.products p
-WHERE s.org_id = '11111111-1111-4111-8111-111111111111';
+WHERE s.org_id = '11111111-1111-4111-8111-111111111111'
+ON CONFLICT (store_id, product_id) DO NOTHING;
 
 INSERT INTO public.customers (id, org_id, name, document, email, phone)
 VALUES
   ('55555555-5555-4555-8555-555555555501', '11111111-1111-4111-8111-111111111111', 'Cliente Consumidor', NULL, 'consumidor@example.invalid', NULL),
-  ('55555555-5555-4555-8555-555555555502', '11111111-1111-4111-8111-111111111111', 'Cliente Teste', 'TEST-ONLY-DOCUMENT', 'cliente-teste@example.invalid', NULL);
+  ('55555555-5555-4555-8555-555555555502', '11111111-1111-4111-8111-111111111111', 'Cliente Teste', 'TEST-ONLY-DOCUMENT', 'cliente-teste@example.invalid', NULL)
+ON CONFLICT (id) DO NOTHING;
 
 -- Auth users, profiles and store_members are created by: pnpm seed:auth

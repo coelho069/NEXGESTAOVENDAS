@@ -63,12 +63,19 @@ export function normalizeRefundActorEmail(email: string): string {
 
 export { saoPauloDateFromInstant };
 
+/** processing covers in-flight claims and unknown outcomes: both block a new request. */
 export function refundRequestIsOpen(status: string): boolean {
-  return OPEN_REQUEST_STATUSES.has(status);
+  return OPEN_REQUEST_STATUSES.has(status) || status === "processing";
 }
 
-export function refundRequestIsApproved(status: string): boolean {
-  return APPROVED_REQUEST_STATUSES.has(status);
+/**
+ * approved + failed is a definitive provider failure: the refund did not happen, so it is not
+ * counted as refunded and the client may ask again. Any other approved state counts as refunded.
+ */
+export function refundRequestIsApproved(status: string, processingState?: string | null): boolean {
+  if (status === "refunded") return true;
+  if (!APPROVED_REQUEST_STATUSES.has(status)) return false;
+  return processingState !== "failed";
 }
 
 /**
@@ -144,7 +151,12 @@ export function visibleClientRefundPayments(
 export function presentClientRefundPayments(input: {
   actor: ClientRefundActor;
   checkouts: ClientCheckoutPayment[];
-  requests: Array<{ mpPaymentId: string; status: RefundRequestStatus | "processing" | "refunded"; createdAt: string }>;
+  requests: Array<{
+    mpPaymentId: string;
+    status: RefundRequestStatus | "processing" | "refunded";
+    processingState?: string | null;
+    createdAt: string;
+  }>;
   now: Date;
 }): ClientRefundPaymentView[] {
   const latestByPayment = new Map<string, { status: RefundRequestStatus | "processing" | "refunded"; createdAt: string }>();
@@ -160,7 +172,9 @@ export function presentClientRefundPayments(input: {
 
   const approvedPayments = new Set<string>();
   for (const request of input.requests) {
-    if (refundRequestIsApproved(request.status)) approvedPayments.add(request.mpPaymentId);
+    if (refundRequestIsApproved(request.status, request.processingState)) {
+      approvedPayments.add(request.mpPaymentId);
+    }
   }
 
   const seen = new Set<string>();

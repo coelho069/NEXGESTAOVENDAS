@@ -16,6 +16,38 @@ import { queueInventoryAdjustment } from "@/lib/offline/inventory-adjustment";
 import { runSyncCycle, refreshLocalSyncState } from "@/lib/offline/sync-engine";
 import { useSessionStore } from "@/stores/session-store";
 import { inventoryImportMutationIdBrowser } from "@/lib/domain/inventory-idempotency";
+import { AUTH_CSS } from "@/components/auth/login-form";
+import { landingTheme as t } from "@/components/landing/theme/landing-theme";
+
+/** Tema de login (fundo escuro, cartões de vidro) aplicado às classes desta tela. */
+const INVENTORY_CSS = `${AUTH_CSS}
+.nx-inv-panel {
+  border: 1px solid ${t.color.glassBorder};
+  border-radius: ${t.radius.lg};
+  background: ${t.color.glassBg};
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: ${t.shadow.card};
+  color: ${t.color.textBody};
+}
+.nx-inv-ghost {
+  border: 1px solid ${t.color.borderStrong};
+  border-radius: ${t.radius.md};
+  background: rgba(255, 255, 255, 0.04);
+  color: ${t.color.text};
+  cursor: pointer;
+  font-family: ${t.font.body};
+}
+.nx-inv-muted { color: ${t.color.textMuted}; }
+.nx-inv-link { color: ${t.color.accent}; text-decoration: none; }
+.nx-inv-title { color: ${t.color.text}; font-family: ${t.font.heading}; }
+.nx-inv-thead { background: rgba(255, 255, 255, 0.04); color: ${t.color.textMuted}; }
+.nx-inv-row { border-top: 1px solid ${t.color.border}; }
+.nx-inv-btn { width: auto; padding: 10px 18px; font-size: 14px; }
+.nx-inv-warn { color: #FCD34D; }
+.nx-inv-error { color: #FCA5A5; }
+.nx-inv-csv { min-height: 128px; resize: vertical; font-size: 12.5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+`;
 
 type InventoryScreenProps = {
   storeId: string | null;
@@ -401,10 +433,11 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4 lg:p-6">
+      <style>{INVENTORY_CSS}</style>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">{productsOnly ? "Produtos" : "Inventário"}</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="text-2xl font-bold nx-inv-title">{productsOnly ? "Produtos" : "Inventário"}</h1>
+          <p className="text-sm nx-inv-muted">
             {productsOnly
               ? "Cadastre e edite os produtos da loja para vender no PDV."
               : "Quantidade só muda via movimento auditado."}
@@ -415,7 +448,7 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
             Loja
             <StoreSelect
               testId="inventory-store"
-              className="ml-2 rounded border border-slate-300 px-2 py-1"
+              className="nx-login-input ml-2"
               stores={initial.stores}
               value={storeId}
               onChange={(nextStoreId) => {
@@ -425,19 +458,19 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
               }}
             />
           </label>
-          <span data-testid="inventory-role" className="text-sm text-slate-500">
+          <span data-testid="inventory-role" className="text-sm nx-inv-muted">
             Papel: {roleLabel(role)}
           </span>
         </div>
       </div>
 
       {message ? (
-        <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">{message}</div>
+        <div className="nx-inv-panel px-4 py-3 text-sm">{message}</div>
       ) : null}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <div className="nx-inv-panel overflow-x-auto">
         <table className="w-full text-left text-sm" data-testid="inventory-table">
-          <thead className="bg-slate-50">
+          <thead className="nx-inv-thead">
             <tr>
               <th className="px-3 py-2">SKU</th>
               <th className="px-3 py-2">Produto</th>
@@ -449,10 +482,10 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.product_id} className="border-t border-slate-100">
+              <tr key={row.product_id} className="nx-inv-row">
                 <td className="px-3 py-2">{row.sku}</td>
                 <td className="px-3 py-2">{row.name}</td>
-                <td className="px-3 py-2">{row.quantity}</td>
+                <td className="px-3 py-2">{`${row.quantity} un`}</td>
                 <td className="px-3 py-2">{formatBRL(row.unit_price)}</td>
                 {showCost ? (
                   <td className="px-3 py-2">{row.cost_price ? formatBRL(row.cost_price) : "—"}</td>
@@ -463,7 +496,7 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
                       type="button"
                       data-testid={`product-edit-${row.sku}`}
                       onClick={() => beginEdit(row)}
-                      className="font-medium text-emerald-700"
+                      className="font-medium nx-inv-link"
                     >
                       Editar
                     </button>
@@ -475,7 +508,7 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
         </table>
       </div>
       {nextHref ? (
-        <a data-testid="inventory-next" href={nextHref} className="text-sm font-medium text-emerald-700">
+        <a data-testid="inventory-next" href={nextHref} className="text-sm font-medium nx-inv-link">
           Próxima página
         </a>
       ) : null}
@@ -485,18 +518,18 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
         role={role}
         allow={["admin", "manager"]}
         fallback={
-          <p data-testid="inventory-readonly" className="text-sm text-slate-500">
+          <p data-testid="inventory-readonly" className="text-sm nx-inv-muted">
             Caixa: visualização apenas. Ajustes bloqueados.
           </p>
         }
       >
-        <section data-testid="inventory-adjust" className="grid gap-4 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-2">
+        <section data-testid="inventory-adjust" className="nx-inv-panel grid gap-4 p-4 md:grid-cols-2">
           <div className="space-y-2">
-            <h2 className="font-semibold">Ajuste (RPC)</h2>
-            <input className="w-full rounded border px-3 py-2" value={sku} onChange={(event) => setSku(event.target.value)} />
-            <input className="w-full rounded border px-3 py-2" value={delta} onChange={(event) => setDelta(event.target.value)} />
+            <h2 className="font-semibold nx-inv-title">Ajuste (RPC)</h2>
+            <input className="nx-login-input" value={sku} onChange={(event) => setSku(event.target.value)} />
+            <input className="nx-login-input" value={delta} onChange={(event) => setDelta(event.target.value)} />
             <input
-              className="w-full rounded border px-3 py-2"
+              className="nx-login-input"
               data-testid="inventory-reason"
               value={reason}
               onChange={(event) => setReason(event.target.value)}
@@ -506,14 +539,14 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
               data-testid="inventory-adjust-submit"
               disabled={!canAdjust}
               onClick={() => void submitAdjust()}
-              className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white disabled:bg-slate-300"
+              className="nx-login-submit nx-inv-btn"
             >
               Registrar movimento
             </button>
           </div>
           <div className="space-y-2">
-            <h2 className="font-semibold">Importar CSV</h2>
-            <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
+            <h2 className="font-semibold nx-inv-title">Importar CSV</h2>
+            <div className="flex items-center justify-between gap-2 text-xs nx-inv-muted">
               <span data-testid="inventory-import-id">Importação: {importId}</span>
               <button
                 type="button"
@@ -523,14 +556,14 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
                   setIssues([]);
                   setMessage(null);
                 }}
-                className="font-medium text-emerald-700"
+                className="font-medium nx-inv-link"
               >
                 Nova importação
               </button>
             </div>
             <textarea
               data-testid="inventory-csv"
-              className="h-32 w-full rounded border px-3 py-2 font-mono text-xs"
+              className="nx-login-input nx-inv-csv"
               value={csvText}
               onChange={(event) => setCsvText(event.target.value)}
             />
@@ -539,17 +572,17 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
               data-testid="inventory-csv-submit"
               disabled={!storeId}
               onClick={() => void submitImport()}
-              className="rounded-lg border border-slate-300 px-4 py-2 font-semibold"
+              className="nx-inv-ghost px-4 py-2 font-semibold"
             >
               Validar / importar
             </button>
             {pendingCount > 0 ? (
-              <p data-testid="inventory-pending" className="text-xs text-amber-700">
+              <p data-testid="inventory-pending" className="text-xs nx-inv-warn">
                 {pendingCount} operação(ões) aguardando sincronização.
               </p>
             ) : null}
             {issues.length > 0 ? (
-              <ul data-testid="inventory-csv-errors" className="text-sm text-red-700">
+              <ul data-testid="inventory-csv-errors" className="text-sm nx-inv-error">
                 {issues.map((issue) => (
                   <li key={`${issue.row}-${issue.message}`}>
                     Linha {issue.row}: {issue.message}
@@ -563,33 +596,33 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
       )}
 
       {editingId ? (
-        <section data-testid="product-edit-form" className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="font-semibold">Editar produto</h2>
+        <section data-testid="product-edit-form" className="nx-inv-panel space-y-2 p-4">
+          <h2 className="font-semibold nx-inv-title">Editar produto</h2>
           <div className={`grid gap-2 ${showCost ? "md:grid-cols-5" : "md:grid-cols-4"}`}>
             <input
               data-testid="product-edit-sku"
-              className="rounded border px-3 py-2"
+              className="nx-login-input"
               placeholder="SKU"
               value={editSku}
               onChange={(event) => setEditSku(event.target.value)}
             />
             <input
               data-testid="product-edit-name"
-              className="rounded border px-3 py-2"
+              className="nx-login-input"
               placeholder="Nome"
               value={editName}
               onChange={(event) => setEditName(event.target.value)}
             />
             <input
               data-testid="product-edit-price"
-              className="rounded border px-3 py-2"
+              className="nx-login-input"
               placeholder="Preço 0.00"
               value={editPrice}
               onChange={(event) => setEditPrice(event.target.value)}
             />
             <input
               data-testid="product-edit-qty"
-              className="rounded border px-3 py-2"
+              className="nx-login-input"
               placeholder="Qtd"
               inputMode="decimal"
               value={editQty}
@@ -598,7 +631,7 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
             {showCost ? (
               <input
                 data-testid="product-edit-cost"
-                className="rounded border px-3 py-2"
+                className="nx-login-input"
                 placeholder="Custo 0.00"
                 value={editCost}
                 onChange={(event) => setEditCost(event.target.value)}
@@ -611,7 +644,7 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
               data-testid="product-edit-save"
               disabled={!storeId || initial.degraded || savingEdit}
               onClick={() => void submitEdit()}
-              className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white disabled:bg-slate-300"
+              className="nx-login-submit nx-inv-btn"
             >
               Salvar
             </button>
@@ -619,7 +652,7 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
               type="button"
               data-testid="product-edit-cancel"
               onClick={() => setEditingId(null)}
-              className="rounded-lg border border-slate-300 px-4 py-2 font-semibold"
+              className="nx-inv-ghost px-4 py-2 font-semibold"
             >
               Cancelar
             </button>
@@ -628,33 +661,33 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
       ) : null}
 
       {canCreateProduct ? (
-        <section data-testid="product-create-form" className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="font-semibold">Novo produto</h2>
+        <section data-testid="product-create-form" className="nx-inv-panel space-y-2 p-4">
+            <h2 className="font-semibold nx-inv-title">Novo produto</h2>
             <div className={`grid gap-2 ${showCost ? "md:grid-cols-6" : "md:grid-cols-5"}`}>
               <input
                 data-testid="product-sku"
-                className="rounded border px-3 py-2"
+                className="nx-login-input"
                 placeholder="SKU"
                 value={newSku}
                 onChange={(event) => setNewSku(event.target.value)}
               />
               <input
                 data-testid="product-name"
-                className="rounded border px-3 py-2"
+                className="nx-login-input"
                 placeholder="Nome"
                 value={newName}
                 onChange={(event) => setNewName(event.target.value)}
               />
               <input
                 data-testid="product-price"
-                className="rounded border px-3 py-2"
+                className="nx-login-input"
                 placeholder="Preço 0.00"
                 value={newPrice}
                 onChange={(event) => setNewPrice(event.target.value)}
               />
               <input
                 data-testid="product-qty"
-                className="rounded border px-3 py-2"
+                className="nx-login-input"
                 placeholder="Qtd"
                 inputMode="decimal"
                 value={newQty}
@@ -663,7 +696,7 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
               {showCost ? (
                 <input
                   data-testid="product-cost"
-                  className="rounded border px-3 py-2"
+                  className="nx-login-input"
                   placeholder="Custo 0.00"
                   value={newCost}
                   onChange={(event) => setNewCost(event.target.value)}
@@ -671,7 +704,7 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
               ) : null}
               <input
                 data-testid="product-barcode"
-                className="rounded border px-3 py-2"
+                className="nx-login-input"
                 placeholder="Barcode (opcional)"
                 value={newBarcode}
                 onChange={(event) => setNewBarcode(event.target.value)}
@@ -682,7 +715,7 @@ export function InventoryScreen({ storeId, initial }: InventoryScreenProps) {
               data-testid="product-create"
               disabled={!storeId || initial.degraded}
               onClick={() => void submitProduct()}
-              className="rounded-lg border border-slate-300 px-4 py-2 font-semibold"
+              className="nx-inv-ghost px-4 py-2 font-semibold"
             >
               Criar produto
             </button>

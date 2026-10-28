@@ -30,21 +30,21 @@ function adminFor(status: string) {
 describe("defineClientActivationPassword", () => {
   it("grava a senha no servidor para a conta do link", async () => {
     const { admin, updateUserById } = adminFor("invite_sent");
-    const result = await defineClientActivationPassword("SenhaForte1", {
+    const result = await defineClientActivationPassword("SenhaForte1!", {
       admin,
       user: { id: "user-1" },
       freshAccessLink: true,
     });
     expect(result).toEqual({ ok: true });
     expect(updateUserById).toHaveBeenCalledWith("user-1", {
-      password: "SenhaForte1",
+      password: "SenhaForte1!",
       email_confirm: true,
     });
   });
 
   it("recusa conta suspensa sem chamar o Auth", async () => {
     const { admin, updateUserById } = adminFor("suspended");
-    const result = await defineClientActivationPassword("SenhaForte1", {
+    const result = await defineClientActivationPassword("SenhaForte1!", {
       admin,
       user: { id: "user-1" },
       freshAccessLink: true,
@@ -55,7 +55,7 @@ describe("defineClientActivationPassword", () => {
 
   it("traduz senha fraca rejeitada pelo provedor", async () => {
     const { admin } = adminFor("invite_sent");
-    const result = await defineClientActivationPassword("SenhaForte1", {
+    const result = await defineClientActivationPassword("SenhaForte1!", {
       admin,
       user: { id: "user-1" },
       freshAccessLink: true,

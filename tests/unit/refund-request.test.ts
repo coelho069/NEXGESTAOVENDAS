@@ -212,7 +212,7 @@ describe("refund request store workflow", () => {
     expect(store.rows[0]?.provider_refund_status).toBe("not_sent");
   });
 
-  it("approve keeps the row pending when Mercado Pago fails", async () => {
+  it("approve records a provider refusal as a failed claim, without a refund", async () => {
     const store = memoryStore([row({ status: "in_review" })]);
     const calls: Array<{ mpPaymentId: string; idempotencyKey: string }> = [];
     const result = await reviewRefundRequest(store, {
@@ -224,13 +224,16 @@ describe("refund request store workflow", () => {
       now: new Date("2026-10-06T15:00:00.000Z"),
       refundExecutor: async (input) => {
         calls.push(input);
-        return { ok: false, error: "mp_refund_failed", message: "Saldo insuficiente." };
+        return { ok: false, error: "mp_refund_failed", message: "Saldo insuficiente.", providerRejected: true };
       },
     });
     expect(result).toEqual({ ok: false, error: "mp_refund_failed", message: "Saldo insuficiente." });
     expect(calls[0]?.idempotencyKey).toBe(`mercadopago:refund:${row().id}`);
-    expect(store.rows[0]?.status).toBe("in_review");
+    // The database cannot return to in_review after a claim (idempotency key is immutable).
+    expect(store.rows[0]?.status).toBe("approved");
+    expect(store.rows[0]?.processing_state).toBe("failed");
     expect(store.rows[0]?.provider_refund_status).toBe("not_sent");
+    expect(store.rows[0]?.provider_refund_id ?? null).toBeNull();
   });
 
   it("approve records the Mercado Pago refund only after confirmation", async () => {

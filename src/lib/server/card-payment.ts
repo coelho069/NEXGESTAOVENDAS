@@ -89,6 +89,29 @@ function canApplyCardProviderStatus(): boolean {
   return Boolean(createAdminClient());
 }
 
+const CARD_INTENT_NOT_IN_STORE_MESSAGE = "PaymentIntent não encontrado nesta loja.";
+
+/**
+ * Ownership before any provider call. Uses the caller's session: get_card_payment_intent checks
+ * user_has_store_access and filters by store, org and provider_ref. Any error means "not owned".
+ */
+async function cardIntentBelongsToStore(
+  supabase: DbClient,
+  storeId: string,
+  providerRef: string | undefined
+): Promise<boolean> {
+  if (!providerRef) return false;
+  try {
+    const { data, error } = await supabase.rpc("get_card_payment_intent", {
+      p_payload: asJson({ store_id: storeId, provider_ref: providerRef }),
+    });
+    if (error || !data || typeof data !== "object" || Array.isArray(data)) return false;
+    return (data as { provider_ref?: unknown }).provider_ref === providerRef;
+  } catch {
+    return false;
+  }
+}
+
 export async function getCardAdapterHealth(): Promise<{
   configured: boolean;
   testmode: boolean;
@@ -175,6 +198,14 @@ export async function executeCardPayment(
           sale_confirmed: false,
         };
       }
+      if (!(await cardIntentBelongsToStore(supabase, input.store_id, input.provider_reference))) {
+        return {
+          status: "failed",
+          message: CARD_INTENT_NOT_IN_STORE_MESSAGE,
+          configured: true,
+          sale_confirmed: false,
+        };
+      }
       const result = await adapter.capture(input.amount, context);
       if (result.status === "not_configured") {
         return { ...result, configured: false, sale_confirmed: false };
@@ -220,6 +251,14 @@ export async function executeCardPayment(
       };
     }
     case "cancel": {
+      if (!(await cardIntentBelongsToStore(supabase, input.store_id, input.provider_reference))) {
+        return {
+          status: "failed",
+          message: CARD_INTENT_NOT_IN_STORE_MESSAGE,
+          configured: true,
+          sale_confirmed: false,
+        };
+      }
       const result = await adapter.cancel(input.amount, context);
       if (result.providerReference && (result.status === "cancelled" || result.status === "failed")) {
         await applyProviderStatus(result.providerReference, result.status);

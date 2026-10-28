@@ -15,6 +15,8 @@ export type CatalogCustomer = {
   name: string;
   document: string | null;
   email: string | null;
+  /** Limite de desconto do cliente em R$ (ex.: "30.00" = até R$ 30,00). */
+  discountLimit: string | null;
 };
 
 export const DEMO_STORE_CENTRO = "22222222-2222-4222-8222-222222222201";
@@ -74,12 +76,14 @@ export const DEMO_CUSTOMERS: CatalogCustomer[] = [
     name: "Cliente Consumidor",
     document: null,
     email: "consumidor@example.invalid",
+    discountLimit: null,
   },
   {
     id: "55555555-5555-4555-8555-555555555502",
     name: "Maria Silva",
     document: "TEST-ONLY-DOCUMENT",
     email: "maria.silva@example.invalid",
+    discountLimit: null,
   },
 ];
 

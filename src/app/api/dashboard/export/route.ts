@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
-import { canViewReports } from "@/lib/domain/rbac";
+import { canViewReports, isClientRole } from "@/lib/domain/rbac";
+import { loadDashboard } from "@/lib/server/dashboard-query";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthedContext } from "@/lib/auth/session";
 import { dashboardMetricsQuerySchema } from "@/lib/validation/schemas";
 import { clientRateLimitKey, consumeRateLimit } from "@/lib/security/rate-limit";
 import { rateLimitedResponse, validationFailedResponse } from "@/lib/security/safe-error";
-
-function escapeCsv(value: unknown): string {
-  const text = value === null || value === undefined ? "" : String(value);
-  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-}
+import { csvCell } from "@/lib/domain/csv-export";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -25,7 +22,7 @@ export async function GET(request: Request) {
   }
 
   const auth = await getAuthedContext(parsed.data.store_id);
-  if (!auth?.role || !canViewReports(auth.role)) {
+  if (!auth?.role || (!canViewReports(auth.role) && !isClientRole(auth.role))) {
     return NextResponse.json({ error: "forbidden_reports" }, { status: 403 });
   }
 
@@ -35,6 +32,54 @@ export async function GET(request: Request) {
     windowMs: 60_000,
   });
   if (!rate.allowed) return rateLimitedResponse(rate.retryAfterSec);
+
+  if (isClientRole(auth.role)) {
+    const result = await loadDashboard({
+      storeId: parsed.data.store_id,
+      from: parsed.data.from,
+      to: parsed.data.to,
+      cursorSku: parsed.data.cursor_sku,
+    });
+    const rows = result.payload.rows;
+    const csv = [
+      [
+        "sku",
+        "product_name",
+        "revenue",
+        "discounts",
+        "cogs",
+        "gross_profit",
+        "units_sold",
+        "sell_through",
+        "cogs_available",
+      ].join(","),
+      ...rows.map((row) =>
+        [
+          row.sku,
+          row.product_name,
+          row.revenue,
+          row.discounts,
+          row.cogs,
+          row.gross_profit,
+          row.units_sold,
+          row.sell_through,
+          row.cogs_available,
+        ]
+          .map(csvCell)
+          .join(",")
+      ),
+    ].join("\r\n");
+
+    const headers = new Headers({
+      "Cache-Control": "no-store",
+      "Content-Disposition": `attachment; filename="dashboard-${parsed.data.from}-${parsed.data.to}.csv"`,
+      "Content-Type": "text/csv; charset=utf-8",
+    });
+    if (typeof result.payload.next_cursor === "string") {
+      headers.set("X-Next-Cursor", result.payload.next_cursor);
+    }
+    return new NextResponse(`${csv}\r\n`, { status: 200, headers });
+  }
 
   try {
     const supabase = await createClient();
@@ -90,7 +135,7 @@ export async function GET(request: Request) {
           row.sell_through,
           row.cogs_available,
         ]
-          .map(escapeCsv)
+          .map(csvCell)
           .join(",")
       ),
     ].join("\r\n");

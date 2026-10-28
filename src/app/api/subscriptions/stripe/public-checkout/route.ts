@@ -2,11 +2,14 @@ import { NextResponse } from "next/server";
 import { publicCheckoutInputSchema } from "@/lib/validation/schemas";
 import { clientRateLimitKey, consumeRateLimit } from "@/lib/security/rate-limit";
 import { rateLimitedResponse, validationFailedResponse } from "@/lib/security/safe-error";
+import { BodyTooLargeError, readLimitedJson } from "@/lib/security/read-limited-body";
 import {
   createRequestObservability,
   observeApiResult,
 } from "@/lib/observability/request-context";
 import { executeMercadoPagoIndependentStripeCheckout } from "@/lib/server/public-stripe-checkout";
+
+const PUBLIC_CHECKOUT_MAX_BODY_BYTES = 16 * 1024;
 
 export async function POST(request: Request) {
   const obs = createRequestObservability(request, "subscriptions.stripe.public-checkout");
@@ -21,8 +24,11 @@ export async function POST(request: Request) {
 
   let json: unknown;
   try {
-    json = await request.json();
-  } catch {
+    json = await readLimitedJson(request, PUBLIC_CHECKOUT_MAX_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) {
+      return obs.withHeaders(NextResponse.json({ error: "Payload too large" }, { status: 413 }));
+    }
     return obs.withHeaders(NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }));
   }
 

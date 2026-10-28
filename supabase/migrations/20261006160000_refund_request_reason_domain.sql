@@ -7,7 +7,7 @@
 --   nao_utilizou and any other unknown value are not rewritten and not copied
 --   into notes. If such a row exists, this migration stops and rolls back.
 
-LOCK TABLE public.refund_requests IN SHARE ROW EXCLUSIVE MODE;
+BEGIN;
 
 ALTER TABLE public.refund_requests
   DROP CONSTRAINT IF EXISTS refund_requests_reason_check;
@@ -74,3 +74,5 @@ BEGIN
       );
   END IF;
 END $$;
+
+COMMIT;

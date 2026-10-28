@@ -1,14 +1,39 @@
+import { landingTheme as t } from "@/components/landing/theme/landing-theme";
 import { SubscriptionAccessFrame } from "@/components/auth/subscription-access-frame";
 import { DashboardScreen } from "@/components/dashboard/dashboard-screen";
 import { AppNav } from "@/components/layout/app-nav";
-import { getElectronicPaymentAdapterAlerts } from "@/lib/adapters/payment";
+import { getPdvPaymentAdapterAlerts } from "@/lib/adapters/payment";
 import { getPlatformAdminAccess } from "@/lib/auth/admin";
-import { redirect } from "next/navigation";
 import { getAuthedContext } from "@/lib/auth/session";
-import { isClientRole } from "@/lib/domain/rbac";
 import { loadDashboard } from "@/lib/server/dashboard-query";
 
 export const dynamic = "force-dynamic";
+
+/** Mesmo visual do login: fundo escuro, glow radial e cabeçalho de vidro. */
+const pageStyle = {
+  position: "relative",
+  minHeight: "100vh",
+  background: t.color.bg,
+  color: t.color.text,
+  fontFamily: t.font.body,
+  colorScheme: "dark",
+  overflowX: "hidden",
+} as const;
+const glowStyle = {
+  pointerEvents: "none",
+  position: "absolute",
+  inset: 0,
+  background:
+    "radial-gradient(900px 480px at 50% -80px, rgba(37, 99, 235, 0.16) 0%, rgba(37, 99, 235, 0.04) 48%, transparent 72%), radial-gradient(640px 360px at 100% 100%, rgba(16, 185, 129, 0.08) 0%, transparent 65%)",
+} as const;
+const headerStyle = {
+  borderBottom: `1px solid ${t.color.glassBorder}`,
+  background: t.color.glassBg,
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
+  // Botões do AppNav são brancos com texto escuro; o cabeçalho herda esse texto.
+  color: t.color.primary,
+} as const;
 
 export default async function DashboardPage({
   searchParams,
@@ -20,9 +45,6 @@ export default async function DashboardPage({
     getAuthedContext(resolvedSearchParams?.store),
     getPlatformAdminAccess(),
   ]);
-  if (isClientRole(auth?.role)) {
-    redirect(auth?.storeId ? `/clientes?store=${encodeURIComponent(auth.storeId)}` : "/clientes");
-  }
   const initial = await loadDashboard({
     storeId: resolvedSearchParams?.store,
     from: resolvedSearchParams?.from,
@@ -31,14 +53,16 @@ export default async function DashboardPage({
   });
 
   return (
-    <main>
+    <main style={pageStyle}>
+      <div aria-hidden="true" style={glowStyle} />
+      <div style={{ position: "relative", zIndex: 1 }}>
       <SubscriptionAccessFrame
         orgId={auth?.orgId ?? null}
         userId={auth?.userId}
         role={initial.role}
         skip={!auth}
       >
-        <div className="border-b border-slate-200 bg-white px-4 py-3">
+        <div className="px-4 py-3" style={headerStyle}>
           <AppNav
             role={initial.role}
             storeId={initial.storeId}
@@ -48,9 +72,10 @@ export default async function DashboardPage({
         <DashboardScreen
           storeId={initial.storeId}
           initial={initial}
-          paymentAlerts={getElectronicPaymentAdapterAlerts()}
+          paymentAlerts={getPdvPaymentAdapterAlerts()}
         />
       </SubscriptionAccessFrame>
+      </div>
     </main>
   );
 }

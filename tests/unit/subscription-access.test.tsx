@@ -218,7 +218,7 @@ describe("SubscriptionAccessView", () => {
     );
     expect(screen.getByText("Assinatura cancelada (reembolsada)")).toBeInTheDocument();
     expect(screen.getByTestId("subscription-blocked-resubscribe")).toHaveAttribute("href", "/planos");
-    expect(screen.getByTestId("subscription-blocked-support")).toHaveAttribute("href", "/suporte");
+    expect(screen.getByTestId("subscription-blocked-support")).toHaveAttribute("href", "/suporte/tickets");
     expect(screen.getByTestId("subscription-blocked-signout")).toHaveTextContent("Sair da conta");
   });
 

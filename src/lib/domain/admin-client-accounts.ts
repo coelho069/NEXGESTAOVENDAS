@@ -465,7 +465,7 @@ export type PasswordRequirement = {
 };
 
 /**
- * Mirrors the Supabase default project policy. Deliberately modest: length plus
+ * Mirrors the Supabase project policy (lower, upper, digit and symbol). Deliberately modest: length plus
  * character classes, without composition rules that push users toward
  * predictable substitutions.
  */
@@ -474,6 +474,8 @@ export const ACCOUNT_PASSWORD_REQUIREMENTS: readonly PasswordRequirement[] = [
   { id: "upper", label: "Uma letra maiúscula", test: (v) => /[A-Z]/.test(v) },
   { id: "lower", label: "Uma letra minúscula", test: (v) => /[a-z]/.test(v) },
   { id: "digit", label: "Um número", test: (v) => /[0-9]/.test(v) },
+  // Supabase Auth exige um símbolo (ver a política do projeto); sem isso responde 422 weak_password.
+  { id: "symbol", label: "Um símbolo (ex.: ! @ # $ %)", test: (v) => /[^A-Za-z0-9]/.test(v) },
 ];
 
 export function describePasswordProblems(value: string): string[] {

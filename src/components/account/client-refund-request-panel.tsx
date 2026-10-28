@@ -10,6 +10,38 @@ import {
   REFUND_GMAIL_REQUIRED_MESSAGE,
   type RefundGmailAccess,
 } from "@/lib/domain/refund-gmail-access";
+import { landingTheme as t } from "@/components/landing/theme/landing-theme";
+
+/** Tokens escuros (mesma linguagem do cartão de vidro do login). */
+const PANEL_TEXT_STYLE = { color: t.color.textBody } as const;
+const PANEL_SURFACE_STYLE = {
+  borderRadius: t.radius.lg,
+  border: `1px solid ${t.color.borderStrong}`,
+  background: t.color.roiPanelBg,
+  color: t.color.textBody,
+} as const;
+const PANEL_OPTION_STYLE = {
+  border: `1px solid ${t.color.borderStrong}`,
+  background: "rgba(15, 23, 42, 0.55)",
+  color: t.color.textBody,
+} as const;
+const PANEL_OPTION_PRESSED_STYLE = {
+  border: "1px solid rgba(37, 99, 235, 0.55)",
+  background: "rgba(37, 99, 235, 0.14)",
+  color: t.color.textBody,
+} as const;
+const PANEL_INPUT_STYLE = {
+  border: `1px solid ${t.color.borderStrong}`,
+  background: "rgba(15, 23, 42, 0.55)",
+  color: t.color.text,
+  colorScheme: "dark",
+} as const;
+const PANEL_PRIMARY_BUTTON_STYLE = {
+  border: "none",
+  background: `linear-gradient(135deg, ${t.color.secondary} 0%, #1D4ED8 55%, ${t.color.accent} 100%)`,
+  color: "#FFFFFF",
+  boxShadow: t.shadow.ctaGlow,
+} as const;
 
 export const CLIENT_REFUND_BUTTON_LABEL = "Solicitar reembolso";
 export const CLIENT_REFUND_CONFIRMATION =
@@ -150,7 +182,8 @@ function PaymentRequestForm({
           required
           value={draft.reason}
           onChange={(event) => onDraft({ reason: event.target.value as ClientRefundFormReason })}
-          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+          className="w-full rounded-lg px-3 py-2"
+          style={PANEL_INPUT_STYLE}
         >
           {CLIENT_REFUND_FORM_REASONS.map((value) => (
             <option key={value} value={value}>
@@ -166,7 +199,8 @@ function PaymentRequestForm({
           onChange={(event) => onDraft({ notes: event.target.value })}
           maxLength={2000}
           rows={3}
-          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+          className="w-full rounded-lg px-3 py-2"
+          style={PANEL_INPUT_STYLE}
         />
       </label>
       <label className="flex items-start gap-2 text-sm">
@@ -181,11 +215,16 @@ function PaymentRequestForm({
       <button
         type="submit"
         disabled={pending || !draft.confirmed}
-        className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 sm:w-fit"
+        className="w-full rounded-lg px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 sm:w-fit"
+        style={PANEL_PRIMARY_BUTTON_STYLE}
       >
         {pending ? "Enviando solicitação…" : CLIENT_REFUND_BUTTON_LABEL}
       </button>
-      {error ? <p className="text-sm text-red-700">{error}</p> : null}
+      {error ? (
+        <p className="text-sm" style={{ color: "#FCA5A5" }}>
+          {error}
+        </p>
+      ) : null}
     </form>
   );
 }
@@ -224,14 +263,14 @@ export function ClientRefundRequestPanel({
 
   if (access !== "allowed") {
     return (
-      <section className="grid w-full gap-3" data-testid="client-refund-panel" data-refund-access={access}>
-        <p className="text-sm text-slate-700" role="status">
+      <section className="grid w-full gap-3" style={PANEL_TEXT_STYLE} data-testid="client-refund-panel" data-refund-access={access}>
+        <p className="text-sm" style={PANEL_TEXT_STYLE} role="status">
           {access === "unauthenticated"
             ? "Entre na sua conta para solicitar a análise."
             : REFUND_GMAIL_REQUIRED_MESSAGE}
         </p>
         {access === "unauthenticated" ? (
-          <a href="/login" className="text-sm font-semibold text-sky-800 underline">
+          <a href="/login" className="text-sm font-semibold underline" style={{ color: "#93C5FD" }}>
             Entrar
           </a>
         ) : null}
@@ -268,7 +307,7 @@ export function ClientRefundRequestPanel({
   }
 
   return (
-    <section className="grid w-full gap-3" data-testid="client-refund-panel">
+    <section className="grid w-full gap-3" style={PANEL_TEXT_STYLE} data-testid="client-refund-panel">
       <ul className="grid w-full gap-2" aria-label="Pagamentos elegíveis">
         {listed.map((payment) => {
           const pressed = payment.mpPaymentId === active.mpPaymentId;
@@ -281,12 +320,11 @@ export function ClientRefundRequestPanel({
                 data-testid="client-refund-payment-option"
                 data-payment-id={payment.mpPaymentId}
                 onClick={() => choose(payment)}
-                className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
-                  pressed ? "border-slate-900 bg-slate-50" : "border-slate-200 bg-white"
-                }`}
+                className="w-full rounded-lg px-3 py-2 text-left text-sm"
+                style={pressed ? PANEL_OPTION_PRESSED_STYLE : PANEL_OPTION_STYLE}
               >
-                <span className="font-medium text-slate-900">Pagamento {payment.mpPaymentId}</span>
-                <span className="mt-0.5 block text-slate-600">
+                <span className="font-medium" style={{ color: t.color.text }}>Pagamento {payment.mpPaymentId}</span>
+                <span className="mt-0.5 block" style={{ color: t.color.textMuted }}>
                   {payment.paidOn ? `Pago em ${payment.paidOn}` : "Data de pagamento indisponível"}
                 </span>
               </button>
@@ -296,7 +334,8 @@ export function ClientRefundRequestPanel({
       </ul>
       <div
         key={active.mpPaymentId}
-        className="rounded-xl border border-slate-200 bg-white p-4"
+        className="p-4"
+        style={PANEL_SURFACE_STYLE}
         data-testid="client-refund-detail"
         data-payment-id={active.mpPaymentId}
       >
@@ -312,9 +351,11 @@ export function ClientRefundRequestPanel({
             }}
           />
         ) : open ? (
-          <p className="mt-2 text-sm font-medium text-slate-800">{CLIENT_REFUND_OPEN_STATUS}</p>
+          <p className="mt-2 text-sm font-medium" style={{ color: t.color.text }}>{CLIENT_REFUND_OPEN_STATUS}</p>
         ) : null}
-        {submitted ? <p className="mt-2 text-sm text-emerald-800">{CLIENT_REFUND_SUCCESS}</p> : null}
+        {submitted ? (
+          <p className="mt-2 text-sm" style={{ color: "#6EE7B7" }}>{CLIENT_REFUND_SUCCESS}</p>
+        ) : null}
       </div>
     </section>
   );

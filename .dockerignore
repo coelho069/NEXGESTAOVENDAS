@@ -13,3 +13,17 @@ test-results
 .DS_Store
 docs/agent-log.md
 tsconfig.tsbuildinfo
+.backups
+.claude
+.hermes
+.grok
+.continue
+.kiro
+.forge
+.fallow
+.fallowrc.jsonc
+data
+skills
+skills-lock.json
+deploy/worker/node_modules
+**/*.bak-*

@@ -1,6 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { landingTheme as t } from "@/components/landing/theme/landing-theme";
+
+/** Gradiente primário do login (mesmo de `.nx-login-submit`). */
+const PRIMARY_BUTTON_STYLE = {
+  border: "none",
+  background: `linear-gradient(135deg, ${t.color.secondary} 0%, #1D4ED8 55%, ${t.color.accent} 100%)`,
+  color: "#FFFFFF",
+  boxShadow: t.shadow.ctaGlow,
+} as const;
 
 /** Botão "Renovar": abre o Checkout Pro ancorado na org do usuário logado. */
 export function RenewSubscriptionButton({ className }: { className?: string }) {
@@ -32,13 +41,14 @@ export function RenewSubscriptionButton({ className }: { className?: string }) {
         }}
         className={
           className ??
-          "inline-flex items-center justify-center rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800 disabled:opacity-60"
+          "inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold hover:brightness-110 disabled:opacity-60"
         }
+        style={className ? undefined : PRIMARY_BUTTON_STYLE}
       >
         {loading ? "Abrindo pagamento..." : "Renovar"}
       </button>
       {error ? (
-        <p data-testid="subscription-renew-error" className="text-xs text-rose-700">
+        <p data-testid="subscription-renew-error" className="text-xs text-rose-300">
           Não foi possível abrir a renovação. Tente de novo ou fale com o suporte.
         </p>
       ) : null}

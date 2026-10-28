@@ -1,3 +1,7 @@
+# Dumps e backups locais (podem conter dados de clientes) — nunca versionar
+/.backups/
+*.sql.gz
+
 # Dependencies
 /node_modules
 /.pnp
@@ -51,3 +55,18 @@ next-env.d.ts
 
 # Worker local deps (Cloudflare, pasta de deploy)
 deploy/worker/node_modules/
+
+# Diretórios de ferramentas locais e cópias de backup (não rastreados; auditoria run-5)
+/.claude/
+/.cursor/
+/.hermes/
+/.grok/
+/.continue/
+/.kiro/
+/.forge/
+/.fallow/
+/.fallowrc.jsonc
+/data/
+/skills/
+/skills-lock.json
+**/*.bak-*

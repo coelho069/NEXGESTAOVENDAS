@@ -2,6 +2,7 @@ import { SubscriptionAccessView } from "@/components/auth/subscription-access-vi
 import type { ClientRefundPaymentView } from "@/lib/domain/client-refund-eligibility";
 import type { RefundGmailAccess } from "@/lib/domain/refund-gmail-access";
 import type { MemberRole } from "@/lib/domain/rbac";
+import type { SubscriptionGateDecision } from "@/lib/domain/subscription-access";
 import { resolveTenantSubscriptionGate } from "@/lib/server/subscription-access";
 
 type SubscriptionAccessFrameProps = {
@@ -12,6 +13,8 @@ type SubscriptionAccessFrameProps = {
   refundPayments?: ClientRefundPaymentView[];
   refundAccess?: RefundGmailAccess;
   refundPlacement?: "top" | "bottom" | "blocked-only";
+  /** Decisão já resolvida pela página (em paralelo com outros dados); evita refazer o gate. */
+  decision?: SubscriptionGateDecision;
   children: React.ReactNode;
 };
 
@@ -23,9 +26,11 @@ export async function SubscriptionAccessFrame({
   refundPayments = [],
   refundAccess = "allowed",
   refundPlacement = "top",
+  decision: precomputedDecision,
   children,
 }: SubscriptionAccessFrameProps) {
-  const decision = await resolveTenantSubscriptionGate({ orgId, userId, skip });
+  const decision =
+    precomputedDecision ?? (await resolveTenantSubscriptionGate({ orgId, userId, skip }));
   return (
     <SubscriptionAccessView
       decision={decision}

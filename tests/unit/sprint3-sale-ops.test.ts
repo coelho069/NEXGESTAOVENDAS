@@ -172,7 +172,7 @@ describe("payment draft and receipt", () => {
     });
   });
 
-  it("renders HTML receipt with sync status", () => {
+  it("renders HTML receipt without sale/sync status line", () => {
     const html = renderReceiptHtml({
       saleId: "sale-1",
       storeName: "Loja Centro",
@@ -186,8 +186,9 @@ describe("payment draft and receipt", () => {
       syncStatus: "pending",
       saleStatus: "pending_sync",
     });
-    expect(html).toContain("Sincronização: pending");
-    expect(html).toContain("data-receipt-sync=\"pending\"");
+    expect(html).not.toContain("Status da venda");
+    expect(html).not.toContain("Sincronização: pending");
+    expect(html).not.toContain("data-receipt-sync");
     expect(html).toContain("Maria Silva");
   });
 });

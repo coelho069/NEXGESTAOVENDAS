@@ -4,12 +4,12 @@ import { planSubscriptionRenewal } from "@/lib/domain/onboarding-visitor";
 const base = { paymentRef: "pay-2", paidDate: "2026-11-10", today: "2026-11-10" };
 
 describe("renovação Checkout Pro na mesma assinatura", () => {
-  it("não vencida: empilha 30 dias a partir do period_end atual", () => {
+  it("não vencida: vencimento = data do pagamento + 30 dias", () => {
     const plan = planSubscriptionRenewal({
       ...base,
       latest: { id: "s1", status: "active", periodEnd: "2026-11-13", providerRef: "pay-1" },
     });
-    expect(plan).toEqual({ kind: "extend", subscriptionId: "s1", periodStart: null, periodEnd: "2026-12-13" });
+    expect(plan).toEqual({ kind: "extend", subscriptionId: "s1", periodStart: null, periodEnd: "2026-12-10" });
   });
   it("vencida (status ainda active): reancora na aprovação + 30", () => {
     const plan = planSubscriptionRenewal({
