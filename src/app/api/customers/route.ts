@@ -34,7 +34,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("customers")
-    .select("id, name, document, email")
+    .select("id, name, document, email, age")
     .order("name");
 
   if (error || !data) {
@@ -96,8 +96,9 @@ export async function POST(request: Request) {
       name: parsed.data.name,
       document: parsed.data.document,
       email: parsed.data.email,
+      age: parsed.data.age,
     })
-    .select("id, name, document, email")
+    .select("id, name, document, email, age")
     .maybeSingle();
 
   if (error || !data) {

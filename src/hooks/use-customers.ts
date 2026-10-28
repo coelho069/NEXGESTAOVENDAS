@@ -23,12 +23,15 @@ function normalizeDiscountLimit(raw: string): string | null {
 }
 
 function localCustomer(draft: CustomerDraft, id?: string): CatalogCustomer {
+  const ageStr = draft.age.trim();
+  const ageNum = ageStr ? Number(ageStr) : NaN;
   return {
     id: id ?? crypto.randomUUID(),
     name: draft.name.trim(),
     document: draft.document.trim() || null,
     email: draft.email.trim() || null,
     discountLimit: normalizeDiscountLimit(draft.discountLimit),
+    age: Number.isInteger(ageNum) && ageNum >= 0 && ageNum <= 120 ? ageNum : null,
   };
 }
 
@@ -91,6 +94,7 @@ export function useCustomers() {
         document: draft.document,
         email: draft.email,
         discount_limit: draft.discountLimit.trim() ? draft.discountLimit : null,
+        age: draft.age.trim() || null,
       });
       if (!parsed.success) {
         return { ok: false, error: "Nome é obrigatório." };
@@ -130,6 +134,7 @@ export function useCustomers() {
         document: draft.document,
         email: draft.email,
         discount_limit: draft.discountLimit.trim() ? draft.discountLimit : null,
+        age: draft.age.trim() || null,
       });
       if (!parsed.success) {
         return { ok: false, error: "Nome é obrigatório." };

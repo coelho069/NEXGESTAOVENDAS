@@ -53,6 +53,7 @@ describe("customer domain", () => {
       document: null,
       email: null,
       discountLimit: null,
+      age: null,
     };
     const next = upsertCustomer(DEMO_CUSTOMERS, created);
     expect(next.some((customer) => customer.id === CUSTOMER_ID)).toBe(true);
@@ -74,6 +75,7 @@ describe("customer domain", () => {
       document: "123",
       email: "ana@example.invalid",
       discountLimit: null,
+      age: null,
     });
   });
 
@@ -92,6 +94,7 @@ describe("customerWriteSchema", () => {
       document: null,
       email: null,
       discount_limit: null,
+      age: null,
     });
     expect(customerWriteSchema.safeParse({ name: "Ana", email: "not-an-email" }).success).toBe(false);
   });
@@ -104,7 +107,7 @@ describe("CustomerDialog create + select", () => {
 
   it("creates a customer and associates it on the sale", async () => {
     const onSelect = vi.fn();
-    const created = { id: CUSTOMER_ID, name: "Ana Nova", document: "123", email: null , discountLimit: null};
+    const created = { id: CUSTOMER_ID, name: "Ana Nova", document: "123", email: null, discountLimit: null, age: null };
     const onCreate = vi.fn().mockResolvedValue({ ok: true, customer: created });
 
     render(
@@ -134,6 +137,7 @@ describe("CustomerDialog create + select", () => {
         document: "123",
         email: "",
         discountLimit: "",
+        age: "",
       });
       expect(onSelect).toHaveBeenCalledWith(created);
     });
@@ -216,6 +220,7 @@ describe("POST /api/customers", () => {
       name: "Ana Nova",
       document: null,
       email: null,
+      age: null,
     });
     await expect(response.json()).resolves.toEqual({
       id: CUSTOMER_ID,
@@ -223,6 +228,7 @@ describe("POST /api/customers", () => {
       document: null,
       email: null,
       discountLimit: null,
+      age: null,
     });
   });
 

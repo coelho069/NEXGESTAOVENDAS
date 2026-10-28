@@ -204,13 +204,14 @@ export function CustomersScreen() {
                   <th className="px-4 py-2 font-medium">Nome</th>
                   <th className="px-4 py-2 font-medium">Documento</th>
                   <th className="px-4 py-2 font-medium">E-mail</th>
+                  <th className="px-4 py-2 font-medium">Idade</th>
                   <th className="px-4 py-2 font-medium">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {visible.length === 0 ? (
                   <tr>
-                    <td className="nx-cust-muted px-4 py-6" colSpan={4}>
+                    <td className="nx-cust-muted px-4 py-6" colSpan={5}>
                       Nenhum cliente encontrado.
                     </td>
                   </tr>
@@ -220,6 +221,7 @@ export function CustomersScreen() {
                       <td className="px-4 py-2 font-medium nx-cust-strong">{customer.name}</td>
                       <td className="px-4 py-2">{customer.document ?? "—"}</td>
                       <td className="px-4 py-2">{customer.email ?? "—"}</td>
+                      <td className="px-4 py-2">{customer.age != null ? `${customer.age} anos` : "—"}</td>
                       <td className="px-4 py-2">
                         <div className="flex flex-wrap gap-2">
                           <button
@@ -274,6 +276,7 @@ export function CustomersScreen() {
               <p className="text-sm nx-cust-muted">
                 {viewing.document ? `Documento: ${viewing.document}` : "Sem documento"}
                 {viewing.email ? ` · ${viewing.email}` : ""}
+                {viewing.age != null ? ` · ${viewing.age} anos` : ""}
               <div className="mt-1 text-sm nx-cust-muted">
                 {viewing.discountLimit
                   ? `Limite de desconto: até ${Number(viewing.discountLimit).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`

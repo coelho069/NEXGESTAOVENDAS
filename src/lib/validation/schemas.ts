@@ -645,12 +645,23 @@ export const customerWriteSchema = z
         if (!Number.isFinite(normalized) || normalized < 0) return null;
         return normalized.toFixed(2);
       }),
+    age: z
+      .union([z.number(), z.string(), z.null()])
+      .optional()
+      .transform((value) => {
+        if (value == null || value === "") return null;
+        const n = typeof value === "number" ? value : Number(String(value).trim());
+        if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0 || n > 120) return undefined;
+        return n;
+      })
+      .pipe(z.number().int().min(0).max(120).nullable()),
   })
   .transform((value) => ({
     name: value.name,
     document: value.document ?? null,
     email: value.email ?? null,
     discount_limit: value.discount_limit ?? null,
+    age: value.age ?? null,
   }));
 
 export type CustomerWriteInput = z.infer<typeof customerWriteSchema>;

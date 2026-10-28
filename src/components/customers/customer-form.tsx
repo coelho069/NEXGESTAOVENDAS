@@ -113,6 +113,21 @@ export function CustomerForm({
         />
       </label>
       <label className="block text-sm">
+        Idade
+        <input
+          data-testid="customer-age"
+          type="number"
+          min={0}
+          max={120}
+          step={1}
+          className="nx-cf-input"
+          inputMode="numeric"
+          placeholder="Deixe em branco se não souber"
+          value={draft.age}
+          onChange={(event) => onChange({ ...draft, age: event.target.value })}
+        />
+      </label>
+      <label className="block text-sm">
         Limite de desconto (até R$)
         <input
           data-testid="customer-discount-limit"

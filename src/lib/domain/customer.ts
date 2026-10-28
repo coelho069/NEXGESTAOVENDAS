@@ -6,6 +6,8 @@ export type CustomerDraft = {
   email: string;
   /** Limite de desconto em R$ (texto livre do formulário, ex.: "30" ou "30,00"). */
   discountLimit: string;
+  /** Idade do cliente como string do formulário (vazio = não informado). */
+  age: string;
 };
 
 export const EMPTY_CUSTOMER_DRAFT: CustomerDraft = {
@@ -13,6 +15,7 @@ export const EMPTY_CUSTOMER_DRAFT: CustomerDraft = {
   document: "",
   email: "",
   discountLimit: "",
+  age: "",
 };
 
 export function customerDraftFrom(customer: CatalogCustomer | null): CustomerDraft {
@@ -22,6 +25,7 @@ export function customerDraftFrom(customer: CatalogCustomer | null): CustomerDra
     document: customer.document ?? "",
     email: customer.email ?? "",
     discountLimit: customer.discountLimit ?? "",
+    age: customer.age != null ? String(customer.age) : "",
   };
 }
 
@@ -63,11 +67,17 @@ export function parseCatalogCustomer(value: unknown): CatalogCustomer | null {
     const n = Number(discountRaw.trim().replace(",", "."));
     discountLimit = Number.isFinite(n) && n >= 0 ? n.toFixed(2) : null;
   }
+  const ageRaw = row.age;
+  let age: number | null = null;
+  if (typeof ageRaw === "number" && Number.isInteger(ageRaw) && ageRaw >= 0 && ageRaw <= 120) {
+    age = ageRaw;
+  }
   return {
     id: row.id,
     name: row.name,
     document: typeof row.document === "string" ? row.document : null,
     email: typeof row.email === "string" ? row.email : null,
     discountLimit,
+    age,
   };
 }

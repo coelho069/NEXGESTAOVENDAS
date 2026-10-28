@@ -52,6 +52,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     name: parsed.data.name,
     document: parsed.data.document,
     email: parsed.data.email,
+    age: parsed.data.age,
   };
 
   const { data, error } = await supabase
@@ -59,7 +60,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .update(patch)
     .eq("id", id)
     .eq("org_id", auth.orgId)
-    .select("id, name, document, email")
+    .select("id, name, document, email, age")
     .maybeSingle();
 
   if (error) {
@@ -109,7 +110,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const { data, error } = await supabase
     .from("customers")
-    .select("id, name, document, email")
+    .select("id, name, document, email, age")
     .eq("id", id)
     .eq("org_id", auth.orgId)
     .maybeSingle();
