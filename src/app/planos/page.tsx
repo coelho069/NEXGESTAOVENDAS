@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Plus_Jakarta_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import { PlansSalesPage } from "@/components/marketing/plans-sales-page";
 import { getAuthedContext } from "@/lib/auth/session";
 import { isMercadoPagoCheckoutEnabled } from "@/lib/server/mercadopago";
@@ -7,16 +7,18 @@ import { loadPublicPlans } from "@/lib/server/public-plans-query";
 
 export const dynamic = "force-dynamic";
 
-const inter = Inter({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+// Self-hosted variable latin fonts (same files Google serves for these families).
+// Weight ranges cover the weights the page used before: Inter 400-700, Jakarta 600-800.
+const inter = localFont({
+  src: "../fonts/inter-latin-variable.woff2",
+  weight: "400 700",
   display: "swap",
   variable: "--font-inter",
 });
 
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["600", "700", "800"],
+const jakarta = localFont({
+  src: "../fonts/plus-jakarta-sans-latin-variable.woff2",
+  weight: "600 800",
   display: "swap",
   variable: "--font-jakarta",
 });

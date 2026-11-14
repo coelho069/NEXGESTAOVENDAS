@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Plus_Jakarta_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import { LandingPage } from "@/components/landing/LandingPage";
 
 /**
@@ -9,16 +9,16 @@ import { LandingPage } from "@/components/landing/LandingPage";
  * de produção (`style-src 'self' 'unsafe-inline'` / `font-src 'self' data:`)
  * bloquearia. As variáveis CSS alimentam os tokens do kit (landing-theme.ts).
  */
-const inter = Inter({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+const inter = localFont({
+  src: "./fonts/inter-latin-variable.woff2",
+  weight: "400 700",
   display: "swap",
   variable: "--font-inter",
 });
 
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["600", "700", "800"],
+const jakarta = localFont({
+  src: "./fonts/plus-jakarta-sans-latin-variable.woff2",
+  weight: "600 800",
   display: "swap",
   variable: "--font-jakarta",
 });
