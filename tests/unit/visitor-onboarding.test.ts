@@ -109,6 +109,7 @@ describe("public checkout input schema", () => {
     const parsed = publicCheckoutInputSchema.safeParse({
       plan_id: "11111111-1111-4111-8111-111111111111",
       payer_email: "  Cliente@Exemplo.COM ",
+      birth_date: "1990-01-01",
     });
     expect(parsed.success).toBe(true);
     if (parsed.success) expect(parsed.data.payer_email).toBe("cliente@exemplo.com");

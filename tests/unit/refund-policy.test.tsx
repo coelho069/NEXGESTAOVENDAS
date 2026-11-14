@@ -153,6 +153,9 @@ describe("refund policy links on sales and checkout", () => {
       />
     );
     fireEvent.click(screen.getByRole("button", { name: "Assinar" }));
+    fireEvent.change(screen.getByLabelText("Qual é a sua data de nascimento?"), {
+      target: { value: "1990-01-01" },
+    });
     const policyLink = screen.getByRole("link", {
       name: "Política de Reembolsos e Devoluções",
     });

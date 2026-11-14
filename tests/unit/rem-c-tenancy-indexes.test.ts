@@ -76,7 +76,7 @@ describe("C2: unicidade por organizacao (sem indice global entre tenants)", () =
     expect(NEW_MIGRATION >= "20261016200000" && NEW_MIGRATION <= "20261016299999").toBe(true);
     // Migrações de remediação de outros agentes ficam em faixas reservadas (A: 20261016100000-199999).
     // Fora dessas faixas não pode haver timestamp colidindo com a remediação.
-    const otherRemediation = names.filter((name) => name >= "20261016100000" && name !== NEW_MIGRATION);
+    const otherRemediation = names.filter((name) => name >= "20261016100000" && name < "20261017" && name !== NEW_MIGRATION);
     expect(otherRemediation.every((name) => name <= "20261016199999")).toBe(true);
   });
 });
