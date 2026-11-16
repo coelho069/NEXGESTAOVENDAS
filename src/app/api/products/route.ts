@@ -31,7 +31,8 @@ export async function GET() {
     .from("products")
     .select("id, sku, name, unit_price, barcode, category_id, is_active")
     .eq("is_active", true)
-    .order("name");
+    .order("name")
+    .limit(100);
 
   if (error || !data) {
     return NextResponse.json({ error: "product_read_failed" }, { status: 422 });

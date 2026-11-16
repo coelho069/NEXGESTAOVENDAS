@@ -31,8 +31,8 @@ type LoadOptions = {
   background?: boolean;
 };
 
-export function useProducts(options: { storeId?: string | null } = {}) {
-  const { storeId = null } = options;
+export function useProducts(options: { storeId?: string | null; enabled?: boolean } = {}) {
+  const { storeId = null, enabled = true } = options;
   const [products, setProducts] = useState<ProductRow[]>(() =>
     pdvFixturesEnabled() ? filterActiveProducts(fixtureProducts()) : []
   );
@@ -93,9 +93,9 @@ export function useProducts(options: { storeId?: string | null } = {}) {
   }, [storeId]);
 
   useEffect(() => {
-    // Reload when storeId becomes available or changes.
+    if (!enabled) return;
     void load();
-  }, [load]);
+  }, [enabled, load]);
 
   useEffect(() => {
     let supabase: ReturnType<typeof createClient>;

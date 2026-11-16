@@ -93,7 +93,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
   const boundStoreId = isForeignCartStore(stores, storeId) ? null : storeId;
   const cash = useCashSession(boundStoreId, afterPaint);
   const paymentMethods = useStorePaymentMethods(boundStoreId);
-  const { products, loading, error, fromCatalog } = useProducts({ storeId: boundStoreId });
+  const { products, loading, error, fromCatalog } = useProducts({ storeId: boundStoreId, enabled: afterPaint });
   const { online, pendingCount, failedCount, syncing, conflicts, quotaExceeded, sessionEnded } = useSyncStore();
   const {
     openPanel,
