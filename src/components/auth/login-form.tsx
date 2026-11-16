@@ -101,7 +101,6 @@ export function LoginForm() {
         return;
       }
       router.replace("/pdv");
-      router.refresh();
     } catch {
       setError("Credenciais inválidas ou sessão indisponível.");
     } finally {

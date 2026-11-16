@@ -73,7 +73,7 @@ describe("LoginForm unit tests", () => {
     expect(screen.queryByText(secretPassword)).toBeNull();
   });
 
-  it("4. Success: signInWithPassword is called with exact typed values, replace and refresh are called, no error", async () => {
+  it("4. Success: signInWithPassword is called with exact typed values, replace is called without refresh, no error", async () => {
     mockSignInWithPassword.mockResolvedValueOnce({ error: null });
 
     render(<LoginForm />);
@@ -91,7 +91,7 @@ describe("LoginForm unit tests", () => {
         password: "correctpassword",
       });
       expect(mockReplace).toHaveBeenCalledWith("/pdv");
-      expect(mockRefresh).toHaveBeenCalled();
+      expect(mockRefresh).not.toHaveBeenCalled();
     });
 
     expect(screen.queryByRole("alert")).toBeNull();
