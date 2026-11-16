@@ -128,7 +128,7 @@ function fixtureMovement(
   };
 }
 
-export function useCashSession(storeId: string | null) {
+export function useCashSession(storeId: string | null, enabled = true) {
   const fixtures = pdvFixturesEnabled();
   const userId = useSessionStore((state) => state.userId);
   const pendingMutations = useRef<Record<string, string>>({});
@@ -226,8 +226,9 @@ export function useCashSession(storeId: string | null) {
   }, [fixtures, saveResponse, storeId, terminalId, userId]);
 
   useEffect(() => {
+    if (!enabled) return;
     void refresh();
-  }, [refresh]);
+  }, [enabled, refresh]);
 
   const mutate = useCallback(
     async (payload: Record<string, unknown>) => {

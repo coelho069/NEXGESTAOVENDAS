@@ -6,7 +6,7 @@ import { pdvFixturesEnabled, writeFixtureInventory } from "@/lib/pdv/fixtures";
 import { useSessionStore } from "@/stores/session-store";
 import { inventoryQuantityToNumber } from "@/lib/domain/quantity";
 
-export function useProjectedStock(storeId: string | null, epoch = 0) {
+export function useProjectedStock(storeId: string | null, epoch = 0, enabled = true) {
   const [balances, setBalances] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [loadedStoreId, setLoadedStoreId] = useState<string | null>(null);
@@ -52,11 +52,12 @@ export function useProjectedStock(storeId: string | null, epoch = 0) {
   }, [storeId, userId]);
 
   useEffect(() => {
+    if (!enabled) return;
     const handleInventorySync = () => void reload();
     window.addEventListener("pdv:inventory-sync", handleInventorySync);
     void reload();
     return () => window.removeEventListener("pdv:inventory-sync", handleInventorySync);
-  }, [reload, epoch]);
+  }, [enabled, reload, epoch]);
 
   return { balances, loading: Boolean(storeId) && Boolean(userId || pdvFixturesEnabled()) && (loading || loadedStoreId !== storeId), reload };
 }

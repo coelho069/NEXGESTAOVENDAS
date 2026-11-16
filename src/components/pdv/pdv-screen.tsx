@@ -53,9 +53,32 @@ type PdvScreenProps = {
   role: MemberRole | null;
 };
 
+function useAfterPaint(): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let id: number | undefined;
+    const run = () => setReady(true);
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      const ric = (window as unknown as { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+      const cic = (window as unknown as { cancelIdleCallback: (id: number) => void }).cancelIdleCallback;
+      id = ric(run, { timeout: 50 });
+      return () => cic?.(id as number);
+    }
+    const raf = requestAnimationFrame(() => {
+      id = window.setTimeout(run, 0) as unknown as number;
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+      if (id !== undefined) clearTimeout(id);
+    };
+  }, []);
+  return ready;
+}
+
 export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
+  const afterPaint = useAfterPaint();
   const { loading: authLoading } = useAuth();
-  const { customers, createCustomer } = useCustomers();
+  const { customers, createCustomer } = useCustomers({ enabled: afterPaint });
   const {
     storeId,
     setStoreId,
@@ -68,7 +91,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
     setSuspendedContext,
   } = useCartStore();
   const boundStoreId = isForeignCartStore(stores, storeId) ? null : storeId;
-  const cash = useCashSession(boundStoreId);
+  const cash = useCashSession(boundStoreId, afterPaint);
   const paymentMethods = useStorePaymentMethods(boundStoreId);
   const { products, loading, error, fromCatalog } = useProducts({ storeId: boundStoreId });
   const { online, pendingCount, failedCount, syncing, conflicts, quotaExceeded, sessionEnded } = useSyncStore();
@@ -96,7 +119,7 @@ export function PdvScreen({ stores, initialStoreId, role }: PdvScreenProps) {
   );
   const effectiveRole = role ?? authorizedStore?.role ?? "cashier";
   const displayRole = role ?? authorizedStore?.role ?? null;
-  const { balances, loading: stockLoading } = useProjectedStock(boundStoreId, inventoryEpoch);
+  const { balances, loading: stockLoading } = useProjectedStock(boundStoreId, inventoryEpoch, afterPaint);
   const suspended = useSuspendedSales(boundStoreId);
   const salesHistory = useSalesHistory(boundStoreId);
   const [query, setQuery] = useState("");

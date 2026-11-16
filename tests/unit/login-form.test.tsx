@@ -1,17 +1,19 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { LoginForm } from "@/components/auth/login-form";
 
-const { mockReplace, mockRefresh, mockSignInWithPassword, mockCreateClient } = vi.hoisted(() => {
+const { mockReplace, mockRefresh, mockSignInWithPassword, mockSetSession, mockCreateClient } = vi.hoisted(() => {
   const mockReplace = vi.fn();
   const mockRefresh = vi.fn();
   const mockSignInWithPassword = vi.fn();
+  const mockSetSession = vi.fn(() => Promise.resolve({ data: {}, error: null }));
   const mockCreateClient = vi.fn(() => ({
     auth: {
       signInWithPassword: mockSignInWithPassword,
+      setSession: mockSetSession,
     },
   }));
-  return { mockReplace, mockRefresh, mockSignInWithPassword, mockCreateClient };
+  return { mockReplace, mockRefresh, mockSignInWithPassword, mockSetSession, mockCreateClient };
 });
 
 vi.mock("next/navigation", () => ({
@@ -25,9 +27,21 @@ vi.mock("@/lib/supabase/client", () => ({
   createClient: mockCreateClient,
 }));
 
+const fetchMock = vi.fn();
+
+beforeEach(() => {
+  vi.stubGlobal("fetch", fetchMock);
+  fetchMock.mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({ ok: true, session: { accessToken: "at", refreshToken: "rt" } }),
+  } as Response);
+});
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("LoginForm unit tests", () => {
@@ -73,9 +87,7 @@ describe("LoginForm unit tests", () => {
     expect(screen.queryByText(secretPassword)).toBeNull();
   });
 
-  it("4. Success: signInWithPassword is called with exact typed values, replace is called without refresh, no error", async () => {
-    mockSignInWithPassword.mockResolvedValueOnce({ error: null });
-
+  it("4. Success: fetch /api/auth/login is called with exact typed values, replace is called without refresh, no error", async () => {
     render(<LoginForm />);
     const emailInput = screen.getByPlaceholderText("seu@email.com");
     const passwordInput = screen.getByPlaceholderText("••••••••");
@@ -86,10 +98,10 @@ describe("LoginForm unit tests", () => {
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(mockSignInWithPassword).toHaveBeenCalledWith({
-        email: "cashier@loja.com",
-        password: "correctpassword",
-      });
+      expect(fetchMock).toHaveBeenCalledWith("/api/auth/login", expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ email: "cashier@loja.com", password: "correctpassword" }),
+      }));
       expect(mockReplace).toHaveBeenCalledWith("/pdv");
       expect(mockRefresh).not.toHaveBeenCalled();
     });
@@ -99,9 +111,11 @@ describe("LoginForm unit tests", () => {
 
   it("5. Wrong credentials: generic error appears, no navigation, error text does not contain typed password", async () => {
     const wrongPassword = "mysecretbadpassword";
-    mockSignInWithPassword.mockResolvedValueOnce({
-      error: { message: "Invalid login credentials" },
-    });
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      json: async () => ({ ok: false, error: "Credenciais inválidas" }),
+    } as unknown as Response);
 
     render(<LoginForm />);
     const emailInput = screen.getByPlaceholderText("seu@email.com");
@@ -120,9 +134,11 @@ describe("LoginForm unit tests", () => {
 
   it("6. Injection payload in password (' OR '1'='1): passed as plain parameter, does not log in successfully", async () => {
     const sqlInjectionPassword = "' OR '1'='1";
-    mockSignInWithPassword.mockResolvedValueOnce({
-      error: { message: "Invalid login credentials" },
-    });
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      json: async () => ({ ok: false, error: "Credenciais inválidas" }),
+    } as unknown as Response);
 
     render(<LoginForm />);
     const emailInput = screen.getByPlaceholderText("seu@email.com");
@@ -134,10 +150,9 @@ describe("LoginForm unit tests", () => {
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(mockSignInWithPassword).toHaveBeenCalledWith({
-        email: "admin@loja.com",
-        password: sqlInjectionPassword,
-      });
+      expect(fetchMock).toHaveBeenCalledWith("/api/auth/login", expect.objectContaining({
+        body: JSON.stringify({ email: "admin@loja.com", password: sqlInjectionPassword }),
+      }));
       expect(mockReplace).not.toHaveBeenCalled();
     });
     expect(screen.getByRole("alert")).toHaveTextContent("Credenciais inválidas ou sessão indisponível.");
@@ -145,9 +160,11 @@ describe("LoginForm unit tests", () => {
 
   it("7. Injection payload in email (admin'--@loja.com): does not log in successfully", async () => {
     const sqlInjectionEmail = "admin'--@loja.com";
-    mockSignInWithPassword.mockResolvedValueOnce({
-      error: { message: "Invalid login credentials" },
-    });
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      json: async () => ({ ok: false, error: "Credenciais inválidas" }),
+    } as unknown as Response);
 
     render(<LoginForm />);
     const emailInput = screen.getByPlaceholderText("seu@email.com");
@@ -159,19 +176,16 @@ describe("LoginForm unit tests", () => {
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(mockSignInWithPassword).toHaveBeenCalledWith({
-        email: sqlInjectionEmail,
-        password: "somepass",
-      });
+      expect(fetchMock).toHaveBeenCalledWith("/api/auth/login", expect.objectContaining({
+        body: JSON.stringify({ email: sqlInjectionEmail, password: "somepass" }),
+      }));
       expect(mockReplace).not.toHaveBeenCalled();
     });
     expect(screen.getByRole("alert")).toHaveTextContent("Credenciais inválidas ou sessão indisponível.");
   });
 
-  it("8. REGRESSION TEST FOR THIS BUG: createClient throws missing env error, generic error appears and button is back to enabled with text 'Entrar'", async () => {
-    mockCreateClient.mockImplementationOnce(() => {
-      throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY");
-    });
+  it("8. REGRESSION TEST FOR THIS BUG: fetch throws, generic error appears and button is back to enabled with text 'Entrar'", async () => {
+    fetchMock.mockRejectedValueOnce(new Error("Missing NEXT_PUBLIC_SUPABASE_URL"));
 
     render(<LoginForm />);
     const emailInput = screen.getByPlaceholderText("seu@email.com");
@@ -189,20 +203,14 @@ describe("LoginForm unit tests", () => {
     expect(button).toBeEnabled();
     expect(button).toHaveTextContent("Entrar");
 
-    // Reset mockCreateClient for subsequent tests
-    mockCreateClient.mockImplementation(() => ({
-      auth: {
-        signInWithPassword: mockSignInWithPassword,
-      },
-    }));
   });
 
   it("9. While the sign-in promise is pending, the button is disabled with the text 'Entrando...'", async () => {
-    let resolveSignIn: (value: { error: { message: string } | null }) => void = () => {};
-    const signInPromise = new Promise((resolve) => {
-      resolveSignIn = resolve as (value: { error: { message: string } | null }) => void;
+    let resolveFetch: (value: Response) => void = () => {};
+    const fetchPromise = new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
     });
-    mockSignInWithPassword.mockReturnValueOnce(signInPromise);
+    fetchMock.mockReturnValueOnce(fetchPromise);
 
     render(<LoginForm />);
     const emailInput = screen.getByPlaceholderText("seu@email.com");
@@ -216,7 +224,11 @@ describe("LoginForm unit tests", () => {
     const loadingBtn = screen.getByRole("button", { name: "Entrando..." });
     expect(loadingBtn).toBeDisabled();
 
-    resolveSignIn({ error: null });
+    resolveFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, session: { accessToken: "at", refreshToken: "rt" } }),
+    } as Response);
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Entrar" })).toBeEnabled();

@@ -13,8 +13,14 @@ page.on("response", (r) => {
 for (const url of ["https://nexgestaovendas.com.br/", "https://nexgestaovendas.com.br/login", "https://nexgestaovendas.com.br/pdv", "https://nexgestaovendas.com.br/politica-de-privacidade", "https://nexgestaovendas.com.br/clientes", "https://nexgestaovendas.com.br/configuracoes"]) {
   errors.length = 0; consoleMsgs.length = 0;
   try {
-    const res = await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
-    await page.waitForTimeout(3000);
+    const res = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+    // Measure user-perceived time (c): time until main content visible, not networkidle
+    const cStart = Date.now();
+    try { await page.getByTestId("pdv-layout").waitFor({ state: "visible", timeout: 15000 }); } catch {}
+    try { await page.getByRole("heading", { level: 1 }).first().waitFor({ state: "visible", timeout: 5000 }); } catch {}
+    const cMs = Date.now() - cStart;
+    console.log(`[c] visible content wait ${cMs}ms for ${url}`);
+    await page.waitForTimeout(500);
     const body = await page.locator("body").innerText().catch(()=>"");
     const hasAppError = body.includes("Application error") || body.includes("client-side exception");
     console.log("---", url, "status", res?.status(), "appError", hasAppError);

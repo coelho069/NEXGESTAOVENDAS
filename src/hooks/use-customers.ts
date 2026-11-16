@@ -40,7 +40,8 @@ function writeErrorMessage(status: number): string {
   return "Falha ao salvar cliente.";
 }
 
-export function useCustomers() {
+export function useCustomers(options: { enabled?: boolean } = {}) {
+  const { enabled = true } = options;
   const [customers, setCustomers] = useState<CatalogCustomer[]>(() =>
     pdvFixturesEnabled() ? DEMO_CUSTOMERS : []
   );
@@ -74,9 +75,9 @@ export function useCustomers() {
   }, []);
 
   useEffect(() => {
-    // Initial catalog loading synchronizes this client with Supabase.
+    if (!enabled) return;
     void load();
-  }, [load]);
+  }, [enabled, load]);
 
   const persistLocal = useCallback((customer: CatalogCustomer) => {
     setCustomers((current) => upsertCustomer(current, customer));

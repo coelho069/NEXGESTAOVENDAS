@@ -91,21 +91,45 @@ export function LoginForm() {
     setError(null);
 
     try {
-      const supabase = createClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ email, password }),
       });
-      if (signInError) {
-        setError("Credenciais inválidas ou sessão indisponível.");
+      const body = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: string;
+        session?: { accessToken: string; refreshToken: string };
+      } | null;
+
+      if (!res.ok || !body?.ok || !body.session) {
+        setLoading(false);
+        setError(
+          res.status === 429 && body?.error
+            ? body.error
+            : "Credenciais inválidas ou sessão indisponível."
+        );
         return;
       }
-      router.replace("/pdv");
+
+      // Server already set httpOnly cookies; adopt session in browser client
+      // (setSession validates token with Auth) in background so useAuth
+      // onAuthStateChange receives SIGNED_IN and /api/auth/session returns 200.
+      void createClient()
+        .auth.setSession({
+          access_token: body.session.accessToken,
+          refresh_token: body.session.refreshToken,
+        })
+        .catch(() => undefined);
     } catch {
-      setError("Credenciais inválidas ou sessão indisponível.");
-    } finally {
       setLoading(false);
+      setError("Credenciais inválidas ou sessão indisponível.");
+      return;
     }
+
+    setLoading(false);
+    router.replace("/pdv");
   };
 
   return (
